@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>CDC | Controladores registrados</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='CDC.css') }}">
+</head>
+<body class="module-page" data-module="{{ module_number }}">
+  <main class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img class="module-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco.jpeg') }}" alt="Logo RTP">
+        <h2>Programación de Controladores</h2><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span class="icon" data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      <nav>
+        <a href="{{ url_for('schedule_dashboard', module_number=module_number) }}"></a>
+        <a class="active" href="{{ url_for('module_dashboard', module_number=module_number) }}">Creación de controladores</a>
+        <a href="{{ url_for('routes_dashboard', module_number=module_number) }Asignación de Rol}">Rutas</a>
+        <a href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
+      </nav>
+      <div class="sidebar-module"> 
+        <strong>{{ module_name or module_number }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="main-content">
+      <header class="content-header">
+        <div>
+          <p class="eyebrow">CDC</p>
+          <h1>Controladores registrados</h1>
+          <p class="subtitle">{{ module_name or 'Módulo ' ~ module_number }} | {{ account.username }}</p>
+        </div>
+        <div class="connection is-online">
+          <span class="connection-dot"></span>
+          Conectado
+        </div>
+      </header>
+
+      <section class="card controller-registry-card">
+        <div class="card-heading">
+          <div>
+            <span class="step-number">01</span>
+            <h2>Controladores disponibles</h2>
+          </div>
+          <span class="record-count">{{ controllers|length }} registros</span>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre completo</th>
+                <th>Credencial</th>
+                <th>Sexo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for controller in controllers %}
+                <tr>
+                  <td>{{ controller.nombre }}</td>
+                  <td>{{ controller.credencial }}</td>
+                  <td>{{ controller.sexo }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="3" class="empty-table">Aún no hay controladores registrados.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+<script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</html>

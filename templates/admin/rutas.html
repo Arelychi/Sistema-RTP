@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Rutas | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+
+      {% include 'admin/_sidebar_nav.html' %}
+
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Rutas</h1>
+          <p class="subtitle">Rutas registradas y compartidas por módulo</p>
+        </div>
+        <div class="admin-connection">
+          <span class="admin-connection-dot"></span>
+          Conectado
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="admin-alerts" aria-live="polite">
+            {% for category, message in messages %}
+              <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="admin-content-grid">
+        <section class="admin-panel-card admin-form-panel">
+          <div class="admin-card-heading">
+            <div class="admin-card-title">
+              <span class="admin-step-number">01</span>
+              <h2>{{ 'Editar ruta' if editing_route else 'Crear ruta' }}</h2>
+            </div>
+          </div>
+
+          <div class="admin-form-shell">
+            <form method="post" action="{{ url_for('admin_create_route') }}" class="controller-form admin-controller-form">
+              {% if editing_route %}
+                <input type="hidden" name="route_id" value="{{ editing_route.id }}">
+              {% endif %}
+
+              <div class="admin-form-grid">
+                <label>
+                  Ruta <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="ruta" value="{{ editing_route.ruta if editing_route else '' }}" required>
+                </label>
+                <label>
+                  Tipos
+                  <select name="tipos">
+                    <option value="">Sin tipo</option>
+                    {% for tipo_ruta in tipos_rutas %}
+                      <option value="{{ tipo_ruta.id }}" {% if editing_route and editing_route.tipos == tipo_ruta.id %}selected{% endif %}>{{ tipo_ruta.descripcion }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+          
+                <label>
+                  Origen <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="origen" value="{{ editing_route.origen if editing_route else '' }}" required>
+                </label>
+
+                <label>
+                  Destino <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="destino" value="{{ editing_route.destino if editing_route else '' }}" required>
+                </label>
+
+                <label>
+                  Servicio <span class="required-label-note">* Campo Obligatorio</span>
+                  <select name="servicio" required>
+                    <option value="">Selecciona un servicio</option>
+                    {% for servicio in servicios %}
+                      <option value="{{ servicio.nombre }}" {% if editing_route and editing_route.servicio == servicio.nombre %}selected{% endif %}>{{ servicio.nombre }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+
+                <label>
+                  Estatus
+                  <select name="estado">
+                    <option value="Activo" {% if not editing_route or editing_route.estado == 'Activo' %}selected{% endif %}>Activo</option>
+                    <option value="Inactivo" {% if editing_route and editing_route.estado == 'Inactivo' %}selected{% endif %}>Inactivo</option>
+                  </select>
+                </label>
+
+                <label>
+                  Módulo <span class="required-label-note">* Campo Obligatorio</span>
+                  <select name="mod1" required>
+                    {% for module in modules %}
+                      <option value="{{ module.id }}" {% if editing_route and editing_route.mod1 == module.id %}selected{% elif not editing_route and loop.first %}selected{% endif %}>{{ module.nombre }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+
+                <div class="admin-shared-modules-field">
+                  Módulos compartidos
+                  <span class="admin-checkbox-list" role="group" aria-label="Módulos compartidos">
+                    <label class="admin-checkbox-option admin-select-all-option">
+                      <input id="shared-modules-all" type="checkbox">
+                      <span>Seleccionar todos</span>
+                    </label>
+                    {% for module in modules %}
+                      <label class="admin-checkbox-option">
+                        <input class="shared-module-checkbox" type="checkbox" name="shared_modules" value="{{ module.id }}" {% if editing_route and module.id == editing_route.mod1 %}disabled{% endif %} {% if module.id in shared_modules %}checked{% endif %}>
+                        <span>{{ module.nombre }}</span>
+                      </label>
+                    {% endfor %}
+                  </span>
+                  <small id="shared-modules-help" class="admin-field-help">Puedes seleccionar varios módulos. El módulo principal no se comparte consigo mismo.</small>
+                </div>
+              </div>
+
+              <div class="admin-form-actions">
+                <button class="admin-primary-button" type="submit">
+                  {{ 'Actualizar ruta' if editing_route else 'Guardar ruta' }}
+                </button>
+                {% if editing_route %}
+                  <a class="admin-secondary-button" href="{{ url_for('admin_routes_page') }}">Cancelar</a>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="admin-panel-card admin-registry-panel admin-route-panel">
+          <div class="admin-card-heading">
+            <div class="admin-card-title">
+              <span class="admin-step-number">02</span>
+              <h2>Rutas por módulo</h2>
+            </div>
+          </div>
+
+          <div class="admin-registry-tabs" role="tablist" aria-label="Módulos con rutas">
+            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Mostrar módulos anteriores">‹</button>
+            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
+            {% for group in grouped_routes %}
+              <button
+                type="button"
+                class="admin-registry-tab {% if loop.first %}active{% endif %}"
+                data-route-tab="route-module-{{ group.module_number }}"
+                role="tab"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+              >
+                {{ group.module_name or 'Módulo ' ~ group.module_number }}
+              </button>
+            {% endfor %}
+            </div></div>
+            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Mostrar más módulos">›</button>
+          </div>
+
+          <div class="admin-registry-contents">
+            {% for group in grouped_routes %}
+              <div class="admin-registry-content {% if loop.first %}active{% endif %}" id="route-module-{{ group.module_number }}" role="tabpanel">
+                <div class="admin-module-group admin-module-group-tabbed">
+                  <div class="admin-module-header">
+                    <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
+                    <strong>{{ group.routes|length }}</strong>
+                  </div>
+
+                  {% if group.routes %}
+                    <div class="admin-route-table-wrap">
+                      <table class="admin-route-table">
+                        <thead>
+                          <tr>
+                            <th>Nomenclatura</th>
+                            <th>Ruta</th>
+                            <th>Origen</th>
+                            <th>Destino</th>
+                            <th>Servicio</th>
+                            <th>Tipos</th>
+                            <th>Estatus</th>
+                            <th>Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for route in group.routes %}
+                            <tr>
+                              <td>{{ route.nomenclatura }}</td>
+                              <td>{{ route.ruta }}</td>
+                              <td>{{ route.origen }}</td>
+                              <td>{{ route.destino }}</td>
+                              <td>{{ route.servicio }}</td>
+                              <td>{{ route.tipos_descripcion or 'Sin tipo' }}</td>
+                              <td>
+                                {% if not route.is_external %}
+                                  <form method="post" action="{{ url_for('admin_toggle_route_status', route_id=route.id) }}">
+                                    <input type="hidden" name="estado" value="{{ route.estado }}">
+                                    <label class="route-switch" title="Cambiar estado de la ruta">
+                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                      <span class="route-switch-slider">
+                                        <span class="route-switch-knob"></span>
+                                        <span class="route-switch-text route-switch-text-on">Activo</span>
+                                        <span class="route-switch-text route-switch-text-off">Inactivo</span>
+                                      </span>
+                                    </label>
+                                  </form>
+                                {% else %}
+                                  <form method="post" action="{{ url_for('admin_toggle_shared_route_status', route_id=route.id, module_number=group.module_number) }}">
+                                    <input type="hidden" name="estado" value="{{ route.estado }}">
+                                    <label class="route-switch" title="Cambiar estado de la ruta compartida">
+                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                      <span class="route-switch-slider">
+                                        <span class="route-switch-knob"></span>
+                                        <span class="route-switch-text route-switch-text-on">Activo</span>
+                                        <span class="route-switch-text route-switch-text-off">Inactivo</span>
+                                      </span>
+                                    </label>
+                                  </form>
+                                {% endif %}
+                              </td>
+                              <td class="admin-controller-actions">
+                                {% if not route.is_external %}
+                                  <a class="admin-edit-button" href="{{ url_for('admin_routes_page', edit_id=route.id) }}">Editar</a>
+                                  <form method="post" action="{{ url_for('admin_delete_route', route_id=route.id) }}" onsubmit="return confirm('¿Deseas eliminar esta ruta?');">
+                                    <button class="admin-delete-button" type="submit">Eliminar</button>
+                                  </form>
+                                {% else %}
+                                  <form method="post" action="{{ url_for('admin_unlink_shared_route', route_id=route.id, module_number=group.module_number) }}" onsubmit="return confirm('¿Deseas desvincular esta ruta del módulo?');">
+                                    <button class="admin-unlink-button" type="submit">Desvincular</button>
+                                  </form>
+                                {% endif %}
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  {% else %}
+                    <p class="empty-state">Sin rutas registradas en este módulo.</p>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const tabs = document.querySelectorAll('[data-route-tab]');
+      const contents = document.querySelectorAll('.admin-route-panel .admin-registry-content');
+      const mainModule = document.querySelector('select[name="mod1"]');
+      const sharedModules = document.querySelectorAll('.shared-module-checkbox');
+      const selectAllModules = document.querySelector('#shared-modules-all');
+
+      function preventSharingMainModule() {
+        if (!mainModule) return;
+        sharedModules.forEach(function (checkbox) {
+          checkbox.disabled = checkbox.value === mainModule.value;
+          if (checkbox.disabled) checkbox.checked = false;
+        });
+        updateSelectAllState();
+      }
+
+      function updateSelectAllState() {
+        if (!selectAllModules) return;
+        const enabledModules = Array.from(sharedModules).filter((checkbox) => !checkbox.disabled);
+        selectAllModules.checked = enabledModules.length > 0 && enabledModules.every((checkbox) => checkbox.checked);
+        selectAllModules.indeterminate = enabledModules.some((checkbox) => checkbox.checked) && !selectAllModules.checked;
+      }
+
+      mainModule?.addEventListener('change', preventSharingMainModule);
+      sharedModules.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateSelectAllState);
+      });
+      selectAllModules?.addEventListener('change', function () {
+        sharedModules.forEach(function (checkbox) {
+          if (!checkbox.disabled) checkbox.checked = selectAllModules.checked;
+        });
+      });
+      preventSharingMainModule();
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const targetId = this.dataset.routeTab;
+
+          tabs.forEach(function (item) {
+            item.classList.toggle('active', item === tab);
+            item.setAttribute('aria-selected', item === tab ? 'true' : 'false');
+          });
+
+          contents.forEach(function (content) {
+            content.classList.toggle('active', content.id === targetId);
+          });
+        });
+      });
+    });
+  </script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+<script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
+</html>

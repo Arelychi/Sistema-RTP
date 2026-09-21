@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Inicio de sesión</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='inicio_de_sesion.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-wrap">
+    <section class="login-card">
+      <div class="login-form-panel">
+        <p class="eyebrow">Acceso al sistema</p>
+        <h1>Inicio de sesión</h1>
+        <p class="login-intro">Ingresa tus datos para continuar a la programación de controladores.</p>
+        <form method="post">
+          <label>
+            Usuario <span class="required-label-note">* Campo Obligatorio</span>
+            <input name="username" required autocomplete="username">
+          </label>
+          <label>
+            Contraseña <span class="required-label-note">* Campo Obligatorio</span>
+            <input name="password" type="password" required autocomplete="current-password">
+          </label>
+          {% if login_error %}
+            <p class="login-error">{{ login_error }}</p>
+          {% endif %}
+          <button class="primary-button" type="submit">Ingresar</button>
+          <a class="secondary-link" href="{{ url_for('recover_password') }}">Recuperar contraseña</a>
+        </form>
+      </div>
+      <aside class="login-brand-panel" aria-label="Identidad del sistema">
+        <div class="brand-logo-frame">
+          <img class="brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco.jpeg') }}" alt="Logotipos institucionales">
+        </div>
+        <p class="brand-kicker">Sistema</p>
+        <h2>Programación<br>de controladores</h2>
+        <p class="brand-caption">Red de Transporte de Pasajeros</p>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

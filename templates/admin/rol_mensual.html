@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Rol mensual | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      {% include 'admin/_sidebar_nav.html' %}
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Rol mensual</h1>
+          <p class="subtitle">Selecciona un módulo para consultar su programación mensual</p>
+        </div>
+        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
+      </header>
+
+      <section class="admin-panel-card admin-registry-panel admin-route-panel">
+        <div class="admin-card-heading">
+          <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Módulos disponibles</h2></div>
+        </div>
+        {% if modules %}
+          <div class="admin-registry-tabs" role="tablist" aria-label="Módulos con rol mensual">
+            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Mostrar módulos anteriores">‹</button>
+            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
+            {% for module in modules %}
+              <button
+                class="admin-registry-tab {% if loop.first %}active{% endif %}"
+                type="button"
+                data-role-tab="role-module-{{ module.id }}"
+                role="tab"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+              >{{ module.nombre }}</button>
+            {% endfor %}
+            </div></div>
+            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Mostrar más módulos">›</button>
+          </div>
+
+          <div class="admin-registry-contents">
+            {% for module in modules %}
+              <div class="admin-registry-content {% if loop.first %}active{% endif %}" id="role-module-{{ module.id }}" role="tabpanel">
+                <div class="admin-module-group admin-module-group-tabbed admin-monthly-role-frame">
+                  <div class="admin-module-header">
+                    <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ module.nombre }}</span>
+                    <strong>Rol mensual</strong>
+                  </div>
+                  <iframe
+                    class="admin-monthly-role-iframe"
+                    src="{{ url_for('schedule_dashboard', module_number=module.id, admin_embed=1) }}"
+                    title="Rol mensual de {{ module.nombre }}"
+                    loading="lazy"
+                  ></iframe>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="empty-state">No hay módulos disponibles.</p>
+        {% endif %}
+      </section>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const tabs = document.querySelectorAll('[data-role-tab]');
+      const contents = document.querySelectorAll('[data-role-tab], .admin-registry-content');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const targetId = this.dataset.roleTab;
+          tabs.forEach(function (item) {
+            const active = item === tab;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-selected', String(active));
+          });
+          document.querySelectorAll('.admin-registry-content').forEach(function (content) {
+            content.classList.toggle('active', content.id === targetId);
+          });
+        });
+      });
+    });
+  </script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

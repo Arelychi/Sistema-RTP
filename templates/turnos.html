@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Turnos</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='turnos.css') }}">
+</head>
+<body class="module-page catalog-page" data-module="{{ module_number }}">
+  <main class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><img class="module-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP"><h2>Programación de Controladores</h2><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button></div>
+      <nav>
+      
+        <a  href="{{ url_for('schedule_dashboard', module_number=module_number) }}">Programación de tiempo</a>
+        <a href="{{ url_for('module_dashboard', module_number=module_number) }}">Creación de controladores</a>
+        <a href="{{ url_for('routes_dashboard', module_number=module_number) }}">Rutas</a>
+        <a class="active" href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
+      </nav>
+      <div class="sidebar-module"><strong>{{ module_name or module_number }}</strong><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button></form></div>
+    </aside>
+
+    <section class="main-content">
+      <header class="content-header">
+        <div><p class="eyebrow">Asignación</p><h1>Turnos</h1><p class="subtitle">{{ module_name or 'Módulo ' ~ module_number }} | {{ account.username }}</p></div>
+        <div class="connection is-online"><span class="connection-dot"></span>Conectado</div>
+      </header>
+
+      <div class="catalog-grid shift-selection-grid">
+        <section class="card catalog-card">
+          <div class="card-heading"><div><span class="step-number">01</span><h2>Turnos disponibles</h2></div><span id="turnos-count" class="record-count">0 turnos</span></div>
+          <div id="turnos-options" class="shift-options" aria-live="polite"></div>
+        </section>
+
+        <section class="card catalog-card">
+          <div class="card-heading"><div><span class="step-number">02</span><h2>Turnos elegidos</h2></div><span id="selected-count" class="record-count">0 turnos</span></div>
+          <div class="table-container"><table class="selected-shifts-table"><thead><tr><th>Turno</th><th>Inicio</th><th>Fin</th></tr></thead><tbody id="selected-turnos-body"></tbody></table></div>
+        </section>
+      </div>
+    </section>
+  </main>
+<script>
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+let availableShifts = [];
+const storageKey = `selected-shifts-${document.body.dataset.module}`;
+let selectedShiftIds = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]').map(String));
+async function loadShifts() {
+  const response = await fetch('/api/catalogos/turnos');
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los turnos.');
+  availableShifts = data.filter((shift) => shift.activo);
+  selectedShiftIds = new Set([...selectedShiftIds].filter((id) => availableShifts.some((shift) => String(shift.id) === id)));
+  renderShifts();
+}
+function renderShifts() {
+  document.getElementById('turnos-count').textContent = `${availableShifts.length} ${availableShifts.length === 1 ? 'turno' : 'turnos'}`;
+  document.getElementById('turnos-options').innerHTML = availableShifts.length ? availableShifts.map((shift) => {
+    const shiftId = String(shift.id);
+    return `<label class="shift-option"><input type="checkbox" data-shift-id="${shiftId}" ${selectedShiftIds.has(shiftId) ? 'checked' : ''}><span class="shift-checkmark" aria-hidden="true"></span><span class="shift-option-copy"><strong>Turno ${escapeHtml(shift.numero)}</strong><small>${escapeHtml(shift.hora_inicio)} - ${escapeHtml(shift.hora_fin)}</small></span></label>`;
+  }).join('') : '<p class="empty-table">No hay turnos disponibles.</p>';
+  const selected = availableShifts.filter((shift) => selectedShiftIds.has(String(shift.id)));
+  document.getElementById('selected-count').textContent = `${selected.length} ${selected.length === 1 ? 'turno' : 'turnos'}`;
+  document.getElementById('selected-turnos-body').innerHTML = selected.length ? selected.map((shift) => `<tr><td>Turno ${escapeHtml(shift.numero)}</td><td>${escapeHtml(shift.hora_inicio)}</td><td>${escapeHtml(shift.hora_fin)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty-table">Selecciona uno o más turnos.</td></tr>';
+}
+document.getElementById('turnos-options').addEventListener('change', (event) => {
+  const checkbox = event.target.closest('input[data-shift-id]');
+  if (!checkbox) return;
+  if (checkbox.checked) selectedShiftIds.add(checkbox.dataset.shiftId);
+  else selectedShiftIds.delete(checkbox.dataset.shiftId);
+  localStorage.setItem(storageKey, JSON.stringify([...selectedShiftIds]));
+  renderShifts();
+});
+loadShifts().catch((error) => { document.getElementById('turnos-options').innerHTML = `<p class="empty-table">${escapeHtml(error.message)}</p>`; });
+</script>
+</body>
+<script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</html>

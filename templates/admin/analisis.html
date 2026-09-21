@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Análisis | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      {% include 'admin/_sidebar_nav.html' %}
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Análisis</h1>
+          <p class="subtitle">Métricas de uso y distribución operativa</p>
+        </div>
+        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
+      </header>
+
+      <section class="analysis-section">
+        <div class="analysis-section-heading"><span class="admin-step-number">01</span><div><h2>Controladores</h2><p>Días trabajados, descansos, vacaciones y distribución del personal.</p></div></div>
+        <section class="analysis-stat-grid" aria-label="Indicadores de controladores">
+          <article class="analysis-stat-card"><span>Usuarios activos</span><strong>{{ metrics.users }}</strong><small>{{ metrics.admins }} administradores</small></article>
+          <article class="analysis-stat-card"><span>Controladores</span><strong>{{ metrics.controllers }}</strong><small>{{ metrics.active_controllers }} activos</small></article>
+          <article class="admin-panel-card analysis-panel">
+            <div class="admin-card-heading">
+              <div class="admin-card-title"><h2>Distribución por sexo</h2></div>
+            </div>
+            <div class="analysis-gender-list">
+              {% for item in metrics.gender_distribution %}
+                <div class="analysis-gender-row">
+                  <div>
+                    <strong>{{ item.sexo }}</strong>
+                    <span>{{ item.total }} controlador{{ 'es' if item.total != 1 else '' }}</span>
+                  </div>
+                  <div class="analysis-bar">
+                    <progress value="{{ item.total }}" max="{{ metrics.active_controllers or 1 }}"></progress>
+                  </div>
+                </div>
+              {% else %}
+                <p class="empty-state">Sin datos de género registrados.</p>
+              {% endfor %}
+            </div>
+          </article>
+        </section>
+
+        <section class="admin-panel-card analysis-panel">
+          <div class="admin-card-heading"><div class="admin-card-title"><h2>Días por controlador</h2></div></div>
+          {% if metrics.controller_days %}<div class="analysis-route-table-wrap"><table class="analysis-route-table"><thead><tr><th>Controlador</th><th>Credencial</th><th>Trabajados</th><th>Descanso</th><th>Vacaciones</th></tr></thead><tbody>{% for item in metrics.controller_days %}<tr><td><strong>{{ item.nombre }}</strong></td><td>{{ item.credencial }}</td><td>{{ item.trabajados }}</td><td>{{ item.descanso }}</td><td>{{ item.vacaciones }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty-state">Aún no hay registros de roles mensuales.</p>{% endif %}
+        </section>
+      </section>
+
+      <section class="analysis-section">
+        <div class="analysis-section-heading"><span class="admin-step-number">02</span><div><h2>Operación de rutas</h2><p>Actividad, rutas compartidas y uso de turnos.</p></div></div>
+        <section class="analysis-stat-grid" aria-label="Indicadores de rutas">
+          <article class="analysis-stat-card"><span>Rutas registradas</span><strong>{{ metrics.routes }}</strong><small>{{ metrics.active_routes }} activas · {{ metrics.inactive_routes }} inactivas</small></article>
+          <article class="analysis-stat-card analysis-featured-stat"><span>Ruta con más controladores</span><strong>{{ metrics.most_controllers.ruta if metrics.most_controllers else 'Sin datos' }}</strong><small>{{ metrics.most_controllers.controladores if metrics.most_controllers else 0 }} controladores asignados</small></article>
+          <article class="analysis-stat-card"><span>Turnos utilizados</span><strong>{{ metrics.shift_usage|length }}</strong><small>Según roles mensuales</small></article>
+        </section>
+
+      <div class="analysis-content-grid">
+        <section class="admin-panel-card analysis-panel">
+          <div class="admin-card-heading"><div class="admin-card-title"><h2>Rutas más compartidas</h2></div></div>
+          {% if metrics.shared_routes %}<div class="analysis-route-table-wrap"><table class="analysis-route-table"><thead><tr><th>Ruta</th><th>Compartida</th><th>Módulos</th></tr></thead><tbody>{% for route in metrics.shared_routes %}<tr><td><strong>{{ route.ruta }}</strong></td><td>{{ route.compartida }}</td><td>{{ route.modulos }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty-state">No hay rutas compartidas.</p>{% endif %}
+        </section>
+
+        <section class="admin-panel-card analysis-panel">
+          <div class="admin-card-heading">
+            <div class="admin-card-title"><span class="admin-step-number">02</span><h2>Uso de rutas</h2></div>
+          </div>
+          <p class="analysis-panel-note">Asignaciones acumuladas en los roles mensuales.</p>
+          {% if metrics.route_usage %}
+            <div class="analysis-route-table-wrap">
+              <table class="analysis-route-table">
+                <thead><tr><th>Ruta</th><th>Asignaciones</th><th>Controladores</th><th>Módulos</th></tr></thead>
+                <tbody>
+                  {% for route in metrics.route_usage %}
+                    <tr><td><strong>{{ route.ruta }}</strong></td><td>{{ route.asignaciones }}</td><td>{{ route.controladores }}</td><td>{{ route.modulos }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="empty-state">Aún no hay asignaciones de rutas en roles mensuales.</p>
+          {% endif %}
+        </section>
+
+        <section class="admin-panel-card analysis-panel">
+          <div class="admin-card-heading"><div class="admin-card-title"><h2>Turnos más y menos usados</h2></div></div>
+          {% if metrics.shift_usage %}<div class="analysis-shift-list"><div class="analysis-shift-highlight"><span>Más usado</span><strong>{{ metrics.shift_usage[0].turno }}</strong><small>{{ metrics.shift_usage[0].usos }} usos</small></div><div class="analysis-shift-highlight is-low"><span>Menos usado</span><strong>{{ metrics.shift_usage[-1].turno }}</strong><small>{{ metrics.shift_usage[-1].usos }} usos</small></div></div>{% else %}<p class="empty-state">Aún no hay turnos utilizados.</p>{% endif %}
+        </section>
+      </div>
+      </section>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

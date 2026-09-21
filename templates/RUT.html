@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>RUT | Rutas registradas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='RUT.css') }}">
+</head>
+<body class="module-page" data-module="{{ module_number }}">
+  <main class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img class="module-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Programación de Controladores</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      <nav>
+        <a href="{{ url_for('schedule_dashboard', module_number=module_number) }}">Programación de tiempo</a>
+        <a href="{{ url_for('module_dashboard', module_number=module_number) }}">Creación de controladores</a>
+        <a class="active" href="{{ url_for('routes_dashboard', module_number=module_number) }}">Rutas</a>
+        <a href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
+      </nav>
+      <div class="sidebar-module">
+        
+        <strong>{{ module_name or module_number }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="main-content">
+      <header class="content-header">
+        <div>
+          <p class="eyebrow">RUT</p>
+          <h1>Rutas registradas</h1>
+          <p class="subtitle">{{ module_name or 'Módulo ' ~ module_number }} | {{ account.username }}</p>
+        </div>
+        <div class="connection is-online">
+          <span class="connection-dot"></span>
+          Conectado
+        </div>
+      </header>
+
+      <section class="card table-card full-width-table">
+        <div class="card-heading">
+          <div>
+            <span class="step-number">01</span>
+            <h2>Rutas registradas en este módulo</h2>
+          </div>
+          <span class="record-count">{{ routes|length }} registros</span>
+        </div>
+
+        <div class="calendar-tabs" role="tablist" aria-label="Filtrar rutas">
+          <button class="calendar-tab active" type="button" data-route-filter="active" role="tab" aria-selected="true">
+            Rutas
+          </button>
+          <button class="calendar-tab" type="button" data-route-filter="shared" role="tab" aria-selected="false">
+            Rutas compartidas
+          </button>
+          <button class="calendar-tab" type="button" data-route-filter="inactive" role="tab" aria-selected="false">
+            Rutas inactivas
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Nomenclatura</th>
+                <th>Ruta</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>Servicio</th>
+                <th>Tipos</th>
+                <th>Rutas compartidas</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in routes %}
+                <tr
+                  class="route-row {% if item.estado == 'Inactivo' %}inactive-row{% endif %}"
+                  data-route-status="{{ 'active' if item.estado == 'Activo' else 'inactive' }}"
+                  data-route-shared="{{ 'true' if item.is_external else 'false' }}"
+                >
+                  <td>
+                    {{ item.nomenclatura }}
+                    {% if item.is_external %}
+                      
+                    {% elif item.shared_modules|length > 1 %}
+                      
+                    {% endif %}
+                  </td>
+                  <td>{{ item.ruta }}</td>
+                  <td>{{ item.origen }}</td>
+                  <td>{{ item.destino }}</td>
+                  <td>{{ item.servicio }}</td>
+                  <td>{{ item.tipos_descripcion or 'Sin tipo' }}</td>
+                  <td>
+                    {% if item.shared_modules|length > 1 %}
+                      <div class="shared-module-list">
+                        {% for shared_module in item.shared_modules %}
+                          <span class="{% if shared_module.id == item.mod1 %}tag-owner{% else %}tag-external{% endif %}">
+                            {{ shared_module.nombre }}
+                          </span>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      No
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="status-badge {% if item.estado == 'Activo' %}status-active{% else %}status-inactive{% endif %}">
+                      {{ item.estado }}
+                    </span>
+                  </td>
+                </tr>
+              {% else %}
+                <tr class="empty-routes-row">
+                  <td colspan="8" class="empty-table">Aún no hay rutas registradas.</td>
+                </tr>
+              {% endfor %}
+              <tr id="filtered-routes-empty" class="filtered-routes-empty" hidden>
+                <td colspan="8" class="empty-table">No hay rutas para esta pestaña.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script>
+    const routeRows = [...document.querySelectorAll('.route-row')];
+    const routeTabs = [...document.querySelectorAll('.calendar-tab')];
+    const filteredRoutesEmpty = document.querySelector('#filtered-routes-empty');
+    const recordCount = document.querySelector('.record-count');
+
+    function matchesRouteFilter(row, filter) {
+      if (filter === 'shared') {
+        return row.dataset.routeShared === 'true';
+      }
+      return row.dataset.routeStatus === filter;
+    }
+
+    function applyRouteFilter(filter) {
+      let visibleRoutes = 0;
+
+      routeRows.forEach((row) => {
+        const isVisible = matchesRouteFilter(row, filter);
+        row.hidden = !isVisible;
+        if (isVisible) {
+          visibleRoutes += 1;
+        }
+      });
+
+      if (filteredRoutesEmpty) {
+        filteredRoutesEmpty.hidden = visibleRoutes !== 0;
+      }
+
+      if (recordCount) {
+        recordCount.textContent = `${visibleRoutes} registros`;
+      }
+    }
+
+    routeTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        routeTabs.forEach((currentTab) => {
+          const isActive = currentTab === tab;
+          currentTab.classList.toggle('active', isActive);
+          currentTab.setAttribute('aria-selected', String(isActive));
+        });
+        applyRouteFilter(tab.dataset.routeFilter);
+      });
+    });
+
+    applyRouteFilter('active');
+  </script>
+</body>
+<script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</html>

@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Programación de tiempo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='rol_de_controladores.css') }}">
+</head>
+<body class="module-page{% if table_only %} table-only-page{% endif %}{% if admin_embed %} admin-embedded-role{% endif %}" data-year="{{ today.year }}" data-month="{{ today.month }}" data-day="{{ today.day }}" data-module="{{ module_number }}" data-table-only="{{ 'true' if table_only else 'false' }}" data-today-year="{{ today.year }}" data-today-month="{{ today.month }}">
+  <main class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><img class="module-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP"><h2>Programación de Controladores</h2><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button></div>
+      <nav>
+      
+        <a class="active" href="{{ url_for('schedule_dashboard', module_number=module_number) }}">Programación de tiempo</a>
+        <a href="{{ url_for('module_dashboard', module_number=module_number) }}">Creación de controladores</a>
+        <a href="{{ url_for('routes_dashboard', module_number=module_number) }}">Rutas</a>
+        <a href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
+      </nav>
+      <div class="sidebar-module"><strong>{{ module_name or module_number }}</strong><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button></form></div>
+    </aside>
+
+    <section class="main-content schedule-content">
+      <header class="content-header">
+        <div><p class="eyebrow">Programación mensual</p><h1>Programación de controladores de Tiempo</h1><p class="subtitle">{{ module_name or 'Módulo ' ~ module_number }} | {{ account.username }}</p></div>
+        <div class="connection is-online"><span class="connection-dot"></span> Conectado</div>
+      </header>
+
+      <section class="schedule-toolbar card">
+        <div class="month-controls"><button id="previous-month" type="button" aria-label="Mes anterior">‹</button><strong id="month-label"></strong><button id="next-month" type="button" aria-label="Mes siguiente">›</button></div>
+        <div class="toolbar-actions">
+          {% if table_only or admin_embed %}<button id="activate-month" class="secondary-button activate-month-button" type="button" hidden>Activar Mes</button>{% endif %}
+          <button id="download-excel" class="secondary-button" type="button">Descargar Excel</button>
+        </div>
+      </section>
+      <p class="month-closed-notice" hidden></p>
+
+      <div class="schedule-grid-toggle">
+        <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de asignaciones</span>
+        <button id="toggle-schedule-grid" class="schedule-grid-toggle-button" type="button" aria-label="Ocultar editor de asignaciones" aria-expanded="true" title="Ocultar editor de asignaciones"><span class="schedule-grid-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar editor</span></button>
+      </div>
+      <section id="schedule-grid" class="schedule-grid">
+        <section class="card schedule-form-card">
+          <div class="card-heading"><div class="card-title"><span class="step-number">01</span><h2>Asignar registro</h2></div><button id="create-record" class="secondary-button create-record-button" type="button">Crear registro</button></div>
+          <form id="schedule-form">
+            <label>
+              Buscar trabajador <span class="required-label-note">* Campo Obligatorio</span>
+              <span class="combo-field"><input id="controller-search" type="search" placeholder="Buscar trabajador por nombre o credencial" autocomplete="off" aria-label="Buscar trabajador" role="combobox" aria-autocomplete="list" aria-controls="controller-search-menu" aria-expanded="false" required><span class="combo-field-icon" aria-hidden="true"></span><div id="controller-search-menu" class="combo-menu" role="listbox" hidden></div></span>
+              <datalist id="controller-search-options"></datalist>
+              <input id="controller-name" name="name" type="hidden" value="">
+            </label>
+            <label>Credencial <span class="required-label-note">* Campo Obligatorio</span><select id="controller-credential" class="display-value-field" name="credential" required tabindex="-1" aria-readonly="true"><option value="">Selecciona una credencial</option></select></label>
+            <label>Ruta <span class="required-label-note">* Campo Obligatorio</span><select id="route-select" name="route" required><option value="">Selecciona una ruta</option></select></label>
+            <div class="two-fields"><label>Turno <span class="required-label-note">* Campo Obligatorio</span><select id="shift-select" name="shift" required><option value="">Selecciona un turno</option></select></label><label>Nomenclatura <span class="required-label-note">* Campo Obligatorio</span><input id="route-nomenclature" class="display-value-field" name="nomenclature" required maxlength="10" placeholder="A" readonly></label></div>
+            <div class="code-preview">Código seleccionado <strong id="code-preview">--</strong></div>
+            <div id="day-edit-actions" class="day-edit-actions" hidden>
+              <strong id="editing-day-label"></strong>
+            </div>
+            <div class="record-form-actions"><button class="primary-button" type="submit">Guardar asignación</button><button id="cancel-edit-button" class="secondary-button" type="button" hidden>Cancelar edición</button></div>
+            <p id="form-message" class="form-message" role="status"></p>
+          </form>
+        </section>
+
+        <section class="card calendar-card">
+          <div class="card-heading"><div class="card-title"><span class="step-number">02</span><h2>Calendario</h2></div></div>
+
+          <div class="calendar-tabs" aria-label="Cambiar vista del calendario">
+            <button class="calendar-tab is-active" type="button" data-tab="calendar">Calendario</button>
+            <button class="calendar-tab" type="button" data-tab="routes">Rutas</button>
+            <button class="calendar-tab" type="button" data-tab="turnos">Turnos</button>
+          </div>
+
+          <div id="calendar-panel" class="calendar-panel is-active">
+            <div id="calendar-modes" class="calendar-modes">
+              <button class="mode-button is-active" data-mode="work" type="button">Trabajo</button>
+              <button class="mode-button" data-mode="rest" type="button">Descanso</button>
+              <button class="mode-button" data-mode="vacation" type="button">Vacación (V)</button>
+              <button class="mode-button mode-delete" data-mode="delete" type="button">Eliminar asignación</button>
+            </div>
+            <div id="calendar" class="mini-calendar"></div>
+            <div class="selection-summary"><span id="selection-summary">0 días seleccionados</span><button id="clear-days" class="text-button" type="button">Limpiar</button></div>
+          </div>
+
+          <div id="routes-panel" class="calendar-panel routes-panel" aria-live="polite">
+            <div class="routes-panel-header">
+              <strong>Rutas disponibles</strong>
+              <span id="routes-count" class="routes-count">0 rutas</span>
+            </div>
+            <div id="available-routes-list" class="available-routes-list"></div>
+          </div>
+
+          <div id="turnos-panel" class="calendar-panel turnos-panel" aria-live="polite">
+            <div class="routes-panel-header">
+              <strong>Turnos disponibles</strong>
+              <span id="turnos-count" class="routes-count">0 turnos</span>
+            </div>
+            <div id="available-turnos-list" class="available-routes-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="card schedule-table-card">
+        <div class="card-heading"><div class="card-title"><span class="step-number">03</span><h2>Programacíón de controladores de tiempo del mes <span id="monthly-role-period">{{ today.month }}/{{ today.year }}</span></h2></div><div class="table-heading-actions"><label class="schedule-filter" for="schedule-record-filter"><span class="schedule-filter-label">Buscar</span><span class="schedule-filter-field"><input id="schedule-record-filter" type="search" placeholder="Nombre o credencial" autocomplete="off"><button id="clear-schedule-filter" class="schedule-filter-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button></span></label><span id="record-count" class="record-count">0 registros</span><button id="save-all-records" class="primary-button" type="button">Guardar</button></div></div>
+        <div class="table-container schedule-table-container"><table id="schedule-table"><thead></thead><tbody></tbody></table></div>
+      </section>
+    </section>
+  </main>
+  <div id="schedule-feedback" class="schedule-feedback" role="status" aria-live="polite"></div>
+  <div id="code-conflict-dialog" class="code-conflict-dialog" hidden>
+    <div class="code-conflict-backdrop" data-conflict-cancel></div>
+    <section class="code-conflict-modal" role="alertdialog" aria-modal="true" aria-labelledby="code-conflict-title" aria-describedby="code-conflict-message">
+      <p class="code-conflict-eyebrow">Asignación repetida</p>
+      <h2 id="code-conflict-title">Código ya utilizado</h2>
+      <p id="code-conflict-message">Estas ingresando un controlador al mismo turno y ruta.</p>
+      <div class="code-conflict-actions">
+        <button class="secondary-button-cancel" type="button" data-conflict-cancel>Cancelar</button>
+        <button class="primary-button-accept" type="button" data-conflict-accept>Aceptar</button>
+      </div>
+    </section>
+  </div>
+  <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-busy="false">
+    <div class="loader" aria-hidden="true"></div>
+    <p id="loadingText">Procesando...</p>
+  </div>
+<script>
+const body = document.body;
+const state = { year: Number(body.dataset.year), month: Number(body.dataset.month), monthActivated: false, calendarEditingEnabled: true, savingRecord: false, mode: 'work', work: new Set(), rest: new Set(), vacation: new Set(), special: {}, specialStates: [], assignments: {}, dailyDetails: {}, editedDays: new Set(), lastEditedDay: null, editedTimer: null, selectedRecord: null, editingDays: new Set(), editingSnapshots: new Map(), monthRecords: [], controllerCatalog: [] };
+const todayPeriod = Number(body.dataset.todayYear) * 12 + Number(body.dataset.todayMonth);
+const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const weekdays = ['L','M','M','J','V','S','D'];
+const $ = (selector) => document.querySelector(selector);
+const form = $('#schedule-form');
+const controllerSearch = $('#controller-search');
+const controllerSearchMenu = $('#controller-search-menu');
+const controllerName = $('#controller-name');
+const controllerCredential = $('#controller-credential');
+const routeSelect = $('#route-select');
+const routeNomenclature = $('#route-nomenclature');
+const shiftSelect = $('#shift-select');
+const dayEditActions = $('#day-edit-actions');
+const editingDayLabel = $('#editing-day-label');
+const saveAssignmentButton = document.querySelector('.record-form-actions .primary-button');
+const cancelEditButton = $('#cancel-edit-button');
+const saveAllRecordsButton = $('#save-all-records');
+const scheduleRecordFilter = $('#schedule-record-filter');
+const clearScheduleFilter = $('#clear-schedule-filter');
+const scheduleGrid = $('#schedule-grid');
+const scheduleGridToggle = $('#toggle-schedule-grid');
+const scheduleTableCard = document.querySelector('.schedule-table-card');
+const scheduleFeedback = $('#schedule-feedback');
+const loadingOverlay = $('#loadingOverlay');
+const loadingText = $('#loadingText');
+const scheduleFormDisabledState = new Map();
+const routeOptions = [];
+let shiftOptions = [];
+const calendarTabs = document.querySelectorAll('.calendar-tab');
+const calendarPanels = document.querySelectorAll('.calendar-panel');
+const codeConflictDialog = $('#code-conflict-dialog');
+const codeConflictMessage = $('#code-conflict-message');
+let resolveCodeConflict = null;
+let controllerMenuOpen = false;
+function showLoader(text = 'Procesando...') {
+  if (!loadingOverlay) return;
+  loadingText.textContent = text;
+  loadingOverlay.classList.add('show');
+  loadingOverlay.setAttribute('aria-busy', 'true');
+}
+function hideLoader() {
+  if (!loadingOverlay) return;
+  loadingOverlay.classList.remove('show');
+  loadingOverlay.setAttribute('aria-busy', 'false');
+}
+function setControllerMenuOpen(open) {
+  controllerMenuOpen = open;
+  if (controllerSearchMenu) controllerSearchMenu.hidden = !open;
+  controllerSearch?.setAttribute('aria-expanded', String(open));
+}
+function calendarHasController() {
+  return Boolean(state.selectedRecord?.credential || controllerCredential.value.trim());
+}
+function updateCalendarLock() {
+  const locked = !calendarHasController() || monthIsClosed() || !state.calendarEditingEnabled || state.savingRecord;
+  document.querySelectorAll('#calendar-modes button, #clear-days').forEach((element) => { element.disabled = locked; });
+  document.querySelectorAll('#calendar .day:not(.blank)').forEach((element) => { element.disabled = locked; });
+  document.querySelector('#calendar-modes')?.classList.toggle('is-locked', locked);
+  document.querySelector('#calendar')?.classList.toggle('is-locked', locked);
+}
+function workAssignmentReady() {
+  const routeSelected = Boolean(routeSelect.value.trim());
+  const shiftSelected = Boolean(shiftSelect.value.trim());
+  if (routeSelected && shiftSelected) return true;
+  $('#form-message').textContent = !routeSelected && !shiftSelected
+    ? 'Selecciona una ruta y un turno antes de asignar un día.'
+    : !routeSelected
+      ? 'Selecciona una ruta antes de asignar un día.'
+      : 'Selecciona un turno antes de asignar un día.';
+  if (!routeSelected) routeSelect.focus();
+  else shiftSelect.focus();
+  return false;
+}
+function askCodeConflict(message) {
+  codeConflictMessage.textContent = message;
+  codeConflictDialog.hidden = false;
+  document.body.classList.add('dialog-open');
+  return new Promise((resolve) => { resolveCodeConflict = resolve; });
+}
+function closeCodeConflict(accepted) {
+  codeConflictDialog.hidden = true;
+  document.body.classList.remove('dialog-open');
+  if (resolveCodeConflict) resolveCodeConflict(accepted);
+  resolveCodeConflict = null;
+}
+function codeForDay(record, day) {
+  return record?.daily_details?.[String(day)]?.code || record?.daily_assignments?.[String(day)] || '';
+}
+function findCodeConflict(code, day, credential) {
+  return state.monthRecords.find((record) => record.credential !== credential && codeForDay(record, day) === code);
+}
+async function confirmCodeConflict(code, day, credential) {
+  const conflict = findCodeConflict(code, day, credential);
+  if (!conflict) return true;
+  const name = conflict.name || conflict.credential;
+  return askCodeConflict(`Estas ingresando un controlador al mismo turno y ruta. El código ${code} ya está asignado a ${name} el día ${day}. ¿Deseas continuar?`);
+}
+codeConflictDialog?.querySelector('[data-conflict-accept]')?.addEventListener('click', () => closeCodeConflict(true));
+codeConflictDialog?.querySelectorAll('[data-conflict-cancel]').forEach((element) => element.addEventListener('click', () => closeCodeConflict(false)));
+function monthIsClosed() { return state.year * 12 + state.month < todayPeriod && !state.monthActivated; }
+function updateMonthEditability() {
+  const closed = monthIsClosed();
+  document.querySelectorAll('#schedule-form input, #schedule-form select, #schedule-form button, #calendar-modes button, #clear-days, #save-all-records, #create-record').forEach((element) => { element.disabled = closed; });
+  updateCalendarLock();
+  const activateButton = $('#activate-month');
+  if (activateButton) { activateButton.hidden = !((state.year * 12 + state.month) < todayPeriod); activateButton.textContent = state.monthActivated ? 'Desactivar Mes' : 'Activar Mes'; activateButton.disabled = false; }
+  document.querySelectorAll('.month-closed-notice').forEach((element) => {
+    const expired = state.year * 12 + state.month < todayPeriod;
+    element.hidden = !expired;
+    element.textContent = state.monthActivated
+      ? 'Mes activado por el administrador. La edición está habilitada.'
+      : 'Mes desactivado por el administrador. El rol mensual está en solo lectura.';
+    element.classList.toggle('is-active', state.monthActivated);
+  });
+}
+function setScheduleGridCollapsed(collapsed) {
+  scheduleGrid.classList.toggle('is-collapsed', collapsed);
+  scheduleGridToggle.setAttribute('aria-expanded', String(!collapsed));
+  const action = collapsed ? 'Mostrar' : 'Ocultar';
+  scheduleGridToggle.setAttribute('aria-label', `${action} editor de asignaciones`);
+  scheduleGridToggle.title = `${action} editor de asignaciones`;
+  scheduleGridToggle.querySelector('.schedule-grid-toggle-icon').textContent = collapsed ? '🠋' : '🠉';
+  scheduleGridToggle.querySelector('.schedule-grid-toggle-text').textContent = `${action} editor`;
+}
+
+scheduleGridToggle.addEventListener('click', () => setScheduleGridCollapsed(!scheduleGrid.classList.contains('is-collapsed')));
+
+function setCalendarTab(tabName) {
+  calendarTabs.forEach((button) => {
+    const isActive = button.dataset.tab === tabName;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-selected', String(isActive));
+  });
+  calendarPanels.forEach((panel) => {
+    const isActive = panel.id === `${tabName}-panel`;
+    panel.classList.toggle('is-active', isActive);
+  });
+}
+function renderTurnosList() {
+  const list = $('#available-turnos-list');
+  if (!list) return;
+  const count = shiftOptions.length;
+  $('#turnos-count').textContent = `${count} ${count === 1 ? 'turno' : 'turnos'}`;
+  list.innerHTML = shiftOptions.length ? shiftOptions.map((turno) => `
+    <button class="route-item" type="button" data-turno="${escapeHtml(turno.numero)}">
+      <span class="route-code">${escapeHtml(turno.numero)}</span>
+      <span class="route-text">
+        <strong>Turno ${escapeHtml(turno.numero)}</strong>
+        <small>${escapeHtml(turno.hora_inicio)} - ${escapeHtml(turno.hora_fin)}</small>
+      </span>
+      <span class="route-select-indicator">Usar</span>
+    </button>
+  `).join('') : '<div class="empty-state">No hay turnos disponibles.</div>';
+
+  list.querySelectorAll('.route-item').forEach((button) => {
+    button.addEventListener('click', () => {
+      const turno = Number(button.dataset.turno);
+      if (!Number.isFinite(turno)) return;
+      shiftSelect.value = String(turno);
+      $('#code-preview').textContent = `${routeNomenclature.value.trim().toUpperCase() || '—'}${shiftSelect.value || ''}`;
+      setCalendarTab('calendar');
+    });
+  });
+}
+function renderRouteList() {
+  const list = $('#available-routes-list');
+  if (!list) return;
+  const count = routeOptions.length;
+  $('#routes-count').textContent = `${count} ${count === 1 ? 'ruta' : 'rutas'}`;
+  list.innerHTML = routeOptions.length ? routeOptions.map((route) => `
+    <button class="route-item" type="button" data-route="${escapeHtml(route.ruta)}">
+      <span class="route-code">${escapeHtml(route.nomenclatura || 'R')}</span>
+      <span class="route-text">
+        <strong>${escapeHtml(route.ruta)}</strong>
+        <small>${escapeHtml(route.origen)} / ${escapeHtml(route.destino)}</small>
+      </span>
+      <span class="route-select-indicator">Usar</span>
+    </button>
+  `).join('') : '<div class="empty-state">No hay rutas disponibles.</div>';
+
+  list.querySelectorAll('.route-item').forEach((button) => {
+    button.addEventListener('click', () => {
+      const routeName = button.dataset.route;
+      const route = routeOptions.find((item) => item.ruta === routeName);
+      if (!route) return;
+      routeSelect.value = route.ruta;
+      routeNomenclature.value = route.nomenclatura || '';
+      routeSelect.dispatchEvent(new Event('change'));
+      setCalendarTab('calendar');
+    });
+  });
+}
+function setLoadingButton(button, isLoading, label) {
+  if (!button) return;
+  button.disabled = isLoading;
+  button.classList.toggle('is-loading', isLoading);
+  const nextLabel = isLoading ? `<span class="btn-spinner" aria-hidden="true"></span>${label}` : label;
+  button.innerHTML = nextLabel;
+}
+function normalizeScheduleSearch(value) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+function filterScheduleTable() {
+  const query = normalizeScheduleSearch(scheduleRecordFilter?.value);
+  const rows = [...document.querySelectorAll('#schedule-table tbody tr[data-credential]')];
+  let visibleCount = 0;
+  rows.forEach((row) => {
+    const name = row.querySelector('.person-button')?.textContent || '';
+    const credential = row.dataset.credential || '';
+    const matches = !query || normalizeScheduleSearch(`${name} ${credential}`).includes(query);
+    row.hidden = !matches;
+    if (matches) visibleCount += 1;
+  });
+  document.querySelector('#schedule-table tbody .schedule-filter-empty')?.remove();
+  if (query && rows.length && visibleCount === 0) {
+    $('#schedule-table tbody').insertAdjacentHTML('beforeend', '<tr class="schedule-filter-empty"><td class="empty-state" colspan="40">No hay registros que coincidan con la búsqueda.</td></tr>');
+  }
+  if (clearScheduleFilter) clearScheduleFilter.hidden = !query;
+  if (query) {
+    $('#record-count').textContent = `${visibleCount} de ${rows.length} registros`;
+  } else {
+    $('#record-count').textContent = `${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}`;
+  }
+}
+function showScheduleFeedback(message, credential = '') {
+  const normalizedCredential = String(credential ?? '').trim();
+  const row = normalizedCredential
+    ? [...document.querySelectorAll('#schedule-table tbody tr[data-credential]')]
+      .find((candidate) => candidate.dataset.credential.trim() === normalizedCredential)
+    : null;
+  if (row) {
+    row.classList.remove('schedule-row-notice');
+    void row.offsetWidth;
+    row.classList.add('schedule-row-notice');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => row.classList.remove('schedule-row-notice'), 3200);
+  } else {
+    scheduleTableCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (scheduleFeedback) {
+    scheduleFeedback.textContent = message;
+    scheduleFeedback.classList.add('is-visible');
+    window.setTimeout(() => scheduleFeedback.classList.remove('is-visible'), 3200);
+  }
+}
+function setScheduleFormLoading(isLoading) {
+  state.savingRecord = isLoading;
+  document.querySelectorAll('.schedule-form-card input, .schedule-form-card select, .schedule-form-card button').forEach((element) => {
+    if (element.id === 'create-record') return;
+    if (isLoading) {
+      scheduleFormDisabledState.set(element, element.disabled);
+      element.disabled = true;
+    } else if (scheduleFormDisabledState.has(element)) {
+      element.disabled = scheduleFormDisabledState.get(element);
+      scheduleFormDisabledState.delete(element);
+    }
+  });
+  updateCalendarLock();
+}
+function waitForLoadingPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+function updateSaveAssignmentButton() {
+  if (!saveAssignmentButton || saveAssignmentButton.classList.contains('is-loading')) return;
+  saveAssignmentButton.textContent = state.editingDays.size ? 'Guardar edición' : 'Guardar asignación';
+}
+function setEditModeActionsVisible(visible) {
+  if (cancelEditButton) cancelEditButton.hidden = !visible;
+}
+function setRecordFieldsEnabled(enabled) { controllerName.disabled = !enabled; controllerCredential.disabled = !enabled; controllerSearch.disabled = !enabled; controllerSearch.setAttribute('aria-readonly', String(!enabled)); if (!enabled) setControllerMenuOpen(false); }
+function setRouteFieldsEnabled(enabled) { routeSelect.disabled = !enabled; shiftSelect.disabled = !enabled; routeNomenclature.disabled = true; }
+function finishDayEdit() { state.editingDays.clear(); state.editingSnapshots.clear(); dayEditActions.hidden = true; editingDayLabel.textContent = ''; setEditModeActionsVisible(false); setRecordFieldsEnabled(false); setRouteFieldsEnabled(false); updateSaveAssignmentButton(); }
+function clearDayAssignment(day) {
+  const dayKey = String(day);
+  delete state.assignments[dayKey];
+  delete state.dailyDetails[dayKey];
+  state.work.delete(day);
+  state.rest.delete(day);
+  state.vacation.delete(day);
+  state.specialStates.forEach((item) => state.special[item.codigo]?.delete(day));
+  state.editingDays.delete(day);
+  state.editingSnapshots.delete(day);
+}
+function markLastEditedDay(day) {
+  state.lastEditedDay = day;
+  state.editedDays = new Set([day]);
+  if (state.editedTimer) clearTimeout(state.editedTimer);
+  state.editedTimer = setTimeout(() => {
+    state.editedDays = new Set();
+    state.lastEditedDay = null;
+    renderCalendar();
+    loadRecords();
+  }, 1400);
+}
+function dayHasAssignment(day) { return Boolean(state.assignments[String(day)] || state.dailyDetails[String(day)] || state.work.has(day) || state.rest.has(day) || state.vacation.has(day)); }
+function detailForDay(day) { return state.dailyDetails[String(day)] || { route: state.selectedRecord?.route || '', shift: state.selectedRecord?.shift || '', nomenclature: state.selectedRecord?.nomenclature || routeNomenclature.value || '', code: state.assignments[String(day)] || '' }; }
+function createNewRecord() { finishDayEdit(); state.selectedRecord = null; state.calendarEditingEnabled = true; state.work.clear(); state.rest.clear(); state.vacation.clear(); state.assignments = {}; state.dailyDetails = {}; state.editedDays.clear(); state.specialStates.forEach((item) => state.special[item.codigo]?.clear()); form.reset(); controllerName.value = ''; controllerCredential.value = ''; routeSelect.value = ''; shiftSelect.value = ''; routeNomenclature.value = ''; setRecordFieldsEnabled(true); setRouteFieldsEnabled(true); saveAssignmentButton.disabled = false; $('#code-preview').textContent = '--'; $('#form-message').textContent = 'Listo para crear un nuevo registro.'; renderCalendar(); controllerName.focus(); }
+function clearScheduleEditorAfterSave(message) {
+  finishDayEdit();
+  state.selectedRecord = null;
+  state.calendarEditingEnabled = false;
+  state.work.clear();
+  state.rest.clear();
+  state.vacation.clear();
+  state.assignments = {};
+  state.dailyDetails = {};
+  state.editedDays.clear();
+  state.lastEditedDay = null;
+  state.specialStates.forEach((item) => state.special[item.codigo]?.clear());
+  form.reset();
+  controllerName.value = '';
+  controllerCredential.value = '';
+  controllerSearch.value = '';
+  routeSelect.value = '';
+  shiftSelect.value = '';
+  routeNomenclature.value = '';
+  setRecordFieldsEnabled(false);
+  setRouteFieldsEnabled(false);
+  saveAssignmentButton.disabled = true;
+  $('#code-preview').textContent = '--';
+  $('#form-message').textContent = message;
+  renderCalendar();
+  updateCalendarLock();
+}
+function daysInMonth() { return new Date(state.year, state.month, 0).getDate(); }
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+function renderControllerOptions() {
+  const selectedCredential = controllerCredential.value || state.selectedRecord?.credential || '';
+  const usedCredentials = new Set(
+    state.monthRecords
+      .filter((record) => record.credential !== selectedCredential)
+      .map((record) => record.credential)
+  );
+  const search = (controllerSearch?.value || '').trim().toLowerCase();
+  const options = state.controllerCatalog.filter((controller) => {
+    const isSelected = controller.credencial === selectedCredential;
+    const isAvailable = isSelected || !usedCredentials.has(controller.credencial);
+    if (!isAvailable) return false;
+    if (!search) return true;
+    return `${controller.nombre} ${controller.credencial}`.toLowerCase().includes(search);
+  });
+
+  const datalist = document.getElementById('controller-search-options');
+  if (datalist) {
+    datalist.innerHTML = options.map((item) => `<option value="${escapeHtml(item.nombre)}" data-credential="${escapeHtml(item.credencial)}"></option>`).join('');
+  }
+  if (controllerSearchMenu) {
+    controllerSearchMenu.innerHTML = options.length ? options.map((item) => {
+      const initials = item.nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+      return `<button class="combo-option" type="button" role="option" data-name="${escapeHtml(item.nombre)}" data-credential="${escapeHtml(item.credencial)}"><span class="combo-option-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span class="combo-option-copy"><strong>${escapeHtml(item.nombre)}</strong><small>Credencial ${escapeHtml(item.credencial)}</small></span><span class="combo-option-arrow" aria-hidden="true">›</span></button>`;
+    }).join('') : '<span class="combo-empty">No hay trabajadores disponibles</span>';
+    controllerSearchMenu.hidden = !controllerMenuOpen;
+  }
+
+  controllerCredential.innerHTML = '<option value="">Selecciona una credencial</option>' + options.map((item) => `<option value="${escapeHtml(item.credencial)}" data-name="${escapeHtml(item.nombre)}">${escapeHtml(item.credencial)} - ${escapeHtml(item.nombre)}</option>`).join('');
+
+  if (selectedCredential) {
+    const matchingController = state.controllerCatalog.find((item) => item.credencial === selectedCredential);
+    controllerCredential.value = selectedCredential;
+    if (matchingController && (!controllerName.value || controllerName.value === state.selectedRecord?.name)) {
+      controllerName.value = matchingController.nombre;
+      controllerSearch.value = matchingController.nombre;
+    }
+  } else if (!controllerName.value) {
+    controllerCredential.value = '';
+  }
+  updateCalendarLock();
+
+  if (controllerSearch.value && !controllerName.value) {
+    const matchingController = state.controllerCatalog.find((item) => `${item.nombre} ${item.credencial}`.toLowerCase().includes(controllerSearch.value.toLowerCase()));
+    if (matchingController) {
+      controllerName.value = matchingController.nombre;
+      controllerCredential.value = matchingController.credencial;
+    }
+  }
+}
+
+controllerSearchMenu?.addEventListener('mousedown', (event) => {
+  const option = event.target.closest('.combo-option');
+  if (!option) return;
+  event.preventDefault();
+  controllerSearch.value = option.dataset.name;
+  controllerName.value = option.dataset.name;
+  controllerCredential.value = option.dataset.credential;
+  if (!state.selectedRecord) setRouteFieldsEnabled(true);
+  updateCalendarLock();
+  setControllerMenuOpen(false);
+});
+
+async function loadScheduleCatalogs() {
+  const [controllersResponse, routesResponse, shiftsResponse] = await Promise.all([
+    fetch('/api/modulos/{{ module_number }}/controladores'),
+    fetch('/api/modulos/{{ module_number }}/rutas-registradas'),
+    fetch('/api/catalogos/turnos')
+  ]);
+  if (!controllersResponse.ok || !routesResponse.ok || !shiftsResponse.ok) throw new Error('No se pudieron cargar los catálogos del registro.');
+  const [controllers, routes, shifts] = await Promise.all([controllersResponse.json(), routesResponse.json(), shiftsResponse.json()]);
+  state.controllerCatalog = controllers;
+  const activeRoutes = routes.filter((item) => String(item.estado || '').trim().toLowerCase() === 'activo');
+  routeOptions.splice(0, routeOptions.length, ...activeRoutes);
+  const selectedShiftIds = new Set(JSON.parse(localStorage.getItem(`selected-shifts-${body.dataset.module}`) || '[]').map(String));
+  shiftOptions = shifts.filter((item) => item.activo && selectedShiftIds.has(String(item.id)));
+  renderControllerOptions();
+  renderRouteList();
+  renderTurnosList();
+  routeSelect.innerHTML = '<option value="">Selecciona una ruta</option>' + activeRoutes.map((item) => `<option value="${escapeHtml(item.ruta)}" data-nomenclature="${escapeHtml(item.nomenclatura)}">${escapeHtml(item.nomenclatura)} - ${escapeHtml(item.ruta)} (${escapeHtml(item.origen)} / ${escapeHtml(item.destino)})</option>`).join('');
+  shiftSelect.innerHTML = '<option value="">Selecciona un turno</option>' + shiftOptions.map((item) => `<option value="${escapeHtml(item.numero)}">${escapeHtml(item.numero)}</option>`).join('');
+}
+function renderCalendar() {
+  const first = (new Date(state.year, state.month - 1, 1).getDay() + 6) % 7;
+  const calendar = $('#calendar'); calendar.innerHTML = weekdays.map((day) => `<span class="weekday">${day}</span>`).join('');
+  for (let i = 0; i < first; i += 1) calendar.insertAdjacentHTML('beforeend', '<span class="day blank"></span>');
+  for (let day = 1; day <= daysInMonth(); day += 1) {
+    const specialState = state.specialStates.find((item) => state.special[item.codigo]?.has(day));
+    const status = state.editingDays.has(day) ? 'editing-day' : specialState ? 'special' : state.vacation.has(day) ? 'vacation' : state.work.has(day) ? 'work' : state.rest.has(day) ? 'rest' : '';
+    const detail = detailForDay(day);
+    const label = state.assignments[String(day)] || (specialState ? specialState.codigo : status === 'vacation' ? 'V' : status === 'work' ? `${detail.nomenclature}${detail.shift}` : status === 'rest' ? 'D' : '—');
+    const edited = state.editedDays.has(day) ? ' edited-day' : '';
+    calendar.insertAdjacentHTML('beforeend', `<button type="button" class="day ${status}${edited}" data-day="${day}" title="Haz clic para asignar, editar o cancelar"><b>${day}</b><small>${escapeHtml(label)}</small></button>`);
+  }
+  updateCalendarLock();
+  calendar.querySelectorAll('.day:not(.blank)').forEach((button) => button.addEventListener('click', async () => {
+    if (!calendarHasController() || monthIsClosed()) return;
+    const selected = Number(button.dataset.day);
+    if (state.mode === 'delete') {
+      if (dayHasAssignment(selected)) {
+        clearDayAssignment(selected);
+        renderCalendar();
+      }
+      return;
+    }
+    if (state.mode === 'work' && !workAssignmentReady()) return;
+    const hasAssignment = dayHasAssignment(selected);
+    const isSpecialMode = Boolean(state.special[state.mode]);
+
+    if (hasAssignment && state.mode !== 'work') {
+      ['work','rest','vacation'].forEach((mode) => state[mode].delete(selected));
+      state.specialStates.forEach((item) => state.special[item.codigo]?.delete(selected));
+      delete state.assignments[String(selected)];
+      delete state.dailyDetails[String(selected)];
+
+      if (isSpecialMode) {
+        state.special[state.mode].add(selected);
+        state.assignments[String(selected)] = state.mode;
+      } else if (state.mode === 'vacation') {
+        state.vacation.add(selected);
+        state.assignments[String(selected)] = 'V';
+      } else if (state.mode === 'rest') {
+        state.rest.add(selected);
+      }
+
+      renderCalendar();
+      return;
+    }
+
+    if (hasAssignment && state.mode === 'work' && state.selectedRecord) { editCalendarDay(selected); return; }
+
+    const active = state[state.mode];
+    ['work','rest','vacation'].forEach((mode) => state[mode].delete(selected));
+    state.specialStates.forEach((item) => { if (item.codigo !== state.mode) state.special[item.codigo]?.delete(selected); });
+    if (isSpecialMode) {
+      state.special[state.mode].has(selected) ? state.special[state.mode].delete(selected) : state.special[state.mode].add(selected);
+      if (state.special[state.mode].has(selected)) state.assignments[String(selected)] = state.mode;
+      else delete state.assignments[String(selected)];
+    } else if (state.mode === 'vacation') {
+      active.has(selected) ? active.delete(selected) : active.add(selected);
+      if (active.has(selected)) state.assignments[String(selected)] = 'V';
+      else delete state.assignments[String(selected)];
+    } else if (state.mode === 'rest') {
+      active.has(selected) ? active.delete(selected) : active.add(selected);
+      delete state.assignments[String(selected)];
+    } else {
+      const selectedCode = `${routeNomenclature.value}${shiftSelect.value}`;
+      if (!active.has(selected)) {
+        const accepted = await confirmCodeConflict(selectedCode, selected, controllerCredential.value);
+        if (!accepted) return;
+      }
+      active.add(selected);
+      state.assignments[String(selected)] = selectedCode;
+      state.dailyDetails[String(selected)] = { route: routeSelect.value, shift: shiftSelect.value, nomenclature: routeNomenclature.value, code: selectedCode };
+    }
+    renderCalendar();
+  }));
+  $('#month-label').textContent = `${months[state.month - 1]} ${state.year}`;
+  $('#monthly-role-period').textContent = `${months[state.month - 1]} ${state.year}`;
+  const specialCount = state.specialStates.reduce((total, item) => total + (state.special[item.codigo]?.size || 0), 0);
+  $('#selection-summary').textContent = `${state.work.size} trabajo · ${state.rest.size} descanso · ${state.vacation.size} vacaciones · ${specialCount} especiales`;
+}
+function renderTable(records) {
+  state.monthRecords = records || [];
+  const grouped = [...new Map(records.map((record) => [record.credential, record])).values()];
+  const controllerMap = new Map(state.controllerCatalog.map((controller) => [controller.credencial, controller]));
+  $('#record-count').textContent = `${grouped.length} ${grouped.length === 1 ? 'registro' : 'registros'}`;
+  $('#schedule-table thead').innerHTML = `<tr><th>Nombre</th><th>Cred.</th>${Array.from({length: daysInMonth()}, (_, i) => { const day = i + 1; const initial = ['D', 'L', 'M', 'M', 'J', 'V', 'S'][new Date(state.year, state.month - 1, day).getDay()]; return `<th class="schedule-day-header"><span class="schedule-day-number">${day}</span><span class="schedule-day-initial">${initial}</span></th>`; }).join('')}</tr>`;
+  $('#schedule-table tbody').innerHTML = grouped.length ? grouped.map((record) => {
+    const controller = controllerMap.get(record.credential);
+    const displayName = controller?.nombre || record.name;
+    const assignments = record.daily_assignments || {}; const details = record.daily_details || {}; const work = new Set(record.work_days || []); const rest = new Set(record.rest_days || []);
+    const cells = Array.from({length: daysInMonth()}, (_, i) => { const day = i + 1; const detail = details[String(day)]; const code = detail?.code || assignments[String(day)]; const custom = detail ? ' table-custom' : ''; const edited = state.lastEditedDay === day ? ' table-edited-last' : ''; if (code === 'V') return `<td class="table-vacation${custom}${edited}">V</td>`; if (code && !/^[A-Z]+\d+$/.test(code)) return `<td class="table-special${custom}${edited}">${escapeHtml(code)}</td>`; if (code) return `<td class="table-work${custom}${edited}">${escapeHtml(code)}</td>`; if (work.has(day)) return `<td class="table-work${custom}${edited}">${escapeHtml(record.nomenclature)}${escapeHtml(record.shift)}</td>`; if (rest.has(day)) return `<td class="table-rest${custom}${edited}">D</td>`; return '<td></td>'; }).join('');
+    const disabled = monthIsClosed() ? ' disabled' : '';
+    return `<tr data-credential="${escapeHtml(record.credential)}"><td class="name-cell"><div class="person-meta"><button class="person-button" type="button" data-credential="${escapeHtml(record.credential)}">${escapeHtml(displayName)}</button></div><div class="table-row-actions"><button class="table-update-button" type="button" data-credential="${escapeHtml(record.credential)}" title="Editar registro de ${escapeHtml(displayName)}"${disabled}>Editar</button><button class="table-delete-button" type="button" data-credential="${escapeHtml(record.credential)}" title="Eliminar registro de ${escapeHtml(displayName)}"${disabled}>Eliminar</button></div></td><td>${escapeHtml(record.credential)}</td>${cells}</tr>`;
+  }).join('') : '<tr><td class="empty-state" colspan="40">No hay registros para este mes.</td></tr>';
+  filterScheduleTable();
+  document.querySelectorAll('.person-button').forEach((button) => button.addEventListener('click', () => selectRecord(grouped.find((item) => item.credential === button.dataset.credential))));
+  document.querySelectorAll('.table-update-button:not(:disabled)').forEach((button) => button.addEventListener('click', () => {
+    setScheduleGridCollapsed(false);
+    const record = grouped.find((item) => item.credential === button.dataset.credential);
+    selectRecord(record);
+    state.calendarEditingEnabled = true;
+    saveAssignmentButton.disabled = false;
+    setEditModeActionsVisible(true);
+    updateCalendarLock();
+    state.work.forEach((day) => {
+      if (!codeForDay(record, day)) editCalendarDay(day);
+    });
+    routeSelect.value = '';
+    shiftSelect.value = '';
+    routeNomenclature.value = '';
+    $('#code-preview').textContent = '--';
+  }));
+  renderControllerOptions();
+  document.querySelectorAll('.table-delete-button:not(:disabled)').forEach((button) => button.addEventListener('click', async () => {
+    const credential = button.dataset.credential;
+    if (!credential) return;
+    const confirmed = window.confirm(`¿Eliminar el registro de ${credential}?`);
+    if (!confirmed) {
+      return;
+    }
+    setLoadingButton(button, true, 'Eliminando asignación...');
+    showLoader('Eliminando asignación...');
+    try {
+      await waitForLoadingPaint();
+      const response = await fetch('/api/records/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ credential, month: state.month, year: state.year, module_number: body.dataset.module })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'No se pudo eliminar el registro.');
+      $('#form-message').textContent = result.deleted ? `Registro de ${credential} eliminado.` : 'No se encontró el registro para eliminar.';
+      if (result.deleted) {
+        state.selectedRecord = null;
+        createNewRecord();
+        await loadRecords();
+        showScheduleFeedback('Asignación eliminada');
+      }
+    } catch (error) {
+      $('#form-message').textContent = error.message;
+      $('#form-message').classList.add('error');
+    } finally {
+      setLoadingButton(button, false, 'Eliminar');
+      hideLoader();
+    }
+  }));
+}
+async function loadMonthStatus() { const response = await fetch(`/administrador/rol-mensual/${body.dataset.module}/estado?month=${state.month}&year=${state.year}`); state.monthActivated = response.ok ? Boolean((await response.json()).activo) : false; updateMonthEditability(); }
+async function loadRecords() { const moduleQuery = body.dataset.tableOnly === 'true' || body.classList.contains('admin-embedded-role') ? `&module_number=${body.dataset.module}` : ''; const response = await fetch(`/api/records?month=${state.month}&year=${state.year}${moduleQuery}`); renderTable(response.ok ? await response.json() : []); }
+async function changeMonth(delta) { finishDayEdit(); state.month += delta; if (state.month === 0) { state.month = 12; state.year -= 1; } if (state.month === 13) { state.month = 1; state.year += 1; } state.work.clear(); state.rest.clear(); state.vacation.clear(); state.assignments = {}; state.dailyDetails = {}; state.editedDays.clear(); await loadMonthStatus(); renderCalendar(); loadRecords(); }
+function selectRecord(record) {
+  if (!record) return;
+  state.selectedRecord = record;
+  state.calendarEditingEnabled = false;
+  const currentController = state.controllerCatalog.find((item) => item.credencial === record.credential);
+  controllerName.value = currentController?.nombre || record.name;
+  controllerCredential.value = record.credential;
+  routeSelect.value = record.route;
+  routeNomenclature.value = record.nomenclature || routeSelect.selectedOptions[0]?.dataset.nomenclature || '';
+  shiftSelect.value = record.shift;
+  renderControllerOptions();
+  state.work = new Set((record.work_days || []).map(Number));
+  state.rest = new Set((record.rest_days || []).map(Number));
+  state.vacation = new Set();
+  state.assignments = { ...(record.daily_assignments || {}) };
+  state.dailyDetails = { ...(record.daily_details || {}) };
+  state.editedDays = new Set();
+  setRecordFieldsEnabled(false);
+  finishDayEdit();
+  setRouteFieldsEnabled(true);
+  state.specialStates.forEach((item) => state.special[item.codigo]?.clear());
+  Object.entries(record.daily_assignments || {}).forEach(([day, code]) => {
+    const numericDay = Number(day);
+    if (code === 'V') state.vacation.add(numericDay);
+    else if (state.special[code]) state.special[code].add(numericDay);
+  });
+  $('#form-message').textContent = `Registro de ${record.name} seleccionado.`;
+  updateCalendarLock();
+  renderCalendar();
+  document.querySelector('.schedule-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function editCalendarDay(day) {
+  if (!state.selectedRecord || !dayHasAssignment(day)) {
+    $('#form-message').textContent = 'Selecciona primero una persona del rol mensual.';
+    return;
+  }
+  const route = routeSelect.value || state.selectedRecord.route || '';
+  const shift = shiftSelect.value || state.selectedRecord.shift || '';
+  if (!route || !shift) {
+    if (!workAssignmentReady()) return;
+  }
+  state.editingDays.add(day);
+  saveAssignmentButton.disabled = false;
+  updateSaveAssignmentButton();
+  state.editingSnapshots.set(day, { assignment: state.assignments[String(day)], detail: state.dailyDetails[String(day)], work: state.work.has(day), rest: state.rest.has(day), vacation: state.vacation.has(day) });
+  const nomenclature = routeSelect.selectedOptions[0]?.dataset.nomenclature || routeNomenclature.value || state.selectedRecord.nomenclature || '';
+  const code = `${nomenclature}${shift}`;
+  state.dailyDetails[String(day)] = { route, shift, nomenclature, code };
+  state.assignments[String(day)] = code;
+  state.work.add(day);
+  state.rest.delete(day);
+  state.vacation.delete(day);
+  markLastEditedDay(day);
+  $('#form-message').textContent = `Día ${day} preparado con el código ${code}. Presiona Guardar asignación para confirmar.`;
+  renderCalendar();
+}
+function cancelDayEdit(dayToCancel = null) {
+  const days = dayToCancel === null ? [...state.editingDays] : [dayToCancel];
+  days.forEach((day) => {
+    const snapshot = state.editingSnapshots.get(day);
+    if (!snapshot) return;
+    if (snapshot.assignment === undefined) delete state.assignments[String(day)]; else state.assignments[String(day)] = snapshot.assignment;
+    if (snapshot.detail === undefined) delete state.dailyDetails[String(day)]; else state.dailyDetails[String(day)] = snapshot.detail;
+    ['work', 'rest', 'vacation'].forEach((mode) => snapshot[mode] ? state[mode].add(day) : state[mode].delete(day));
+    state.editingDays.delete(day);
+    state.editingSnapshots.delete(day);
+  });
+  if (!state.editingDays.size) finishDayEdit(); else { dayEditActions.hidden = true; editingDayLabel.textContent = ''; updateSaveAssignmentButton(); }
+  renderCalendar();
+}
+cancelEditButton?.addEventListener('click', () => {
+  cancelDayEdit();
+  finishDayEdit();
+  state.calendarEditingEnabled = false;
+  saveAssignmentButton.disabled = true;
+  setEditModeActionsVisible(false);
+  updateCalendarLock();
+  $('#form-message').textContent = 'Edición cancelada.';
+  renderCalendar();
+});
+$('#previous-month').addEventListener('click', () => changeMonth(-1)); $('#next-month').addEventListener('click', () => changeMonth(1)); $('#clear-days').addEventListener('click', () => { finishDayEdit(); state.work.clear(); state.rest.clear(); state.vacation.clear(); state.assignments = {}; state.dailyDetails = {}; state.editedDays.clear(); state.lastEditedDay = null; state.specialStates.forEach((item) => state.special[item.codigo]?.clear()); renderCalendar(); });
+$('#create-record').addEventListener('click', createNewRecord);
+scheduleRecordFilter?.addEventListener('input', filterScheduleTable);
+clearScheduleFilter?.addEventListener('click', () => {
+  scheduleRecordFilter.value = '';
+  filterScheduleTable();
+  scheduleRecordFilter.focus();
+});
+function bindModeButtons() { document.querySelectorAll('.mode-button').forEach((button) => button.addEventListener('click', () => { state.mode = button.dataset.mode; document.querySelectorAll('.mode-button').forEach((item) => item.classList.toggle('is-active', item === button)); })); }
+$('#download-excel').addEventListener('click', async () => {
+  const button = $('#download-excel');
+  const needsModuleQuery = body.dataset.tableOnly === 'true' || body.classList.contains('admin-embedded-role');
+  const moduleQuery = needsModuleQuery ? `&module_number=${body.dataset.module}` : '';
+  setLoadingButton(button, true, 'Descargando...');
+  showLoader('Descargando Excel...');
+  await waitForLoadingPaint();
+  try {
+    const response = await fetch(`/export/excel?month=${state.month}&year=${state.year}${moduleQuery}`);
+    if (!response.ok) throw new Error('No se pudo descargar el Excel.');
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `rol-mensual-${state.year}-${String(state.month).padStart(2, '0')}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    showScheduleFeedback('Excel descargado');
+  } catch (error) {
+    $('#form-message').textContent = error.message;
+  } finally {
+    setLoadingButton(button, false, 'Descargar Excel');
+    hideLoader();
+  }
+});
+calendarTabs.forEach((button) => {
+  button.addEventListener('click', () => setCalendarTab(button.dataset.tab));
+});
+form.addEventListener('input', () => { $('#code-preview').textContent = `${routeNomenclature.value.trim().toUpperCase() || '—'}${shiftSelect.value || ''}`; });
+controllerSearch.addEventListener('focus', () => { setControllerMenuOpen(true); renderControllerOptions(); });
+controllerSearch.addEventListener('click', () => { setControllerMenuOpen(true); renderControllerOptions(); });
+controllerSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') { setControllerMenuOpen(false); return; }
+  if (event.key === 'ArrowDown' && !controllerMenuOpen) { event.preventDefault(); setControllerMenuOpen(true); renderControllerOptions(); }
+});
+controllerSearch.addEventListener('blur', () => setTimeout(() => setControllerMenuOpen(false), 120));
+controllerSearch.addEventListener('input', () => {
+  setControllerMenuOpen(true);
+  renderControllerOptions();
+  const selected = state.controllerCatalog.find((item) => item.nombre.trim().toLowerCase() === controllerSearch.value.trim().toLowerCase() || item.credencial.trim().toLowerCase() === controllerSearch.value.trim().toLowerCase());
+  if (selected) {
+    controllerName.value = selected.nombre;
+    controllerCredential.value = selected.credencial;
+  } else if (!controllerSearch.value.trim()) {
+    controllerName.value = '';
+    controllerCredential.value = '';
+  }
+  if (!state.selectedRecord) setRouteFieldsEnabled(Boolean(controllerSearch.value.trim()));
+  updateCalendarLock();
+});
+controllerName.addEventListener('change', () => {
+  const option = state.controllerCatalog.find((item) => item.nombre.trim().toLowerCase() === controllerName.value.trim().toLowerCase() || item.credencial.trim().toLowerCase() === controllerName.value.trim().toLowerCase());
+  if (option) {
+    controllerName.value = option.nombre;
+    controllerCredential.value = option.credencial;
+    controllerSearch.value = option.nombre;
+  }
+  if (!state.selectedRecord) setRouteFieldsEnabled(Boolean(controllerName.value));
+  updateCalendarLock();
+});
+controllerCredential.addEventListener('change', () => {
+  const option = state.controllerCatalog.find((item) => item.credencial === controllerCredential.value);
+  controllerName.value = option?.nombre || '';
+  if (option) controllerSearch.value = option.nombre;
+  updateCalendarLock();
+});
+routeSelect.addEventListener('change', () => { routeNomenclature.value = routeSelect.selectedOptions[0]?.dataset.nomenclature || ''; $('#code-preview').textContent = `${routeNomenclature.value}${shiftSelect.value || ''}`; });
+async function saveRecord(extra = {}) { const base = state.selectedRecord || {}; const credential = controllerCredential.value || base.credential; const forceUpdate = Boolean(state.selectedRecord && state.selectedRecord.credential === credential); const payload = { name: controllerName.value || base.name, credential, route: routeSelect.value || base.route, shift: shiftSelect.value || base.shift, nomenclature: routeNomenclature.value || base.nomenclature, month: state.month, year: state.year, module_number: body.dataset.module, work_days: [...state.work], rest_days: [...state.rest], vacation_days: [...state.vacation], daily_assignments: { ...state.assignments }, daily_details: { ...state.dailyDetails }, force_update: forceUpdate, ...extra }; const response = await fetch('/api/records', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'No se pudo guardar.'); return result; }
+async function saveAllRecords() {
+  if (monthIsClosed()) { $('#form-message').textContent = 'El mes seleccionado ya terminó y no permite modificaciones.'; return; }
+  setLoadingButton(saveAllRecordsButton, true, 'Guardando...');
+  showLoader('Guardando asignaciones...');
+  try {
+    const response = await fetch('/api/records/save-all', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ month: state.month, year: state.year, module_number: body.dataset.module, records: state.monthRecords }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'No se pudieron guardar los registros.');
+    $('#form-message').textContent = `${result.saved_count} registro${result.saved_count === 1 ? '' : 's'} guardado${result.saved_count === 1 ? '' : 's'} correctamente.`;
+    showScheduleFeedback('Asignaciones guardadas');
+  } catch (error) {
+    $('#form-message').textContent = error.message;
+    $('#form-message').classList.add('error');
+  } finally {
+    setLoadingButton(saveAllRecordsButton, false, 'Guardar');
+    hideLoader();
+  }
+}
+saveAllRecordsButton.addEventListener('click', saveAllRecords);
+document.querySelector('#activate-month')?.addEventListener('click', async function () {
+  const activate = !state.monthActivated;
+  const bodyData = new URLSearchParams({ month: String(state.month), year: String(state.year), activo: String(activate) });
+  const response = await fetch(`/administrador/rol-mensual/${body.dataset.module}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: bodyData });
+  if (!response.ok) return;
+  state.monthActivated = Boolean((await response.json()).activo);
+  updateMonthEditability();
+  renderTable(state.monthRecords);
+});
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (monthIsClosed()) { $('#form-message').textContent = 'El mes seleccionado ya terminó y no permite modificaciones.'; return; }
+  const hasEditingDays = state.editingDays.size > 0;
+  if (hasEditingDays && [...state.editingDays].some((day) => {
+    const detail = state.dailyDetails[String(day)];
+    return !detail?.route || !detail?.shift;
+  })) {
+    $('#form-message').textContent = 'Selecciona una ruta y un turno para los días editados.';
+    return;
+  }
+  const selectedDays = hasEditingDays ? [...state.editingDays] : [];
+  const wasUpdating = Boolean(state.selectedRecord);
+  const loadingLabel = wasUpdating ? 'Actualizando asignación...' : 'Guardando registro...';
+  const successMessage = wasUpdating
+    ? `${selectedDays.length} día${selectedDays.length === 1 ? '' : 's'} actualizado${selectedDays.length === 1 ? '' : 's'}.`
+    : 'Asignación guardada.';
+  let savedSuccessfully = false;
+  try {
+    if (hasEditingDays) {
+      for (const day of selectedDays) {
+        const detail = state.dailyDetails[String(day)];
+        if (!detail?.route || !detail?.shift || !detail?.code) {
+          throw new Error(`El día ${day} necesita una ruta y un turno válidos.`);
+        }
+        const accepted = await confirmCodeConflict(detail.code, day, controllerCredential.value || state.selectedRecord?.credential);
+        if (!accepted) return;
+      }
+    }
+    setScheduleFormLoading(true);
+    setLoadingButton(saveAssignmentButton, true, loadingLabel);
+    showLoader(loadingLabel);
+    await waitForLoadingPaint();
+    const savedCredential = String(controllerCredential.value || state.selectedRecord?.credential || '').trim();
+    const saved = await saveRecord();
+    const feedbackMessage = wasUpdating ? 'Asignación actualizada' : 'Asignación guardada';
+    savedSuccessfully = true;
+    state.selectedRecord = saved;
+    if (hasEditingDays) {
+      finishDayEdit();
+      state.calendarEditingEnabled = false;
+      $('#form-message').textContent = `${selectedDays.length} día${selectedDays.length === 1 ? '' : 's'} actualizado${selectedDays.length === 1 ? '' : 's'}.`;
+    } else {
+      state.lastEditedDay = null;
+      state.editedDays = new Set();
+      $('#form-message').textContent = 'Asignación guardada.';
+    }
+    renderCalendar();
+    await loadRecords();
+    showScheduleFeedback(feedbackMessage, savedCredential);
+  } catch (error) {
+    $('#form-message').textContent = error.message;
+    if (error.message.toLowerCase().includes('ya tiene un registro')) {
+      $('#form-message').classList.add('error');
+    }
+  } finally {
+    setLoadingButton(saveAssignmentButton, false, 'Guardar asignación');
+    setScheduleFormLoading(false);
+    hideLoader();
+    if (savedSuccessfully) {
+      clearScheduleEditorAfterSave(successMessage);
+    }
+    updateSaveAssignmentButton();
+    updateCalendarLock();
+  }
+});
+async function loadSpecialStates() { const response = await fetch('/api/catalogos/estados_especiales'); if (!response.ok) return; state.specialStates = (await response.json()).filter((item) => item.activo); state.specialStates.forEach((item) => { state.special[item.codigo] = new Set(); $('#calendar-modes').insertAdjacentHTML('beforeend', `<button class="mode-button special-mode" data-mode="${item.codigo}" type="button" title="${item.descripcion}">${item.codigo} - ${item.descripcion}</button>`); }); bindModeButtons(); }
+Promise.all([loadScheduleCatalogs(), loadSpecialStates(), loadMonthStatus()]).then(() => loadRecords()).catch((error) => { $('#form-message').textContent = error.message; }).finally(() => { updateMonthEditability(); renderCalendar(); });
+</script>
+<script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

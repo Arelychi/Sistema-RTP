@@ -1,0 +1,528 @@
+@font-face {
+  font-family: "Cabin Project";
+  src: url("fonts/Cabin/Cabin-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cabin Project";
+  src: url("fonts/Cabin/Cabin-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cabin Project";
+  src: url("fonts/Cabin/Cabin-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --project-font: "Cabin Project", "Segoe UI", Arial, sans-serif;
+  --brand-green: #72ad3a;
+  --brand-green-dark: #346532;
+  --brand-blue: #173a59;
+  --brand-soft: #edf5e7;
+}
+
+body,
+body button,
+body input,
+body select,
+body textarea {
+  font-family: var(--project-font) !important;
+}
+
+body[data-module="1"] { --module-color: #237a57; --module-bg: #e2f1e8; --module-line: #b1d8bf; --module-ink: #fff; }
+body[data-module="2"] { --module-color: #b85c1e; --module-bg: #fae8d8; --module-line: #e9bd96; --module-ink: #fff; }
+body[data-module="3"] { --module-color: #a33d68; --module-bg: #f7e2eb; --module-line: #e4b6cb; --module-ink: #fff; }
+body[data-module="4"] { --module-color: #147a78; --module-bg: #dff1f0; --module-line: #a9d7d3; --module-ink: #fff; }
+body[data-module="5"] { --module-color: #b08a00; --module-bg: #fff4c8; --module-line: #e3ce7a; --module-ink: #1f2a30; }
+body[data-module="6"] { --module-color: #285d9b; --module-bg: #e2ecf9; --module-line: #b3c9e8; --module-ink: #fff; }
+body[data-module="7"] { --module-color: #a43e4c; --module-bg: #f8e3e5; --module-line: #e4b9be; --module-ink: #fff; }
+
+body[data-module] {
+  --teal: var(--brand-green) !important;
+  --teal-soft: var(--brand-soft) !important;
+  background: var(--module-bg, #f3f7f9) !important;
+}
+
+body.admin-page-body {
+  --admin-teal: var(--brand-green) !important;
+}
+
+.module-brand-logo {
+  width: 78px;
+  height: auto;
+  object-fit: contain;
+}
+
+
+
+body[data-module] .sidebar h2,
+body[data-module] .sidebar nav a,
+body[data-module] .sidebar-module span,
+body[data-module] .sidebar-module strong,
+body[data-module] .sidebar-module button {
+  color: var(--module-ink) !important;
+}
+
+body[data-module] .sidebar nav a:hover,
+body[data-module] .sidebar nav a.active {
+  background: var(--brand-green-dark, #346532) !important;
+}
+
+body[data-module] .sidebar-module {
+  border-color: rgba(255, 255, 255, .28) !important;
+  background: rgba(255, 255, 255, .12) !important;
+}
+
+body[data-module] .sidebar-module button {
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  background: var(--brand-green-dark, #346532) !important;
+}
+
+
+
+body[data-module] .sidebar nav a.active,
+body[data-module] .sidebar nav a:hover {
+  background: #f5f6f5 !important;
+  border-color: rgba(255, 255, 255, .2) !important;
+}
+
+
+
+body[data-module] .sidebar-module button,
+body.admin-page-body .admin-sidebar-module button {
+  color: #fff !important;
+  background: #346532 !important;
+}
+
+body[data-module] .sidebar-module button:hover,
+body.admin-page-body .admin-sidebar-module button:hover {
+  background: #588d29 !important;
+}
+
+body[data-module] thead th,
+body[data-module] .data-table thead th,
+body.admin-page-body thead th,
+body.admin-page-body .history-table th,
+body.admin-page-body .admin-route-table th {
+  color: #fff !important;
+}
+
+body[data-module] .primary-button,
+body[data-module] .secondary-button,
+body[data-module] .create-button,
+body[data-module] .save-button,
+body[data-module] .download-button,
+body[data-module] .export-button,
+body.admin-page-body .primary-button,
+body.admin-page-body .secondary-button,
+body.admin-page-body .admin-primary-button,
+body.admin-page-body .admin-edit-button,
+body.admin-page-body .admin-submit-button,
+body.admin-page-body .admin-action-button {
+  border-radius: 5px;
+  color: #fff !important;
+  background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
+}
+
+body[data-module] .primary-button:hover,
+body[data-module] .secondary-button:hover,
+body[data-module] .create-button:hover,
+body[data-module] .save-button:hover,
+body[data-module] .download-button:hover,
+body[data-module] .export-button:hover,
+body.admin-page-body .primary-button:hover,
+body.admin-page-body .secondary-button:hover,
+body.admin-page-body .admin-primary-button:hover,
+body.admin-page-body .admin-edit-button:hover,
+body.admin-page-body .admin-submit-button:hover,
+body.admin-page-body .admin-action-button:hover {
+  border-radius: 5px;
+  background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
+  border-color: #346532 !important;
+}
+
+body.admin-page-body .admin-secondary-button {
+  color: #588d29 !important;
+  background: #edf5e7 !important;
+  border: 1px solid rgba(114, 173, 58, .28) !important;
+}
+
+body.admin-page-body .admin-secondary-button:hover {
+  color: #fff !important;
+  background: #346532 !important;
+  border-color: #346532 !important;
+}
+
+body.admin-page-body {
+  background: #f3f7f9 !important;
+}
+
+body.admin-page-body .admin-main-content {
+  padding: clamp(24px, 4vw, 60px) !important;
+}
+
+body.admin-page-body .admin-panel-card,
+body.admin-page-body .admin-landing-card {
+  border-radius: 20px !important;
+  border-color: #dce5e9 !important;
+  background: #fff !important;
+  box-shadow: 0 12px 35px rgba(24, 59, 89, .08) !important;
+  backdrop-filter: none !important;
+}
+
+body.admin-page-body .admin-form-panel::before {
+  height: 4px;
+  background: #72ad3a !important;
+}
+
+body.admin-page-body .admin-step-number {
+  color: #72ad3a !important;
+  background: #edf5e7 !important;
+  box-shadow: none !important;
+}
+
+body.admin-page-body .admin-card-title h2,
+body.admin-page-body .admin-header h1 {
+  color: #183b59 !important;
+}
+
+body.admin-page-body .admin-header .eyebrow,
+body.admin-page-body .admin-connection,
+body.admin-page-body .admin-connection-dot {
+  color: #72ad3a !important;
+}
+
+body.admin-page-body .admin-connection {
+  border-color: rgba(114, 173, 58, .25) !important;
+  background: #edf5e7 !important;
+}
+
+body.admin-page-body .admin-connection-dot {
+  background: #72ad3a !important;
+  box-shadow: 0 0 0 6px rgba(114, 173, 58, .16) !important;
+}
+
+.sidebar-brand,
+.admin-sidebar-brand {
+  position: relative;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: -5px;
+  right: -55px;
+  z-index: 20;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 50%;
+  color: #fff;
+  background: #346532 !important;
+  box-shadow: 0 7px 16px rgba(24, 59, 89, .22);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: background .2s ease, transform .2s ease;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  outline: none;
+  background: var(--brand-green);
+  transform: scale(1.08);
+}
+
+.logout-icon {
+  display: inline-block;
+  margin-right: 7px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+body.sidebar-collapsed .sidebar,
+body.sidebar-collapsed .admin-sidebar {
+  width: 0 !important;
+  min-width: 0 !important;
+  flex-basis: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  transform: none !important;
+}
+
+body.sidebar-collapsed .sidebar > :not(.sidebar-brand),
+body.sidebar-collapsed .admin-sidebar > :not(.admin-sidebar-brand),
+body.sidebar-collapsed .sidebar-brand > :not(.sidebar-toggle),
+body.sidebar-collapsed .admin-sidebar-brand > :not(.sidebar-toggle) {
+  display: none !important;
+}
+
+body.sidebar-collapsed .sidebar-brand,
+body.sidebar-collapsed .admin-sidebar-brand {
+  position: static !important;
+  display: block !important;
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+}
+
+body.sidebar-collapsed .sidebar-toggle,
+body.sidebar-collapsed .admin-sidebar .sidebar-toggle {
+  position: fixed !important;
+  top: 16px !important;
+  left: 12px !important;
+  right: auto !important;
+  z-index: 1000 !important;
+}
+
+body.sidebar-collapsed .admin-main-content {
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
+/* Shared module sidebar: institutional green panel with the module texture. */
+body[data-module] .sidebar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30;
+  width: 250px !important;
+  flex: 0 0 250px !important;
+  height: 100vh !important;
+  min-height: 0;
+  margin: 0;
+  padding: 28px 18px 26px !important;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, .24) !important;
+  border-radius: 0;
+  background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
+  box-shadow: 0 14px 30px rgba(23, 67, 29, .24), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+body[data-module] .sidebar-brand {
+  min-height: 82px;
+  align-items: center;
+  gap: 14px;
+}
+
+body[data-module] .module-brand-logo {
+  width: 78px;
+  max-width: 44%;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .12));
+}
+
+body[data-module] .sidebar h2 {
+  color: #fff !important;
+  font-size: 1.05rem;
+  line-height: 1.08;
+  letter-spacing: -.02em;
+}
+
+body[data-module] .sidebar nav {
+  gap: 8px;
+  margin-top: 42px;
+}
+
+body[data-module] .sidebar nav a {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px !important;
+ 
+  border-radius: 12px;
+  color: #fff !important;
+  
+  font-size: .98rem;
+  line-height: 1.18;
+  transition: transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+body[data-module] .sidebar nav a::before {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  color: currentColor;
+  background-color: currentColor;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  content: "";
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+body[data-module] .sidebar nav a:nth-child(1)::before {
+  mask-image: url("imagenes/icons/asignacion.png");
+  -webkit-mask-image: url("imagenes/icons/asignacion.png");
+}
+
+body[data-module] .sidebar nav a:nth-child(2)::before {
+  mask-image: url("imagenes/icons/mas.png");
+  -webkit-mask-image: url("imagenes/icons/mas.png");
+}
+
+body[data-module] .sidebar nav a:nth-child(3)::before {
+  mask-image: url("imagenes/icons/destino.png");
+  -webkit-mask-image: url("imagenes/icons/destino.png");
+  transform: scale(.92);
+}
+
+body[data-module] .sidebar nav a:nth-child(4)::before {
+  mask-image: url("imagenes/icons/reloj-de-pared.png");
+  -webkit-mask-image: url("imagenes/icons/reloj-de-pared.png");
+}
+
+body[data-module] .sidebar nav a:hover {
+  border-color: rgba(255, 255, 255, .52) !important;
+  background: #346532 !important;
+  box-shadow: 0 7px 16px rgba(17, 58, 23, .18);
+  transform: translateY(-1px);
+}
+
+body[data-module] .sidebar nav a.active {
+  border-color: #fff !important;
+  color: #1f5927 !important;
+  background: #fff !important;
+  box-shadow: 0 8px 20px rgba(11, 55, 18, .2);
+}
+
+body[data-module] .sidebar-module {
+  padding: 18px;
+  border: 1px solid #5c9557 !important;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(13, 54, 18, .18), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+body[data-module] .sidebar-module span {
+  color: rgba(255, 255, 255, .9) !important;
+  font-size: .82rem;
+  letter-spacing: .02em;
+}
+
+body[data-module] .sidebar-module strong {
+  margin: 8px 0 20px;
+  color: #fff !important;
+  font-size: 1.15rem;
+}
+
+body[data-module] .sidebar-module button {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border: 1px solid #5c9a58 !important;
+  border-radius: 12px;
+  color: #fff !important;
+  background: #42783f !important;
+  box-shadow: 0 6px 14px rgba(19, 61, 23, .18);
+  transition: background .2s ease, transform .2s ease;
+}
+
+body[data-module] .sidebar-module button:hover {
+  background: #346532 !important;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 700px) {
+  body[data-module] .sidebar {
+    top: 0 !important;
+    width: 76px !important;
+    flex-basis: 76px !important;
+    height: 100vh !important;
+    min-height: 0;
+    margin: 0;
+    padding: 18px 9px !important;
+  }
+
+  body[data-module] .sidebar-brand {
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  body[data-module] .module-brand-logo {
+    width: 58px;
+    max-width: 100%;
+  }
+
+  body[data-module] .sidebar h2,
+  body[data-module] .sidebar-module {
+    display: none;
+  }
+
+  body[data-module] .sidebar nav {
+    margin-top: 28px;
+  }
+
+  body[data-module] .sidebar nav a {
+    min-height: 54px;
+    justify-content: center;
+    padding: 10px 5px !important;
+    font-size: 0;
+  }
+
+  body[data-module] .sidebar nav a::before {
+    width: auto;
+    flex: 0 0 auto;
+  }
+}
+
+body.sidebar-collapsed[data-module] .sidebar {
+  width: 0 !important;
+  min-width: 0 !important;
+  flex-basis: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+body.sidebar-collapsed[data-module] .sidebar > :not(.sidebar-brand),
+body.sidebar-collapsed[data-module] .sidebar-brand > :not(.sidebar-toggle) {
+  display: none !important;
+}
+
+body.sidebar-collapsed[data-module] .sidebar-brand {
+  position: static !important;
+  display: block !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+body.sidebar-collapsed[data-module] #sidebar-toggle {
+  position: fixed !important;
+  top: 16px !important;
+  left: 12px !important;
+  right: auto !important;
+  z-index: 1000 !important;
+}

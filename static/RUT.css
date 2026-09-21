@@ -1,0 +1,90 @@
+:root {
+  --ink: #182a3a;
+  --muted: #71808c;
+  --paper: #f3f7f9;
+  --line: #dce5e9;
+  --navy: #183b59;
+  --teal: #0f9f91;
+  --teal-soft: #dcf5f0;
+  --amber: #f1b84b;
+  --shadow: 0 12px 35px rgba(24, 59, 89, .08);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); background: var(--paper); font-family: "Segoe UI", Arial, sans-serif; }
+button { font: inherit; }
+.app-layout { display: flex; min-height: 100vh; background: var(--paper); }
+
+.sidebar { position: sticky; top: 0; width: 250px; flex: 0 0 250px; height: 100vh; padding: 28px 18px; display: flex; flex-direction: column; background: #fff; box-shadow: 4px 0 20px rgba(24, 59, 89, .06); }
+.sidebar-brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; color: #fff; border-radius: 7px; background: var(--navy); font-weight: 700; }
+.sidebar h2 { margin: 0; color: var(--navy); font-size: 1.05rem; }
+.sidebar nav { display: flex; flex-direction: column; gap: 8px; margin-top: 42px; }
+.sidebar nav a { padding: 14px 16px; color: var(--muted); border-radius: 12px; text-decoration: none; font-weight: 700; }
+.sidebar nav a.active { color: #fff; background: var(--navy); }
+.sidebar-module { margin-top: auto; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfc; }
+.sidebar-module span { color: var(--muted); font-size: .68rem; letter-spacing: .14em; }
+.sidebar-module strong { display: block; margin: 9px 0 18px; color: var(--ink); }
+.sidebar-module button { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; color: var(--teal); background: var(--teal-soft); cursor: pointer; font-weight: 700; }
+
+.main-content { flex: 1; min-width: 0; padding: 40px clamp(22px, 4vw, 60px); }
+.content-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; margin-bottom: 34px; }
+.eyebrow { margin: 0 0 9px; color: var(--teal); font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: none; }
+.content-header h1 { margin: 0; color: black; line-height: 1; }
+.subtitle { margin: 12px 0 0; color: var(--muted); font-size: .95rem; }
+.connection { display: flex; align-items: center; gap: 10px; padding: 11px 17px; border-radius: 50px; color: var(--muted); background: #fff; box-shadow: var(--shadow); font-size: .85rem; font-weight: 600; }
+.connection-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 5px var(--teal-soft); }
+
+.card { width: 100%; min-width: 0; padding: 26px; border-radius: 20px; background: #fff; box-shadow: var(--shadow); animation: cardAppear .45s ease both; }
+.card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 25px; }
+.card-heading h2 { margin: 6px 0 0; color: var(--navy); font-size: 1.25rem; line-height: 1.2; }
+.step-number { color: var(--teal); font-size: .72rem; font-weight: 800; letter-spacing: .15em; }
+.record-count { flex-shrink: 0; padding: 7px 13px; border-radius: 999px; color: var(--teal); background: var(--teal-soft); font-size: .72rem; font-weight: 700; }
+.calendar-tabs { display: flex; gap: 8px; padding: 6px; margin-bottom: 22px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfc; }
+.calendar-tab { flex: 1; padding: 12px 16px; border: 0; border-radius: 10px; color: var(--muted); background: transparent; cursor: pointer; font-weight: 700; }
+.calendar-tab:hover { color: var(--navy); background: var(--teal-soft); }
+.calendar-tab.active { 
+  color: #fff;
+  background: url(imagenes/fondo_panel_1.jpeg) center / cover no-repeat; 
+  box-shadow: 0 8px 20px rgba(24, 59, 89, .18); }
+.table-container { width: 100%; overflow-x: auto; overflow-y: hidden; border-radius: 12px; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; }
+th, td { padding: 13px 11px; border-bottom: 1px solid #e1e8eb; text-align: left; vertical-align: middle; }
+thead{ 
+  color: #fff; 
+  background: url(imagenes/fondo_panel_1.jpeg) center / cover no-repeat;
+  font-size: .7rem; font-weight: 700; 
+  letter-spacing: .06em; text-transform: none; }
+thead th:first-child { border-radius: 10px 0 0 0; }
+thead th:last-child { border-radius: 0 10px 0 0; }
+tbody td { color: var(--ink); font-size: .88rem; }
+tbody tr { transition: background .2s ease; }
+tbody tr:hover { background: #f6fbfc; }
+.inactive-row td { color: var(--muted); background: #f8fbfc; }
+.empty-table { padding: 30px !important; color: var(--muted) !important; text-align: center !important; }
+.filtered-routes-empty[hidden] { display: none; }
+.tag-external { display: inline-block; margin-left: 8px; padding: 3px 7px; color: #946d1c; border-radius: 4px; background: rgba(241, 184, 75, .18); font-size: .7rem; font-weight: 700; }
+.shared-module-list { display: flex; flex-wrap: wrap; gap: 5px; min-width: 150px; }
+.shared-module-list .tag-external { margin-left: 0; }
+.shared-module-list .tag-owner { margin-left: 0; }
+.tag-owner { display: inline-block; margin-left: 8px; padding: 3px 7px; color: #fff; border-radius: 4px; background: var(--navy); font-size: .7rem; font-weight: 700; }
+.status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 82px; padding: 7px 13px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+.status-active { color: var(--teal); background: var(--teal-soft); }
+.status-inactive { color: var(--muted); background: #eef3f5; }
+
+@keyframes cardAppear { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 700px) {
+  .sidebar { width: 76px; flex-basis: 76px; padding: 22px 9px; }
+  .sidebar h2 { font-size: .75rem; text-align: center; }
+  .sidebar nav { margin-top: 28px; }
+  .sidebar nav a { padding: 13px 5px; font-size: 0; text-align: center; }
+  .sidebar nav a::before { font-size: 17px; }
+  .sidebar-module { display: none; }
+  .main-content { padding: 25px 15px; }
+  .content-header { display: block; }
+  .connection { width: fit-content; margin-top: 18px; }
+  .card { padding: 20px; border-radius: 17px; }
+  .card-heading h2 { font-size: 1.1rem; }
+  .calendar-tabs { flex-direction: column; }
+}

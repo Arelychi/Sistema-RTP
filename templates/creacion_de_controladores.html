@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    >
+    <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+
+    <title>Controladores | Sistema Central</title>
+
+   
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='creacion_de_controladores.css') }}"
+    >
+
+</head>
+
+<body class="module-page" data-module="{{ module_number }}" data-controller-action="{{ request.args.get('controller_action', '') }}" data-controller-id="{{ request.args.get('controller_id', '') }}">
+
+<main class="app-layout">
+
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
+    <div class="sidebar-brand"><img class="module-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP"><h2>Programación de Controladores</h2><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button></div>
+      <nav>
+        <a href="{{ url_for('schedule_dashboard', module_number=module_number) }}">Programación de tiempo</a>
+        <a class="active" href="{{ url_for('module_dashboard', module_number=module_number) }}">Creación de controladores</a>
+        <a href="{{ url_for('routes_dashboard', module_number=module_number) }}">Rutas</a>
+        <a href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
+      </nav>
+    <div class="sidebar-module"><strong>{{ module_name or module_number }}</strong><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button></form></div>
+    </aside>
+
+
+    <!-- =====================================================
+         CONTENIDO PRINCIPAL
+    ====================================================== -->
+
+    <section class="main-content">
+
+        <!-- HEADER -->
+
+        <div class="content-header">
+
+            <div>
+
+                <p class="eyebrow">
+                    Creación
+                </p>
+
+                <h1>
+                    Controladores
+                </h1>
+
+                <p class="subtitle">
+                    {{ module_name or 'Módulo ' ~ module_number }} |
+                    {{ account.username }}
+                </p>
+
+            </div>
+
+            <div class="connection is-online">
+
+                <span class="connection-dot"></span>
+
+                Conectado
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             GRID ORIGINAL
+             IZQUIERDA = FORMULARIO
+             DERECHA = TABLA
+        ================================================== -->
+
+        <div class="content-grid">
+
+
+            <!-- =================================================
+                 NUEVO CONTROLADOR
+            ================================================== -->
+
+            <section class="card controller-card">
+
+                <div class="card-heading">
+
+                    <div>
+
+                        <span class="step-number">
+                            01
+                        </span>
+
+                        <h2 id="form-title">
+                            Nuevo Controlador
+                        </h2>
+
+                    </div>
+
+                    <span class="record-count">
+                        {{ module_name or 'Módulo ' ~ module_number }}
+                    </span>
+
+                </div>
+
+
+                <form
+                    id="controller-form"
+                    class="controller-form"
+                    method="post"
+                    action="{{ url_for('add_controller', module_number=module_number) }}"
+                >
+
+                    <!-- NOMBRE -->
+
+                    <label>
+
+                        Nombre Completo <span class="required-label-note">* Campo Obligatorio</span>
+
+                        <input
+                            id="name"
+                            name="nombre"
+                            required
+                        >
+
+                    </label>
+
+
+                    <!-- CREDENCIAL -->
+
+                    <label>
+
+                        Credencial <span class="required-label-note">* Campo Obligatorio</span>
+
+                        <input
+                            id="credential"
+                            name="credencial"
+                            required
+                        >
+
+                    </label>
+
+
+                    <!-- SEXO -->
+
+                    <label>
+
+                        Sexo <span class="required-label-note">* Campo Obligatorio</span>
+
+                        <select
+                            id="sex"
+                            name="sexo"
+                            required
+                        >
+
+                            <option value="">
+                                Selecciona
+                            </option>
+
+                            <option>
+                                Masculino
+                            </option>
+
+                            <option>
+                                Femenino
+                            </option>
+
+                            <option>
+                                Otro
+                            </option>
+
+                        </select>
+
+                    </label>
+
+
+                    <!-- MODULO -->
+
+                    <label>
+
+                        Módulo
+
+                        <input
+                            value="{{ module_number }}"
+                            disabled
+                        >
+
+                    </label>
+
+
+                    <!-- BOTONES -->
+
+                    <div class="form-actions">
+
+                        <button
+                            id="save-button"
+                            class="primary-button"
+                            type="submit"
+                        >
+                            Guardar Registro
+                        </button>
+
+                        <button
+                            id="cancel-button"
+                            class="secondary-button hidden"
+                            type="button"
+                        >
+                            Cancelar
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 CONTROLADORES REGISTRADOS
+            ================================================== -->
+
+            <section class="card table-card">
+
+                <div class="card-heading">
+
+                    <div>
+
+                        <span class="step-number">
+                            02
+                        </span>
+
+                        <h2>
+                            Controladores registrados
+                        </h2>
+
+                    </div>
+
+                    <div class="controller-table-actions">
+                        <label class="controller-filter" for="controller-table-filter">
+                            <span class="controller-filter-label">Buscar</span>
+                            <span class="controller-filter-field">
+                                <input id="controller-table-filter" type="search" placeholder="Nombre o credencial" autocomplete="off">
+                                <button id="clear-controller-filter" class="controller-filter-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>×</button>
+                            </span>
+                        </label>
+                        <span id="controller-record-count" class="record-count">
+                            {{ controllers|length }} registros
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <!-- CONTENEDOR DE TABLA -->
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Nombre Completo
+                                </th>
+
+                                <th>
+                                    Credencial
+                                </th>
+
+                                <th>
+                                    Sexo
+                                </th>
+
+                                <th>
+                                    Acciones
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody>
+
+                        {% for item in controllers %}
+
+                            <tr data-id="{{ item.id }}">
+
+                                <td>
+                                    {{ item.nombre }}
+                                </td>
+
+                                <td>
+                                    {{ item.credencial }}
+                                </td>
+
+                                <td>
+                                    {{ item.sexo }}
+                                </td>
+
+                                <td class="actions-cell">
+
+                                    <button
+                                        class="edit-button"
+                                        type="button"
+                                        data-id="{{ item.id }}"
+                                        data-name="{{ item.nombre }}"
+                                        data-credential="{{ item.credencial }}"
+                                        data-sex="{{ item.sexo }}"
+                                    >
+                                        Editar
+                                    </button>
+
+
+                                    <button
+                                        class="delete-button"
+                                        type="button"
+                                        data-id="{{ item.id }}"
+                                    >
+                                        Eliminar
+                                    </button>
+
+                                </td>
+
+                            </tr>
+
+                        {% else %}
+
+                            <tr>
+
+                                <td
+                                    colspan="4"
+                                    class="empty-table"
+                                >
+                                    Aún no hay controladores.
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<!-- =====================================================
+     LOADER
+====================================================== -->
+
+<div
+    id="loadingOverlay"
+    class="loading-overlay"
+>
+
+    <div class="loader"></div>
+
+    <p id="loadingText">
+        Procesando...
+    </p>
+
+</div>
+
+<div id="controller-feedback" class="controller-feedback" role="status" aria-live="polite"></div>
+
+
+
+<!-- =====================================================
+     JAVASCRIPT
+     LÓGICA ORIGINAL CONSERVADA
+====================================================== -->
+
+<script>
+
+    /* =====================================================
+       LOADER
+    ====================================================== */
+
+    const loadingOverlay =
+        document.querySelector('#loadingOverlay');
+
+    const loadingText =
+        document.querySelector('#loadingText');
+
+
+    function showLoader(text = 'Procesando...') {
+
+        loadingText.textContent = text;
+
+        loadingOverlay.classList.add('show');
+
+    }
+
+
+    function hideLoader() {
+
+        loadingOverlay.classList.remove('show');
+
+    }
+
+
+
+    /* =====================================================
+       VARIABLES ORIGINALES
+    ====================================================== */
+
+    let id = null;
+
+    const f =
+        document.querySelector('#controller-form');
+
+    const n =
+        document.querySelector('#name');
+
+    const c =
+        document.querySelector('#credential');
+
+    const s =
+        document.querySelector('#sex');
+
+    const x =
+        document.querySelector('#cancel-button');
+
+    const feedback =
+        document.querySelector('#controller-feedback');
+
+    const controllerTableFilter =
+        document.querySelector('#controller-table-filter');
+
+    const clearControllerFilter =
+        document.querySelector('#clear-controller-filter');
+
+    const controllerRecordCount =
+        document.querySelector('#controller-record-count');
+
+    function normalizeControllerSearch(value) {
+        return String(value ?? '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function filterControllerTable() {
+        const query = normalizeControllerSearch(controllerTableFilter?.value);
+        const rows = [...document.querySelectorAll('.table-container tbody tr[data-id]')];
+        let visibleCount = 0;
+
+        rows.forEach((row) => {
+            const editButton = row.querySelector('.edit-button');
+            const name = editButton?.dataset.name || row.querySelector('td:nth-child(1)')?.textContent || '';
+            const credential = editButton?.dataset.credential || row.querySelector('td:nth-child(2)')?.textContent || '';
+            const matches = !query || normalizeControllerSearch(`${name} ${credential}`).includes(query);
+            row.hidden = !matches;
+            if (matches) visibleCount += 1;
+        });
+
+        document.querySelector('.table-container tbody .controller-filter-empty')?.remove();
+        if (query && rows.length && visibleCount === 0) {
+            document.querySelector('.table-container tbody').insertAdjacentHTML('beforeend', '<tr class="controller-filter-empty"><td colspan="4">No hay registros que coincidan con la búsqueda.</td></tr>');
+        }
+
+        if (clearControllerFilter) clearControllerFilter.hidden = !query;
+        if (controllerRecordCount) {
+            controllerRecordCount.textContent = query
+                ? `${visibleCount} de ${rows.length} registros`
+                : `${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}`;
+        }
+    }
+
+    function showControllerFeedback(action, controllerId) {
+        const labels = {
+            created: 'Controlador creado',
+            duplicate: 'Controlador ya registrado',
+            updated: 'Controlador actualizado',
+            deleted: 'Controlador eliminado',
+        };
+        const row = controllerId
+            ? document.querySelector(`tr[data-id="${CSS.escape(String(controllerId))}"]`)
+            : null;
+
+        if (row) {
+            row.classList.remove('controller-row-notice');
+            void row.offsetWidth;
+            row.classList.add('controller-row-notice');
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window.setTimeout(() => row.classList.remove('controller-row-notice'), 3200);
+        }
+
+        if (feedback) {
+            feedback.textContent = labels[action] || 'Operación completada';
+            feedback.classList.add('is-visible');
+            window.setTimeout(() => feedback.classList.remove('is-visible'), 3200);
+        }
+    }
+
+    const feedbackAction = document.body.dataset.controllerAction;
+    const feedbackId = document.body.dataset.controllerId;
+    if (feedbackAction) showControllerFeedback(feedbackAction, feedbackId);
+
+
+
+    /* =====================================================
+       EDITAR
+    ====================================================== */
+
+    document
+        .querySelectorAll('.edit-button')
+        .forEach((b) => {
+
+            b.onclick = () => {
+
+                id = b.dataset.id;
+
+                n.value =
+                    b.dataset.name;
+
+                c.value =
+                    b.dataset.credential;
+
+                s.value =
+                    b.dataset.sex;
+
+
+                document
+                    .querySelector('#form-title')
+                    .textContent =
+                    'Actualizar Controlador';
+
+
+                document
+                    .querySelector('#save-button')
+                    .textContent =
+                    'Actualizar Datos';
+
+
+                x.classList.remove('hidden');
+
+
+                n.focus();
+
+            };
+
+        });
+
+
+
+    /* =====================================================
+       CANCELAR
+    ====================================================== */
+
+    x?.addEventListener(
+        'click',
+        () => location.reload()
+    );
+
+
+
+    /* =====================================================
+       ELIMINAR
+    ====================================================== */
+
+    document
+        .querySelectorAll('.delete-button')
+        .forEach((b) => {
+
+            b.onclick = async () => {
+
+                if (
+                    confirm(
+                        'Eliminar controlador?'
+                    )
+                ) {
+
+                    showLoader(
+                        'Eliminando controlador...'
+                    );
+
+
+                    try {
+
+                        const r =
+                            await fetch(
+                                '/api/controladores/' +
+                                b.dataset.id,
+                                {
+                                    method: 'DELETE'
+                                }
+                            );
+
+
+                        if (r.ok) {
+                            const row = b.closest('tr');
+                            const nextRow = row.nextElementSibling || row.previousElementSibling;
+                            row.remove();
+                            filterControllerTable();
+
+                            showControllerFeedback('deleted');
+                            nextRow?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                            hideLoader();
+
+                        } else {
+
+                            hideLoader();
+
+                            alert(
+                                'No se pudo eliminar el controlador.'
+                            );
+
+                        }
+
+                    } catch (error) {
+
+                        hideLoader();
+
+                        alert(
+                            'Ocurrió un error al eliminar el controlador.'
+                        );
+
+                    }
+
+                }
+
+            };
+
+        });
+
+
+
+    /* =====================================================
+       GUARDAR / ACTUALIZAR
+    ====================================================== */
+
+    f?.addEventListener(
+        'submit',
+        async (e) => {
+
+            if (!id) return;
+
+            e.preventDefault();
+
+
+            showLoader(
+                'Actualizando controlador...'
+            );
+
+
+            try {
+
+                const r =
+                    await fetch(
+                        '/api/controladores/' + id,
+                        {
+                            method: 'PUT',
+
+                            headers: {
+                                'Content-Type':
+                                    'application/json'
+                            },
+
+                            body: JSON.stringify({
+
+                                nombre:
+                                    n.value,
+
+                                credencial:
+                                    c.value,
+
+                                sexo:
+                                    s.value
+
+                            }),
+
+                        }
+                    );
+
+
+                if (r.ok) {
+                    const updated = await r.json();
+                    id = null;
+                    f.reset();
+                    document.querySelector('#form-title').textContent = 'Nuevo Controlador';
+                    document.querySelector('#save-button').textContent = 'Guardar Registro';
+                    x.classList.add('hidden');
+                    const row = document.querySelector(`tr[data-id="${CSS.escape(String(updated.id))}"]`);
+                    if (row) {
+                        row.querySelector('td:nth-child(1)').textContent = updated.nombre;
+                        row.querySelector('td:nth-child(2)').textContent = updated.credencial;
+                        row.querySelector('td:nth-child(3)').textContent = updated.sexo;
+                        const editButton = row.querySelector('.edit-button');
+                        if (editButton) {
+                            editButton.dataset.name = updated.nombre;
+                            editButton.dataset.credential = updated.credencial;
+                            editButton.dataset.sex = updated.sexo;
+                        }
+                    }
+                    filterControllerTable();
+                    hideLoader();
+                    showControllerFeedback('updated', updated.id);
+
+                } else {
+
+                    hideLoader();
+
+                    alert(
+                        'No se pudo actualizar el controlador.'
+                    );
+
+                }
+
+            } catch (error) {
+
+                hideLoader();
+
+                alert(
+                    'Ocurrió un error al actualizar el controlador.'
+                );
+
+            }
+
+        }
+    );
+
+    controllerTableFilter?.addEventListener('input', filterControllerTable);
+    clearControllerFilter?.addEventListener('click', () => {
+        controllerTableFilter.value = '';
+        filterControllerTable();
+        controllerTableFilter.focus();
+    });
+    filterControllerTable();
+
+</script>
+
+</body>
+<script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</html>

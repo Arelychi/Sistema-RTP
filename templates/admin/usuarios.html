@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Usuarios | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+
+      {% include 'admin/_sidebar_nav.html' %}
+
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Usuarios</h1>
+          <p class="subtitle">Administración de acceso por módulo</p>
+        </div>
+        <div class="admin-connection">
+          <span class="admin-connection-dot"></span>
+          Conectado
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="admin-alerts" aria-live="polite">
+            {% for category, message in messages %}
+              <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="admin-content-grid">
+        <section class="admin-panel-card admin-form-panel">
+          <div class="admin-card-heading">
+            <div class="admin-card-title">
+              <span class="admin-step-number">01</span>
+              <h2>Registro de usuarios</h2>
+            </div>
+          </div>
+
+          <div class="admin-registry-tabs" role="tablist" aria-label="Administración de usuarios y módulos">
+            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Pestaña anterior">‹</button>
+            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
+            <button type="button" class="admin-registry-tab active" data-form-tab="user-form" role="tab" aria-selected="true">Registro de usuarios</button>
+            <button type="button" class="admin-registry-tab" data-form-tab="module-form" role="tab" aria-selected="false">Crear módulos</button>
+            </div></div>
+            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Siguiente pestaña">›</button>
+          </div>
+
+          <div class="admin-registry-contents">
+          <div class="admin-registry-content active" id="user-form" role="tabpanel">
+          <div class="admin-form-shell">
+            <form method="post" action="{{ url_for('admin_create_user') }}" class="controller-form admin-controller-form">
+              {% if editing_user %}
+                <input type="hidden" name="user_id" value="{{ editing_user.id }}">
+              {% endif %}
+
+              <div class="admin-form-grid">
+                <label>
+                  Nombre de usuario <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="username" value="{{ editing_user.username if editing_user else '' }}" required>
+                </label>
+
+                <label>
+                  Correo
+                  <input type="email" name="correo" value="{{ editing_user.correo if editing_user else '' }}" placeholder="correo@ejemplo.com">
+                </label>
+
+                <label>
+                  Teléfono
+                  <input type="tel" name="telefono" value="{{ editing_user.telefono if editing_user else '' }}" placeholder="Número de teléfono">
+                </label>
+
+                <label>
+                  Contraseña
+                  <div class="admin-password-field">
+                    <input type="password" name="password" id="user-password-input" value="" autocomplete="new-password" placeholder="{{ 'Escribe una nueva contraseña o déjalo vacío' if editing_user else 'Ingresar contraseña' }}">
+                    <button type="button" class="admin-password-toggle" data-password-toggle="user-password-input" aria-label="Mostrar contraseña" aria-pressed="false">
+                      <svg class="admin-eye-icon admin-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg class="admin-eye-icon admin-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a18.6 18.6 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  {% if editing_user %}
+                    <small class="admin-field-help">La contraseña actual permanece protegida y no se muestra.</small>
+                  {% endif %}
+                </label>
+
+                <label>
+                  Tipo de usuario <span class="required-label-note">* Campo Obligatorio</span>
+                  <select id="user-type-select" name="tipo_usuario" required>
+                    <option value="usuario" {% if not editing_user or editing_user.tipo_usuario != 'admin' %}selected{% endif %}>Usuario</option>
+                    <option value="admin" {% if editing_user and editing_user.tipo_usuario == 'admin' %}selected{% endif %}>Administrador</option>
+                  </select>
+                </label>
+
+                <label>
+                  Módulo <span class="required-label-note" id="module-required-note">* Campo Obligatorio</span>
+                  <select id="user-module-select" name="module_number" {% if not editing_user or editing_user.tipo_usuario != 'admin' %}required{% endif %} {% if editing_user and editing_user.tipo_usuario == 'admin' %}disabled{% endif %}>
+                    <option value="">Sin módulo</option>
+                    {% for module in modules %}
+                      <option value="{{ module.id }}" {% if editing_user and editing_user.module_number == module.id %}selected{% elif not editing_user and loop.first %}selected{% endif %}>{{ module.nombre }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+
+              <div class="admin-form-actions">
+                <button class="admin-primary-button" type="submit">
+                  {{ 'Actualizar usuario' if editing_user else 'Guardar usuario' }}
+                </button>
+                {% if editing_user %}
+                  <a class="admin-secondary-button" href="{{ url_for('admin_users_page') }}">Cancelar</a>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+          </div>
+
+          <div class="admin-registry-content" id="module-form" role="tabpanel">
+            <div class="admin-form-shell">
+              <form method="post" action="{{ url_for('admin_create_module') }}" class="controller-form admin-controller-form">
+                <input type="hidden" name="module_id" id="module-id-input">
+                <div class="admin-form-grid">
+                  <label>
+                    Nombre del módulo <span class="required-label-note">* Campo Obligatorio</span>
+                    <input name="nombre" id="module-name-input" required placeholder="Ejemplo: Operación">
+                  </label>
+                  <label>
+                    Dirección <span class="required-label-note">* Campo Obligatorio</span>
+                    <input name="direccion" id="module-address-input" required placeholder="Calle y número">
+                  </label>
+                  <label>
+                    Latitud <span class="required-label-note">* Campo Obligatorio</span>
+                    <input name="latitud" id="module-latitude-input" type="number" step="any" min="-90" max="90" required placeholder="19.432608">
+                  </label>
+                  <label>
+                    Longitud <span class="required-label-note">* Campo Obligatorio</span>
+                    <input name="longitud" id="module-longitude-input" type="number" step="any" min="-180" max="180" required placeholder="-99.133209">
+                  </label>
+                </div>
+                <div class="admin-form-actions">
+                  <button class="admin-primary-button" type="submit">Crear módulo</button>
+                  <button class="admin-secondary-button" type="button" id="module-cancel-edit" hidden>Cancelar</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="admin-user-group admin-module-group-tabbed">
+              <div class="admin-module-header">
+                <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">Módulos registrados</span>
+                <strong>{{ modules|length }}</strong>
+              </div>
+              {% if modules %}
+                <ul class="admin-user-list">
+                  {% for module in modules %}
+                    <li class="admin-user-item">
+                      <div class="admin-user-main">
+                        <strong>{{ module.nombre }}</strong>
+                        <span>Módulo {{ module.id }} · {{ module.direccion }}</span>
+                        <small>Lat: {{ module.latitud }} · Lon: {{ module.longitud }}</small>
+                      </div>
+                      <div class="admin-controller-actions">
+                        <button class="admin-edit-button module-edit-button" type="button" data-module-id="{{ module.id }}" data-module-name="{{ module.nombre }}" data-module-address="{{ module.direccion or '' }}" data-module-latitude="{{ module.latitud or '' }}" data-module-longitude="{{ module.longitud or '' }}">Editar</button>
+                        <form method="post" action="{{ url_for('admin_delete_module', module_id=module.id) }}" onsubmit="return confirm('¿Deseas eliminar este módulo?');">
+                          <button class="admin-delete-button" type="submit">Eliminar</button>
+                        </form>
+                      </div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="empty-state">Sin módulos registrados.</p>
+              {% endif %}
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <section class="admin-panel-card admin-user-panel">
+          <div class="admin-card-heading">
+            <div class="admin-card-title">
+              <span class="admin-step-number">02</span>
+              <h2>Usuarios registrados</h2>
+            </div>
+          </div>
+
+          <div class="admin-user-view-tabs" role="tablist" aria-label="Tipos de usuarios registrados">
+            <button class="admin-registry-tab active" type="button" data-user-view="regular-users" role="tab" aria-selected="true">Usuarios registrados</button>
+            <button class="admin-registry-tab" type="button" data-user-view="admin-users" role="tab" aria-selected="false">Usuarios admin</button>
+          </div>
+
+          <div class="admin-user-view active" id="regular-users" role="tabpanel">
+          <div class="admin-registry-tabs" role="tablist" aria-label="Módulos con usuarios">
+            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Mostrar módulos anteriores">‹</button>
+            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
+            {% for group in grouped_users %}
+              <button
+                type="button"
+                class="admin-registry-tab {% if loop.first %}active{% endif %}"
+                data-user-tab="user-module-{{ group.module_number }}"
+                role="tab"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+              >
+                {{ group.module_name or 'Módulo ' ~ group.module_number }}
+              </button>
+            {% endfor %}
+            </div></div>
+            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Mostrar más módulos">›</button>
+          </div>
+
+          <div class="admin-registry-contents">
+            {% for group in grouped_users %}
+              <div class="admin-registry-content {% if loop.first %}active{% endif %}" id="user-module-{{ group.module_number }}" role="tabpanel">
+                <div class="admin-user-group admin-module-group-tabbed">
+                  <div class="admin-module-header">
+                    <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
+                    <strong>{{ group.users|length }}</strong>
+                  </div>
+
+                  {% if group.users %}
+                    <ul class="admin-user-list">
+                      {% for user in group.users %}
+                        <li class="admin-user-item">
+                          <div class="admin-user-main">
+                            <strong>{{ user.username }}</strong>
+                            <span>{{ user.correo or 'Sin correo' }} · {{ user.telefono or 'Sin teléfono' }}</span>
+                          </div>
+                          <div class="admin-controller-actions">
+                            <a class="admin-edit-button" href="{{ url_for('admin_users_page', edit_user_id=user.id) }}">Editar</a>
+                            <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" onsubmit="return confirm('¿Deseas eliminar este usuario?');">
+                              <button class="admin-delete-button" type="submit">Eliminar</button>
+                            </form>
+                          </div>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="empty-state">Sin usuarios en este módulo.</p>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          </div>
+
+          <div class="admin-user-view" id="admin-users" role="tabpanel" hidden>
+              <div class="admin-registry-content active" id="user-admins">
+                <div class="admin-user-group admin-module-group-tabbed">
+                  <div class="admin-module-header"><span>Usuarios admin</span><strong>{{ admin_users|length }}</strong></div>
+                  {% if admin_users %}
+                    <ul class="admin-user-list">
+                      {% for user in admin_users %}
+                        <li class="admin-user-item">
+                          <div class="admin-user-main">
+                            <strong>{{ user.username }}</strong>
+                            <span>{{ user.correo or 'Sin correo' }} · Administrador</span>
+                          </div>
+                          <div class="admin-controller-actions">
+                            <a class="admin-edit-button" href="{{ url_for('admin_users_page', edit_user_id=user.id) }}">Editar</a>
+                            <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" onsubmit="return confirm('¿Deseas eliminar este usuario administrador?');">
+                              <button class="admin-delete-button" type="submit">Eliminar</button>
+                            </form>
+                          </div>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="empty-state">Sin usuarios administradores.</p>
+                  {% endif %}
+                </div>
+              </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const tabs = document.querySelectorAll('[data-user-tab]');
+      const contents = document.querySelectorAll('.admin-user-panel .admin-registry-content');
+      const userViewTabs = document.querySelectorAll('[data-user-view]');
+      const userViews = document.querySelectorAll('.admin-user-view');
+      const formTabs = document.querySelectorAll('[data-form-tab]');
+      const formContents = document.querySelectorAll('.admin-form-panel .admin-registry-content');
+
+      userViewTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const targetId = this.dataset.userView;
+          userViewTabs.forEach(function (item) {
+            const active = item === tab;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-selected', String(active));
+          });
+          userViews.forEach(function (view) {
+            const active = view.id === targetId;
+            view.classList.toggle('active', active);
+            view.hidden = !active;
+          });
+        });
+      });
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const targetId = this.dataset.userTab;
+
+          tabs.forEach(function (item) {
+            item.classList.toggle('active', item === tab);
+            item.setAttribute('aria-selected', item === tab ? 'true' : 'false');
+          });
+
+          contents.forEach(function (content) {
+            content.classList.toggle('active', content.id === targetId);
+          });
+        });
+      });
+
+      formTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const targetId = this.dataset.formTab;
+          formTabs.forEach(function (item) {
+            item.classList.toggle('active', item === tab);
+            item.setAttribute('aria-selected', item === tab ? 'true' : 'false');
+          });
+          formContents.forEach(function (content) {
+            content.classList.toggle('active', content.id === targetId);
+          });
+        });
+      });
+
+      const moduleIdInput = document.getElementById('module-id-input');
+      const moduleNameInput = document.getElementById('module-name-input');
+      const moduleAddressInput = document.getElementById('module-address-input');
+      const moduleLatitudeInput = document.getElementById('module-latitude-input');
+      const moduleLongitudeInput = document.getElementById('module-longitude-input');
+      const moduleCancelEdit = document.getElementById('module-cancel-edit');
+      const userTypeSelect = document.getElementById('user-type-select');
+      const userModuleSelect = document.getElementById('user-module-select');
+      const moduleRequiredNote = document.getElementById('module-required-note');
+      function updateUserTypeFields() {
+        const isAdmin = userTypeSelect?.value === 'admin';
+        if (!userModuleSelect) return;
+        userModuleSelect.disabled = isAdmin;
+        userModuleSelect.required = !isAdmin;
+        if (isAdmin) userModuleSelect.value = '';
+        if (moduleRequiredNote) moduleRequiredNote.hidden = isAdmin;
+      }
+      userTypeSelect?.addEventListener('change', updateUserTypeFields);
+      updateUserTypeFields();
+      document.querySelectorAll('.module-edit-button').forEach(function (button) {
+        button.addEventListener('click', function () {
+          moduleIdInput.value = this.dataset.moduleId;
+          moduleNameInput.value = this.dataset.moduleName;
+          moduleAddressInput.value = this.dataset.moduleAddress;
+          moduleLatitudeInput.value = this.dataset.moduleLatitude;
+          moduleLongitudeInput.value = this.dataset.moduleLongitude;
+          moduleCancelEdit.hidden = false;
+          document.querySelector('[data-form-tab="module-form"]').click();
+          moduleNameInput.focus();
+        });
+      });
+      moduleCancelEdit.addEventListener('click', function () {
+        moduleIdInput.value = '';
+        moduleNameInput.value = '';
+        moduleAddressInput.value = '';
+        moduleLatitudeInput.value = '';
+        moduleLongitudeInput.value = '';
+        this.hidden = true;
+      });
+
+      document.querySelectorAll('[data-password-toggle]').forEach(function (toggle) {
+        toggle.addEventListener('click', function () {
+          const input = document.getElementById(this.dataset.passwordToggle);
+          if (!input) {
+            return;
+          }
+          const isVisible = input.type === 'text';
+          input.type = isVisible ? 'password' : 'text';
+          this.classList.toggle('is-visible', !isVisible);
+          this.setAttribute('aria-pressed', String(!isVisible));
+          this.setAttribute('aria-label', isVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+        });
+      });
+    });
+  </script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+<script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
+</html>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Historial | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      {% include 'admin/_sidebar_nav.html' %}
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Historial</h1>
+          <p class="subtitle">Registro de modificaciones y operaciones del sistema</p>
+        </div>
+        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
+      </header>
+
+      <section class="admin-panel-card history-panel">
+        <div class="admin-card-heading">
+          <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Historial de Rol Mensual</h2></div>
+          <span class="history-count">{{ entries|length }} registros</span>
+        </div>
+        <div class="history-legend" aria-label="Tipos de operación">
+          <span class="history-legend-item is-record">Registro</span>
+          <span class="history-legend-item is-delete">Eliminación</span>
+          <span class="history-legend-item is-edit">Edición</span>
+          <span class="history-legend-item is-activation">Activación</span>
+          <span class="history-legend-item is-download">Descarga</span>
+          <span class="history-legend-item is-password">Cambio contraseña</span>
+          <span class="history-legend-item is-inicio_sesion">Inicio de sesión</span>
+          <span class="history-legend-item is-cierre_sesion">Cierre de sesión</span>
+        </div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Módulo</th>
+                <th>Acción</th>
+                <th>Modificaciones</th>
+                <th>Descripción</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                <tr class="history-row is-{{ entry.accion }}">
+                  <td>{{ entry.usuario }}</td>
+                  <td>{{ entry.modulo if entry.modulo else '-' }}</td>
+                  <td class="history-action is-{{ entry.accion }}">
+                    {% if entry.accion == 'edicion' %}
+                      Editado
+                    {% elif entry.accion == 'eliminacion' %}
+                      Eliminado
+                    {% elif entry.accion == 'registro' %}
+                      Registrado
+                    {% elif entry.accion == 'activacion' %}
+                      Activación
+                    {% elif entry.accion == 'descarga' %}
+                      Descarga
+                    {% elif entry.accion == 'contrasena' %}
+                      Cambio de contraseña
+                    {% elif entry.accion == 'inicio_sesion' %}
+                      Inicio de sesión
+                    {% elif entry.accion == 'cierre_sesion' %}
+                      Cierre de sesión
+                    {% else %}
+                      {{ entry.accion }}
+                    {% endif %}
+                  </td>
+                  <td>{{ entry.modificacion }}</td>
+                  <td>{{ entry.descripcion }}</td>
+                  <td>{{ entry.fecha_hora.strftime('%d/%m/%Y') }}</td>
+                  <td>{{ entry.fecha_hora.strftime('%H:%M:%S') }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td class="history-empty" colspan="7">Todavía no hay operaciones registradas.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
+  <title>Catálogos | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
+</head>
+<body class="admin-page-body" data-active-catalog="{{ 'estados-especiales' if editing_estado_especial else ('servicio' if editing_servicio else 'tipos-rutas') }}">
+  <main class="admin-dashboard-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-brand">
+        <img class="admin-brand-logo" src="{{ url_for('static', filename='imagenes/logo_blanco_1.png') }}" alt="Logo RTP">
+        <h2>Administrador</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Cerrar menú lateral" aria-expanded="true" title="Cerrar menú lateral"><span data-sidebar-icon aria-hidden="true">‹</span></button>
+      </div>
+      {% include 'admin/_sidebar_nav.html' %}
+      <div class="admin-sidebar-module">
+        <span>Usuario</span>
+        <strong>{{ account.username }}</strong>
+        <form method="post" action="{{ url_for('logout') }}">
+          <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
+        </form>
+      </div>
+    </aside>
+
+    <section class="admin-main-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Sistema</p>
+          <h1>Catálogos</h1>
+          <p class="subtitle">Catálogos globales del sistema</p>
+        </div>
+        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="admin-alerts" aria-live="polite">
+            {% for category, message in messages %}
+              <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="admin-registry-tabs catalog-tabs" role="tablist" aria-label="Catálogos administrativos">
+        <button class="admin-registry-tab active" type="button" data-catalog-tab="tipos-rutas">Tipos de rutas</button>
+        <button class="admin-registry-tab" type="button" data-catalog-tab="estados-especiales">Estados especiales</button>
+        <button class="admin-registry-tab" type="button" data-catalog-tab="servicio">Servicio</button>
+      </div>
+
+      <div class="admin-content-grid">
+        <section id="tipos-rutas-form-panel" class="admin-panel-card admin-form-panel catalog-panel tipos-rutas-panel">
+          <div class="admin-card-heading"><div class="admin-card-title"><span class="admin-step-number">01</span><h2>{{ 'Editar tipo de ruta' if editing_tipo_ruta else 'Crear tipo de ruta' }}</h2></div></div>
+          <div class="admin-form-shell">
+            <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+              {% if editing_tipo_ruta %}<input type="hidden" name="tipo_id" value="{{ editing_tipo_ruta.id }}">{% endif %}
+              <label>Descripción <span class="required-label-note">* Campo Obligatorio</span>
+                <input name="descripcion" value="{{ editing_tipo_ruta.descripcion if editing_tipo_ruta else '' }}" required>
+              </label>
+              <div class="admin-form-actions">
+                <button class="admin-primary-button" type="submit">{{ 'Actualizar tipo' if editing_tipo_ruta else 'Guardar tipo' }}</button>
+                {% if editing_tipo_ruta %}<a class="admin-secondary-button" href="{{ url_for('admin_tipos_rutas_page') }}">Cancelar</a>{% endif %}
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section id="tipos-rutas-list-panel" class="admin-panel-card admin-registry-panel admin-route-panel catalog-panel tipos-rutas-panel">
+          <div class="admin-card-heading"><div class="admin-card-title"><span class="admin-step-number">02</span><h2>Tipos registrados</h2></div></div>
+          {% if tipos_rutas %}
+            <div class="admin-route-table-wrap">
+              <table class="admin-route-table">
+                <thead><tr><th>Descripción</th><th>Acciones</th></tr></thead>
+                <tbody>
+                  {% for tipo in tipos_rutas %}
+                    <tr>
+                      <td>{{ tipo.descripcion }}</td>
+                      <td class="admin-controller-actions">
+                        <a class="admin-edit-button" href="{{ url_for('admin_tipos_rutas_page', edit_id=tipo.id) }}">Editar</a>
+                        <form method="post" action="{{ url_for('admin_delete_tipo_ruta', tipo_id=tipo.id) }}" onsubmit="return confirm('¿Deseas eliminar este tipo de ruta?');">
+                          <button class="admin-delete-button" type="submit">Eliminar</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="empty-state">Sin tipos de rutas registrados.</p>
+          {% endif %}
+        </section>
+
+        <section id="estados-especiales-panel" class="admin-panel-card admin-form-panel catalog-panel" hidden>
+          <div class="admin-card-heading"><div class="admin-card-title"><span class="admin-step-number">01</span><h2>{{ 'Editar estado especial' if editing_estado_especial else 'Crear estado especial' }}</h2></div></div>
+          <div class="admin-form-shell">
+            <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+              <input type="hidden" name="catalog" value="estados_especiales">
+              {% if editing_estado_especial %}<input type="hidden" name="estado_id" value="{{ editing_estado_especial.id }}">{% endif %}
+              <div class="admin-form-grid">
+                <label>Código <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="codigo" value="{{ editing_estado_especial.codigo if editing_estado_especial else '' }}" maxlength="40" required placeholder="V">
+                </label>
+                <label>Descripción <span class="required-label-note">* Campo Obligatorio</span>
+                  <input name="descripcion" value="{{ editing_estado_especial.descripcion if editing_estado_especial else '' }}" required placeholder="Vacaciones">
+                </label>
+                <label class="admin-turno-active-field">
+                  <input type="checkbox" name="activo" {% if not editing_estado_especial or editing_estado_especial.activo %}checked{% endif %}>
+                  <span>Estado activo</span>
+                </label>
+              </div>
+              <div class="admin-form-actions">
+                <button class="admin-primary-button" type="submit">{{ 'Actualizar estado' if editing_estado_especial else 'Guardar estado' }}</button>
+                {% if editing_estado_especial %}<a class="admin-secondary-button" href="{{ url_for('admin_tipos_rutas_page') }}">Cancelar</a>{% endif %}
+              </div>
+            </form>
+          </div>
+
+          <div class="admin-user-group admin-module-group-tabbed">
+            <div class="admin-module-header"><span>Estados especiales registrados</span><strong>{{ estados_especiales|length }}</strong></div>
+            {% if estados_especiales %}
+              <div class="admin-route-table-wrap">
+                <table class="admin-route-table">
+                  <thead><tr><th>Código</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <tbody>
+                    {% for estado in estados_especiales %}
+                      <tr>
+                        <td>{{ estado.codigo }}</td>
+                        <td>{{ estado.descripcion }}</td>
+                        <td>{{ 'Activo' if estado.activo else 'Inactivo' }}</td>
+                        <td class="admin-controller-actions">
+                          <a class="admin-edit-button" href="{{ url_for('admin_tipos_rutas_page', edit_estado_id=estado.id) }}">Editar</a>
+                          <form method="post" action="{{ url_for('admin_delete_estado_especial', estado_id=estado.id) }}" onsubmit="return confirm('¿Deseas eliminar este estado especial?');">
+                            <button class="admin-delete-button" type="submit">Eliminar</button>
+                          </form>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="empty-state">Sin estados especiales registrados.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section id="servicio-panel" class="admin-panel-card admin-form-panel catalog-panel" hidden>
+          <div class="admin-card-heading"><div class="admin-card-title"><span class="admin-step-number">01</span><h2>{{ 'Editar servicio' if editing_servicio else 'Crear servicio' }}</h2></div></div>
+          <div class="admin-form-shell">
+            <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+              <input type="hidden" name="catalog" value="servicio">
+              {% if editing_servicio %}<input type="hidden" name="servicio_id" value="{{ editing_servicio.id }}">{% endif %}
+              <label>Nombre <span class="required-label-note">* Campo Obligatorio</span>
+                <input name="nombre" value="{{ editing_servicio.nombre if editing_servicio else '' }}" maxlength="160" required placeholder="Servicio ordinario">
+              </label>
+              <div class="admin-form-actions">
+                <button class="admin-primary-button" type="submit">{{ 'Actualizar servicio' if editing_servicio else 'Guardar servicio' }}</button>
+                {% if editing_servicio %}<a class="admin-secondary-button" href="{{ url_for('admin_tipos_rutas_page') }}">Cancelar</a>{% endif %}
+              </div>
+            </form>
+          </div>
+
+          <div class="admin-user-group admin-module-group-tabbed">
+            <div class="admin-module-header"><span>Servicios registrados</span><strong>{{ servicios|length }}</strong></div>
+            {% if servicios %}
+              <div class="admin-route-table-wrap">
+                <table class="admin-route-table">
+                  <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+                  <tbody>
+                    {% for servicio in servicios %}
+                      <tr>
+                        <td>{{ servicio.nombre }}</td>
+                        <td class="admin-controller-actions">
+                          <a class="admin-edit-button" href="{{ url_for('admin_tipos_rutas_page', edit_servicio_id=servicio.id) }}">Editar</a>
+                          <form method="post" action="{{ url_for('admin_delete_servicio', servicio_id=servicio.id) }}" onsubmit="return confirm('¿Deseas eliminar este servicio?');">
+                            <button class="admin-delete-button" type="submit">Eliminar</button>
+                          </form>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="empty-state">Sin servicios registrados.</p>
+            {% endif %}
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script>
+    const activeCatalog = document.body.dataset.activeCatalog;
+    const catalogTabs = document.querySelectorAll('[data-catalog-tab]');
+    function selectCatalogTab(selected) {
+      catalogTabs.forEach(function (item) {
+        const isActive = item.dataset.catalogTab === selected;
+        item.classList.toggle('active', isActive);
+        item.setAttribute('aria-selected', String(isActive));
+      });
+      document.querySelectorAll('.catalog-panel').forEach(function (panel) {
+        panel.hidden = !panel.id.startsWith(selected);
+      });
+    }
+    catalogTabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        selectCatalogTab(this.dataset.catalogTab);
+      });
+    });
+    selectCatalogTab(activeCatalog);
+  </script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>
