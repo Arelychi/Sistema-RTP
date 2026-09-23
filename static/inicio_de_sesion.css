@@ -134,7 +134,7 @@ button, input { font: inherit; }
 
 .brand-kicker { margin: 4px 0 0; color: rgba(255, 255, 255, .7); font-size: .58rem; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
 .login-brand-panel h2 { margin: 0; font-size: 1.65rem; line-height: .98; }
-.brand-caption { margin: 0; color: rgba(255, 255, 255, .84); font-size: .66rem; }
+.brand-caption { margin: 0; color: rgba(255, 255, 255, .84); font-size: .80rem; }
 
 .eyebrow {
   margin: 0 0 9px;
@@ -153,16 +153,16 @@ button, input { font: inherit; }
   letter-spacing: -.04em;
 }
 
-.login-intro { max-width: 250px; margin: 18px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+.login-intro { max-width: 250px; margin: 18px 0 0; color: var(--muted); font-size: .95rem; line-height: 1.4; }
 
 .login-card form { display: grid; gap: 18px; margin-top: 30px; }
-.login-card label { display: grid; gap: 5px; color: var(--muted); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: none; }
-.required-label-note { color: var(--teal); font-size: .54rem; font-weight: 700; letter-spacing: 0; }
+.login-card label { display: grid; gap: 5px; color: var(--muted); font-size: .95rem; font-weight: 700; letter-spacing: .04em; text-transform: none; }
+.required-label-note { color: var(--teal); font-size: .65rem; font-weight: 700; letter-spacing: 0; }
 .login-card input { width: 100%; padding: 8px 0 9px; border: 0; border-bottom: 1px solid var(--line); outline: 0; background: transparent; color: var(--ink); font-size: .86rem; }
 .login-card input:focus { border-color: var(--teal); box-shadow: 0 1px 0 var(--teal); }
-.primary-button { width: 100%; margin-top: 4px; padding: 12px 14px; border: 0; border-radius: 6px; color: #fff; background: #72ad3a; cursor: pointer; font-size: .78rem; font-weight: 700; box-shadow: 0 9px 18px rgba(114, 173, 58, .24); transition: transform .2s ease, filter .2s ease; }
+.primary-button { width: 100%; margin-top: 4px; padding: 12px 14px; border: 0; border-radius: 6px; color: #fff; background: #72ad3a; cursor: pointer; font-size: .95rem; font-weight: 700; box-shadow: 0 9px 18px rgba(114, 173, 58, .24); transition: transform .2s ease, filter .2s ease; }
 .primary-button:hover { filter: brightness(.95); transform: translateY(-1px); }
-.secondary-link { color: var(--navy); font-size: .68rem; font-weight: 700; text-align: center; text-decoration: none; }
+.secondary-link { color: var(--navy); font-size: .75em; font-weight: 700; text-align: center; text-decoration: none; }
 .secondary-link:hover { color: var(--teal); text-decoration: underline; }
 .login-help { color: var(--muted); font-size: .86rem; line-height: 1.5; }
 .login-success { padding: 11px 13px; color: #176b62; border-left: 3px solid var(--teal); background: #eaf8f5; font-size: .82rem; line-height: 1.45; }

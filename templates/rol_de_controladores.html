@@ -38,7 +38,7 @@
 
       <div class="schedule-grid-toggle">
         <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de asignaciones</span>
-        <button id="toggle-schedule-grid" class="schedule-grid-toggle-button" type="button" aria-label="Ocultar editor de asignaciones" aria-expanded="true" title="Ocultar editor de asignaciones"><span class="schedule-grid-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar editor</span></button>
+        <button id="toggle-schedule-grid" class="schedule-grid-toggle-button" type="button" aria-label="Ocultar editor de asignaciones" aria-expanded="true" title="Ocultar editor de asignaciones"><span class="schedule-grid-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar formulario</span></button>
       </div>
       <section id="schedule-grid" class="schedule-grid">
         <section class="card schedule-form-card">
@@ -245,10 +245,10 @@ function setScheduleGridCollapsed(collapsed) {
   scheduleGrid.classList.toggle('is-collapsed', collapsed);
   scheduleGridToggle.setAttribute('aria-expanded', String(!collapsed));
   const action = collapsed ? 'Mostrar' : 'Ocultar';
-  scheduleGridToggle.setAttribute('aria-label', `${action} editor de asignaciones`);
-  scheduleGridToggle.title = `${action} editor de asignaciones`;
+  scheduleGridToggle.setAttribute('aria-label', `${action} formulario`);
+  scheduleGridToggle.title = `${action} formulario`;
   scheduleGridToggle.querySelector('.schedule-grid-toggle-icon').textContent = collapsed ? '🠋' : '🠉';
-  scheduleGridToggle.querySelector('.schedule-grid-toggle-text').textContent = `${action} editor`;
+  scheduleGridToggle.querySelector('.schedule-grid-toggle-text').textContent = `${action} formulario`;
 }
 
 scheduleGridToggle.addEventListener('click', () => setScheduleGridCollapsed(!scheduleGrid.classList.contains('is-collapsed')));

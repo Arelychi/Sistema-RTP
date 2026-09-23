@@ -181,7 +181,6 @@ body.admin-page-body .admin-landing-card {
 
 body.admin-page-body .admin-form-panel::before {
   height: 4px;
-  background: #72ad3a !important;
 }
 
 body.admin-page-body .admin-step-number {
@@ -285,7 +284,7 @@ body.sidebar-collapsed .admin-sidebar-brand {
 body.sidebar-collapsed .sidebar-toggle,
 body.sidebar-collapsed .admin-sidebar .sidebar-toggle {
   position: fixed !important;
-  top: 16px !important;
+  top: 70px !important;
   left: 12px !important;
   right: auto !important;
   z-index: 1000 !important;

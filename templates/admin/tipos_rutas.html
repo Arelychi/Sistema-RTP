@@ -25,7 +25,9 @@
       </div>
     </aside>
 
-    <section class="admin-main-content">
+    <div class="admin-workspace">
+      {% include 'admin/_module_tabs.html' %}
+      <section class="admin-main-content">
       <header class="admin-header">
         <div>
           <p class="eyebrow">Sistema</p>
@@ -45,7 +47,7 @@
         {% endif %}
       {% endwith %}
 
-      <div class="admin-registry-tabs catalog-tabs" role="tablist" aria-label="Catálogos administrativos">
+      <div class="admin-local-tabs catalog-tabs" role="tablist" aria-label="Catálogos administrativos">
         <button class="admin-registry-tab active" type="button" data-catalog-tab="tipos-rutas">Tipos de rutas</button>
         <button class="admin-registry-tab" type="button" data-catalog-tab="estados-especiales">Estados especiales</button>
         <button class="admin-registry-tab" type="button" data-catalog-tab="servicio">Servicio</button>
@@ -191,7 +193,8 @@
           </div>
         </section>
       </div>
-    </section>
+      </section>
+    </div>
   </main>
   <script>
     const activeCatalog = document.body.dataset.activeCatalog;
@@ -213,6 +216,7 @@
     });
     selectCatalogTab(activeCatalog);
   </script>
+  <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
 </body>
 </html>

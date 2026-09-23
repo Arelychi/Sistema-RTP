@@ -34,7 +34,9 @@
 
     </aside>
 
-    <section class="admin-main-content">
+    <div class="admin-workspace">
+      {% include 'admin/_module_tabs.html' %}
+      <section class="admin-main-content">
 
       <header class="admin-header">
         <div>
@@ -60,6 +62,11 @@
       {% endwith %}
 
       <div class="admin-content-grid">
+        <div class="admin-form-panel-wrap" data-admin-form-panel>
+          <div class="schedule-grid-toggle admin-form-toggle-bar">
+            <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de formulario</span>
+            <button class="schedule-grid-toggle-button admin-form-toggle" type="button" data-admin-form-toggle aria-label="Ocultar editor" aria-expanded="true" title="Ocultar editor"><span class="schedule-grid-toggle-icon admin-form-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar formulario</span></button>
+          </div>
         <section class="admin-panel-card admin-form-panel">
           <div class="admin-card-heading">
             <div class="admin-card-title">
@@ -116,6 +123,7 @@
             </form>
           </div>
         </section>
+        </div>
 
         <section class="admin-panel-card admin-registry-panel">
           <div class="admin-card-heading">
@@ -125,27 +133,9 @@
             </div>
           </div>
 
-          <div class="admin-registry-tabs" role="tablist" aria-label="Módulos registrados">
-            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Mostrar módulos anteriores">‹</button>
-            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
-            {% for group in grouped_controllers %}
-              <button
-                type="button"
-                class="admin-registry-tab {% if loop.first %}active{% endif %}"
-                data-tab="module-{{ group.module_number }}"
-                role="tab"
-                aria-selected="{{ 'true' if loop.first else 'false' }}"
-              >
-                {{ group.module_name or 'Módulo ' ~ group.module_number }}
-              </button>
-            {% endfor %}
-            </div></div>
-            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Mostrar más módulos">›</button>
-          </div>
-
           <div class="admin-registry-contents">
             {% for group in grouped_controllers %}
-              <div class="admin-registry-content {% if loop.first %}active{% endif %}" id="module-{{ group.module_number }}" role="tabpanel">
+              <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" id="module-{{ group.module_number }}" role="tabpanel">
                 <div class="admin-module-group admin-module-group-tabbed">
                   <div class="admin-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
@@ -173,7 +163,7 @@
                             </label>
                           </form>
                           <div class="admin-controller-actions">
-                            <a class="admin-edit-button" href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}">Editar</a>
+                            <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}">Editar</a>
                             <form method="post" action="{{ url_for('admin_delete_controller', controller_id=controller.id) }}" onsubmit="return confirm('¿Deseas eliminar este controlador?');">
                               <button class="admin-delete-button" type="submit">Eliminar</button>
                             </form>
@@ -191,7 +181,8 @@
         </section>
       </div>
 
-    </section>
+      </section>
+    </div>
 
   </main>
 
@@ -218,6 +209,7 @@
   </script>
 
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

@@ -1,4 +1,28 @@
+# Entornos virtuales
 .venv/
+venv/
+env/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Python generado
 __pycache__/
 *.py[cod]
-.env
+*.so
+
+# Pruebas y cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Herramientas de desarrollo
+.vscode/
+.idea/
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db

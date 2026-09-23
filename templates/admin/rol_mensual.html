@@ -25,7 +25,9 @@
       </div>
     </aside>
 
-    <section class="admin-main-content">
+    <div class="admin-workspace">
+      {% include 'admin/_module_tabs.html' %}
+      <section class="admin-main-content">
       <header class="admin-header">
         <div>
           <p class="eyebrow">Sistema</p>
@@ -40,25 +42,9 @@
           <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Módulos disponibles</h2></div>
         </div>
         {% if modules %}
-          <div class="admin-registry-tabs" role="tablist" aria-label="Módulos con rol mensual">
-            <button class="admin-registry-arrow" type="button" data-registry-prev aria-label="Mostrar módulos anteriores">‹</button>
-            <div class="admin-registry-tabs-viewport"><div class="admin-registry-tabs-track">
-            {% for module in modules %}
-              <button
-                class="admin-registry-tab {% if loop.first %}active{% endif %}"
-                type="button"
-                data-role-tab="role-module-{{ module.id }}"
-                role="tab"
-                aria-selected="{{ 'true' if loop.first else 'false' }}"
-              >{{ module.nombre }}</button>
-            {% endfor %}
-            </div></div>
-            <button class="admin-registry-arrow" type="button" data-registry-next aria-label="Mostrar más módulos">›</button>
-          </div>
-
           <div class="admin-registry-contents">
             {% for module in modules %}
-              <div class="admin-registry-content {% if loop.first %}active{% endif %}" id="role-module-{{ module.id }}" role="tabpanel">
+              <div class="admin-registry-content" data-admin-module-panel="{{ module.id }}" id="role-module-{{ module.id }}" role="tabpanel">
                 <div class="admin-module-group admin-module-group-tabbed admin-monthly-role-frame">
                   <div class="admin-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ module.nombre }}</span>
@@ -78,7 +64,8 @@
           <p class="empty-state">No hay módulos disponibles.</p>
         {% endif %}
       </section>
-    </section>
+      </section>
+    </div>
   </main>
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script>

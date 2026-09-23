@@ -484,6 +484,7 @@ def admin_users_page():
             app.logger.exception("No fue posible cargar los usuarios administradores")
             admin_users = []
     except Exception:
+        app.logger.exception("No fue posible cargar los usuarios y módulos")
         modules = []
         grouped_users = []
         admin_users = []
@@ -510,6 +511,20 @@ def admin_users_page():
     )
 
 
+@app.get("/administrador/modulos")
+def admin_modules_page():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    try:
+        initialize_schema()
+        modules = request_modules()
+    except Exception:
+        app.logger.exception("No fue posible cargar los módulos")
+        modules = []
+    return render_template("admin/modulos.html", account=account, modules=modules)
+
+
 @app.post("/administrador/modulos")
 def admin_create_module():
     account = session.get("account")
@@ -522,16 +537,16 @@ def admin_create_module():
     longitud = str(request.form.get("longitud", "")).strip()
     if not nombre or not direccion or not latitud or not longitud:
         flash("Nombre, dirección, latitud y longitud son obligatorios.", "error")
-        return redirect(url_for("admin_users_page"))
+        return redirect(url_for("admin_modules_page"))
     try:
         latitud_value = float(latitud)
         longitud_value = float(longitud)
     except ValueError:
         flash("La latitud y la longitud deben ser valores numéricos.", "error")
-        return redirect(url_for("admin_users_page"))
+        return redirect(url_for("admin_modules_page"))
     if not -90 <= latitud_value <= 90 or not -180 <= longitud_value <= 180:
         flash("La latitud debe estar entre -90 y 90, y la longitud entre -180 y 180.", "error")
-        return redirect(url_for("admin_users_page"))
+        return redirect(url_for("admin_modules_page"))
     try:
         initialize_schema()
         if module_id:
@@ -545,7 +560,7 @@ def admin_create_module():
             flash("Módulo creado correctamente.", "success")
     except Exception:
         flash("No se pudo guardar el módulo. Verifica que el nombre no esté repetido.", "error")
-    return redirect(url_for("admin_users_page"))
+    return redirect(url_for("admin_modules_page"))
 
 
 @app.post("/administrador/modulos/<int:module_id>/eliminar")
@@ -564,7 +579,7 @@ def admin_delete_module(module_id: int):
             flash("No se encontró el módulo para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el módulo.", "error")
-    return redirect(url_for("admin_users_page"))
+    return redirect(url_for("admin_modules_page"))
 
 
 @app.get("/administrador/rutas")
@@ -625,6 +640,7 @@ def admin_analysis_page():
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        modules = request_modules()
         metrics = fetch_analysis_metrics()
     except Exception:
         app.logger.exception("No fue posible cargar las métricas de análisis")
@@ -643,7 +659,7 @@ def admin_analysis_page():
             "shift_usage": [],
             "most_controllers": None,
         }
-    return render_template("admin/analisis.html", account=account, metrics=metrics)
+    return render_template("admin/analisis.html", account=account, modules=modules, metrics=metrics)
 
 
 @app.post("/administrador/rutas")
@@ -902,10 +918,12 @@ def admin_tipos_rutas_page():
     edit_tipo_id = request.args.get("edit_id", type=int)
     try:
         initialize_schema()
+        modules = request_modules()
         tipos_rutas = fetch_catalog_items("tipos_rutas")
         estados_especiales = fetch_catalog_items("estados_especiales")
         servicios = fetch_catalog_items("servicio")
     except Exception:
+        modules = []
         tipos_rutas = []
         estados_especiales = []
         servicios = []
@@ -917,6 +935,7 @@ def admin_tipos_rutas_page():
     return render_template(
         "admin/tipos_rutas.html",
         account=account,
+        modules=modules,
         tipos_rutas=tipos_rutas,
         editing_tipo_ruta=editing_tipo_ruta,
         estados_especiales=estados_especiales,

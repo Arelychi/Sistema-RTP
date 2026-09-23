@@ -1,23 +1,10 @@
-<nav class="admin-sidebar-nav" aria-label="Navegación administrativa">
-  {% set creation_active = request.endpoint in ['admin_dashboard', 'admin_controllers_page', 'admin_routes_page', 'admin_tipos_rutas_page', 'admin_users_page', 'admin_turnos_page'] %}
-  {% set routes_active = request.endpoint in ['admin_routes_page', 'admin_tipos_rutas_page'] %}
-  <button class="admin-nav-section admin-nav-toggle {% if creation_active %}active{% endif %}" type="button" data-admin-nav-toggle="creation" aria-expanded="{{ 'true' if creation_active else 'false' }}" aria-controls="admin-nav-creation">
-    <span>Creación</span><span class="admin-nav-chevron" aria-hidden="true"></span>
-  </button>
-  <div class="admin-nav-submenu {% if not creation_active %}is-collapsed{% endif %}" id="admin-nav-creation" data-admin-nav-panel="creation">
-    <a class="admin-nav-child {% if request.endpoint in ['admin_dashboard', 'admin_controllers_page'] %}active{% endif %}" href="{{ url_for('admin_controllers_page') }}">Controladores</a>
-    <div class="admin-nav-nested-group">
-      <button class="admin-nav-child admin-nav-parent admin-nav-toggle {% if routes_active %}active{% endif %}" type="button" data-admin-nav-toggle="routes" aria-expanded="{{ 'true' if routes_active else 'false' }}" aria-controls="admin-nav-routes">
-        <span>Rutas</span><span class="admin-nav-chevron" aria-hidden="true"></span>
-      </button>
-      <div class="admin-nav-submenu admin-nav-submenu-nested {% if not routes_active %}is-collapsed{% endif %}" id="admin-nav-routes" data-admin-nav-panel="routes">
-        <a class="admin-nav-grandchild {% if request.endpoint == 'admin_routes_page' %}active{% endif %}" href="{{ url_for('admin_routes_page') }}">Creación de Rutas</a>
-        <a class="admin-nav-grandchild {% if request.endpoint == 'admin_tipos_rutas_page' %}active{% endif %}" href="{{ url_for('admin_tipos_rutas_page') }}">Tipos de Rutas</a>
-      </div>
-    </div>
-    <a class="admin-nav-child {% if request.endpoint == 'admin_users_page' %}active{% endif %}" href="{{ url_for('admin_users_page') }}">Usuarios</a>
-    <a class="admin-nav-child {% if request.endpoint == 'admin_turnos_page' %}active{% endif %}" href="{{ url_for('admin_turnos_page') }}">Turnos</a>
-  </div>
+<nav aria-label="Navegación administrativa">
+  <a class="admin-nav-section {% if request.endpoint in ['admin_dashboard', 'admin_controllers_page'] %}active{% endif %}" href="{{ url_for('admin_controllers_page') }}">Controladores</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_routes_page' %}active{% endif %}" href="{{ url_for('admin_routes_page') }}">Creación de Rutas</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_tipos_rutas_page' %}active{% endif %}" href="{{ url_for('admin_tipos_rutas_page') }}">Tipos de Rutas</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_users_page' %}active{% endif %}" href="{{ url_for('admin_users_page') }}">Usuarios</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_turnos_page' %}active{% endif %}" href="{{ url_for('admin_turnos_page') }}">Turnos</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_modules_page' %}active{% endif %}" href="{{ url_for('admin_modules_page') }}">Creación de modulos</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_monthly_role_page' %}active{% endif %}" href="{{ url_for('admin_monthly_role_page') }}">Rol Mensual</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_analysis_page' %}active{% endif %}" href="{{ url_for('admin_analysis_page') }}">Análisis</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_history_page' %}active{% endif %}" href="{{ url_for('admin_history_page') }}">Historial</a>

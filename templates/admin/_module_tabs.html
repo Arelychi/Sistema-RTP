@@ -1,0 +1,17 @@
+<div class="admin-module-tabs" data-admin-module-tabs role="tablist" aria-label="Seleccionar módulo">
+  <button class="admin-module-arrow" type="button" data-admin-module-prev aria-label="Módulo anterior">‹</button>
+  <div class="admin-module-tabs-viewport">
+    <div class="admin-module-tabs-track">
+      {% for module in modules %}
+        <button
+          class="admin-module-tab"
+          type="button"
+          data-admin-module="{{ module.id }}"
+          role="tab"
+          aria-selected="false"
+        >{{ module.nombre }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <button class="admin-module-arrow" type="button" data-admin-module-next aria-label="Módulo siguiente">›</button>
+</div>

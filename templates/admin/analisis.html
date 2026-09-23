@@ -25,7 +25,9 @@
       </div>
     </aside>
 
-    <section class="admin-main-content">
+    <div class="admin-workspace">
+      {% include 'admin/_module_tabs.html' %}
+      <section class="admin-main-content">
       <header class="admin-header">
         <div>
           <p class="eyebrow">Sistema</p>
@@ -109,8 +111,10 @@
         </section>
       </div>
       </section>
-    </section>
+      </section>
+    </div>
   </main>
+  <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
 </body>
 </html>

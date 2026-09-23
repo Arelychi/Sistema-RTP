@@ -768,7 +768,7 @@ def fetch_users(module_number: int | None = None) -> list[dict]:
                 """
                 SELECT id, username, password_hash, correo, telefono, module_number, is_admin, tipo_usuario, active
                 FROM seguridad.usuarios
-                WHERE (%s IS NULL OR module_number = %s) AND active = TRUE
+                WHERE (%s::integer IS NULL OR module_number = %s::integer) AND active = TRUE
                 ORDER BY username
                 """,
                 (module_number, module_number),
