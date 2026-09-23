@@ -2,6 +2,9 @@
 .venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
 # Variables de entorno y secretos
 .env
@@ -13,16 +16,20 @@ __pycache__/
 *.py[cod]
 *.so
 
-# Pruebas y cobertura
-.pytest_cache/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+*.egg-info/
+.installed.cfg
+.egg
+# Pruebas, cachés y cobertura
 .coverage
-.coverage.*
-htmlcov/
+.mypy_cache/
+.hypothesis/
+.tox/
+# Ruff stuff:
+.ruff_cache/
 
-# Herramientas de desarrollo
-.vscode/
-.idea/
-
-# Archivos temporales del sistema
-.DS_Store
-Thumbs.db

@@ -1,4 +1,8 @@
-# Proyecto Python + PostgreSQL
+# Sistema-RTP
+
+Sistema de análisis y gestión de roles operativos RTP.
+
+## Proyecto Python + PostgreSQL
 
 Proyecto base para conectarse a PostgreSQL usando `psycopg` y variables de entorno.
 
