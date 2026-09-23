@@ -12,6 +12,7 @@ from email.message import EmailMessage
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, send_file, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from app.config import settings
 from app.db import (
     MAX_MODULES,
     authenticate_user,
@@ -67,7 +68,8 @@ from app.excel_export import build_turnos_excel
 
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "clave-local-de-desarrollo")
+app.config["SECRET_KEY"] = settings.secret_key
+app.config["ENVIRONMENT"] = settings.environment
 memory_records: list[dict] = []
 memory_controllers: list[dict] = []
 
@@ -1950,4 +1952,4 @@ def export_excel():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=not settings.is_production)

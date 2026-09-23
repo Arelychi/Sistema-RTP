@@ -11,7 +11,7 @@ Proyecto base para conectarse a PostgreSQL usando `psycopg` y variables de entor
 - Python 3.10 o superior
 - PostgreSQL instalado y ejecutándose
 
-## Configuración en Windows
+## Configuración local en Windows
 
 Desde esta carpeta, ejecuta. En este workspace, el entorno está ubicado en `c:\xampp\htdocs\xampp\.venv`:
 
@@ -30,8 +30,38 @@ PGPORT=5432
 PGDATABASE=mi_base_de_datos
 PGUSER=postgres
 PGPASSWORD=tu_contraseña
-FLASK_SECRET_KEY=cambia-esta-clave-por-una-segura
+SECRET_KEY=cambia-esta-clave-por-una-segura
 ```
+
+La aplicación carga `.env` automáticamente mediante `app/config.py`. Usa `SECRET_KEY` como nombre principal; `FLASK_SECRET_KEY` se mantiene solo para compatibilidad. Para PostgreSQL local puedes usar las variables `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` y `PGPASSWORD`.
+
+También puedes usar una URL completa:
+
+```dotenv
+DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/ProgramacionDeControladores
+```
+
+Cuando existe `DATABASE_URL`, tiene prioridad sobre las variables `PG*`.
+
+## Despliegue en Render
+
+Configura estas variables en **Render > Service > Environment**:
+
+```dotenv
+APP_ENV=production
+SECRET_KEY=una-clave-larga-y-aleatoria
+DATABASE_URL=postgresql://...
+```
+
+Si enlazas una base de datos PostgreSQL de Render con el servicio web, Render puede proporcionar `DATABASE_URL` automáticamente. No subas `.env` a GitHub ni guardes credenciales reales en `.env.example`.
+
+El `Procfile` ya configura Gunicorn:
+
+```text
+web: gunicorn --bind 0.0.0.0:$PORT app.web:app
+```
+
+Render define `PORT`; por eso Gunicorn escucha en `0.0.0.0:$PORT`. En desarrollo se ejecuta Flask en `127.0.0.1:5000` con `debug=True`; en producción se usa Gunicorn, no el servidor de desarrollo de Flask, y el modo debug queda desactivado.
 
 ## Probar la conexión
 

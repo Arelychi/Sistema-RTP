@@ -1,18 +1,16 @@
 import json
-import os
 from threading import Lock
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 import psycopg
-from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
+
+from app.config import settings
 
 MAX_MODULES = 20
 FIXED_MODULE_COUNT = 7
 
-
-load_dotenv()
 
 _schema_initialized = False
 _schema_lock = Lock()
@@ -26,13 +24,16 @@ def normalize_display_text(value: str | None) -> str:
 @contextmanager
 def get_connection() -> Iterator[psycopg.Connection]:
     """Open a PostgreSQL connection and close it after use."""
-    connection = psycopg.connect(
-        host=os.getenv("PGHOST", "localhost"),
-        port=os.getenv("PGPORT", "5432"),
-        dbname=os.getenv("PGDATABASE"),
-        user=os.getenv("PGUSER"),
-        password=os.getenv("PGPASSWORD"),
-    )
+    if settings.database_url:
+        connection = psycopg.connect(settings.database_url)
+    else:
+        connection = psycopg.connect(
+            host=settings.pg_host,
+            port=settings.pg_port,
+            dbname=settings.pg_database,
+            user=settings.pg_user,
+            password=settings.pg_password,
+        )
     try:
         yield connection
     finally:
