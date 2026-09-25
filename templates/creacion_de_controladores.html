@@ -132,8 +132,8 @@
                         <input
                             id="name"
                             name="nombre"
-                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:[ .'-][A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*"
-                            title="Usa solo letras, espacios, apóstrofes, guiones o puntos"
+                            autocomplete="name"
+                            pattern="[^\W\d_]+(?:\s+[^\W\d_]+)*"
                             required
                         >
 
@@ -151,7 +151,7 @@
                             name="credencial"
                             inputmode="numeric"
                             pattern="[0-9]+"
-                            title="Usa solo números"
+                            maxlength="20"
                             required
                         >
 
@@ -448,6 +448,14 @@
     const s =
         document.querySelector('#sex');
 
+    n?.addEventListener('input', () => {
+        n.value = n.value.replace(/[^\p{L}\s]/gu, '');
+    });
+
+    c?.addEventListener('input', () => {
+        c.value = c.value.replace(/\D/g, '');
+    });
+
     const x =
         document.querySelector('#cancel-button');
 
@@ -462,14 +470,6 @@
 
     const controllerRecordCount =
         document.querySelector('#controller-record-count');
-
-    n?.addEventListener('input', () => {
-        n.value = n.value.replace(/[\d_]/g, '');
-    });
-
-    c?.addEventListener('input', () => {
-        c.value = c.value.replace(/\D/g, '');
-    });
 
     function normalizeControllerSearch(value) {
         return String(value ?? '')

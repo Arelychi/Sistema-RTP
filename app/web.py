@@ -75,12 +75,12 @@ memory_records: list[dict] = []
 memory_controllers: list[dict] = []
 
 
-def validate_controller_identity(name: str, credential: str) -> str | None:
-    if not re.fullmatch(r"[^\W\d_]+(?:[ .'-][^\W\d_]+)*", name, re.UNICODE):
-        return "El nombre del controlador solo puede contener letras, espacios, apóstrofes, guiones o puntos."
-    if not re.fullmatch(r"[0-9]+", credential):
-        return "La credencial del controlador solo puede contener números."
-    return None
+def valid_controller_name(value: str) -> bool:
+    return bool(re.fullmatch(r"[^\W\d_]+(?:\s+[^\W\d_]+)*", value, re.UNICODE))
+
+
+def valid_controller_credential(value: str) -> bool:
+    return bool(re.fullmatch(r"\d+", value))
 
 
 def request_modules() -> list[dict]:
@@ -1097,10 +1097,6 @@ def admin_create_controller():
     if any(not value for value in payload.values()):
         flash("Completa todos los campos del controlador.", "error")
         return redirect(url_for("admin_controllers_page"))
-    validation_error = validate_controller_identity(payload["nombre"], payload["credencial"])
-    if validation_error:
-        flash(validation_error, "error")
-        return redirect(url_for("admin_controllers_page"))
 
     try:
         initialize_schema()
@@ -1521,6 +1517,8 @@ def add_controller(module_number: int):
     payload = {key: str(request.form.get(key, "")).strip() for key in ("nombre", "credencial", "sexo")}
     if any(not payload[key] for key in payload):
         return redirect(url_for("module_dashboard", module_number=module_number))
+    if not valid_controller_name(payload["nombre"]) or not valid_controller_credential(payload["credencial"]):
+        return redirect(url_for("module_dashboard", module_number=module_number))
     payload["mod1"] = module_number
     created_controller = None
     existing_controller = None
@@ -1592,19 +1590,18 @@ def controller_item(controller_id: int):
         required = ("nombre", "credencial", "sexo")
         if any(not str(payload.get(field, "")).strip() for field in required):
             return jsonify(error="Completa todos los campos del controlador."), 400
-        name = str(payload["nombre"]).strip()
-        credential = str(payload["credencial"]).strip()
-        validation_error = validate_controller_identity(name, credential)
-        if validation_error:
-            return jsonify(error=validation_error), 400
+        if not valid_controller_name(str(payload["nombre"]).strip()):
+            return jsonify(error="El nombre solo puede contener letras, acentos y espacios."), 400
+        if not valid_controller_credential(str(payload["credencial"]).strip()):
+            return jsonify(error="La credencial solo puede contener números."), 400
 
         mod1 = int(payload.get("mod1", account.get("module_number", 1) or 1))
         if account.get("is_admin") and not payload.get("mod1"):
             mod1 = 1
 
         updated = update_controller(controller_id, {
-            "nombre": name,
-            "credencial": credential,
+            "nombre": str(payload["nombre"]).strip(),
+            "credencial": str(payload["credencial"]).strip(),
             "sexo": str(payload["sexo"]).strip(),
             "mod1": mod1,
         })

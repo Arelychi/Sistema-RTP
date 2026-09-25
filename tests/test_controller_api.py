@@ -9,8 +9,8 @@ def test_controller_update_and_delete_endpoints(monkeypatch):
 
     def fake_update_controller(controller_id, payload):
         assert controller_id == 7
-        assert payload == {"nombre": "Ana", "credencial": "C-77", "sexo": "Femenino", "mod1": 2}
-        return {"id": 7, "nombre": "Ana", "credencial": "C-77", "sexo": "Femenino", "mod1": 2}
+        assert payload == {"nombre": "Ana", "credencial": "7788", "sexo": "Femenino", "mod1": 2}
+        return {"id": 7, "nombre": "Ana", "credencial": "7788", "sexo": "Femenino", "mod1": 2}
 
     def fake_delete_controller(controller_id):
         assert controller_id == 7
@@ -27,10 +27,10 @@ def test_controller_update_and_delete_endpoints(monkeypatch):
 
     response = client.put(
         "/api/controladores/7",
-        json={"nombre": "Ana", "credencial": "C-77", "sexo": "Femenino"},
+        json={"nombre": "Ana", "credencial": "7788", "sexo": "Femenino"},
     )
     assert response.status_code == 200
-    assert response.get_json()["credencial"] == "C-77"
+    assert response.get_json()["credencial"] == "7788"
 
     response = client.delete("/api/controladores/7")
     assert response.status_code == 200
