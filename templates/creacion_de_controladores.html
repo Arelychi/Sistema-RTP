@@ -132,6 +132,8 @@
                         <input
                             id="name"
                             name="nombre"
+                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:[ .'-][A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*"
+                            title="Usa solo letras, espacios, apóstrofes, guiones o puntos"
                             required
                         >
 
@@ -147,6 +149,9 @@
                         <input
                             id="credential"
                             name="credencial"
+                            inputmode="numeric"
+                            pattern="[0-9]+"
+                            title="Usa solo números"
                             required
                         >
 
@@ -457,6 +462,14 @@
 
     const controllerRecordCount =
         document.querySelector('#controller-record-count');
+
+    n?.addEventListener('input', () => {
+        n.value = n.value.replace(/[\d_]/g, '');
+    });
+
+    c?.addEventListener('input', () => {
+        c.value = c.value.replace(/\D/g, '');
+    });
 
     function normalizeControllerSearch(value) {
         return String(value ?? '')

@@ -1,6 +1,7 @@
 import json
 import hashlib
 import os
+import re
 import secrets
 import smtplib
 from calendar import monthrange
@@ -72,6 +73,14 @@ app.config["SECRET_KEY"] = settings.secret_key
 app.config["ENVIRONMENT"] = settings.environment
 memory_records: list[dict] = []
 memory_controllers: list[dict] = []
+
+
+def validate_controller_identity(name: str, credential: str) -> str | None:
+    if not re.fullmatch(r"[^\W\d_]+(?:[ .'-][^\W\d_]+)*", name, re.UNICODE):
+        return "El nombre del controlador solo puede contener letras, espacios, apóstrofes, guiones o puntos."
+    if not re.fullmatch(r"[0-9]+", credential):
+        return "La credencial del controlador solo puede contener números."
+    return None
 
 
 def request_modules() -> list[dict]:
@@ -1088,6 +1097,10 @@ def admin_create_controller():
     if any(not value for value in payload.values()):
         flash("Completa todos los campos del controlador.", "error")
         return redirect(url_for("admin_controllers_page"))
+    validation_error = validate_controller_identity(payload["nombre"], payload["credencial"])
+    if validation_error:
+        flash(validation_error, "error")
+        return redirect(url_for("admin_controllers_page"))
 
     try:
         initialize_schema()
@@ -1579,14 +1592,19 @@ def controller_item(controller_id: int):
         required = ("nombre", "credencial", "sexo")
         if any(not str(payload.get(field, "")).strip() for field in required):
             return jsonify(error="Completa todos los campos del controlador."), 400
+        name = str(payload["nombre"]).strip()
+        credential = str(payload["credencial"]).strip()
+        validation_error = validate_controller_identity(name, credential)
+        if validation_error:
+            return jsonify(error=validation_error), 400
 
         mod1 = int(payload.get("mod1", account.get("module_number", 1) or 1))
         if account.get("is_admin") and not payload.get("mod1"):
             mod1 = 1
 
         updated = update_controller(controller_id, {
-            "nombre": str(payload["nombre"]).strip(),
-            "credencial": str(payload["credencial"]).strip(),
+            "nombre": name,
+            "credencial": credential,
             "sexo": str(payload["sexo"]).strip(),
             "mod1": mod1,
         })

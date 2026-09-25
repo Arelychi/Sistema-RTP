@@ -84,12 +84,12 @@
               <div class="admin-form-grid">
                 <label>
                   Nombre Completo <span class="required-label-note">* Campo Obligatorio</span>
-                  <input name="nombre" value="{{ editing_controller.nombre if editing_controller else '' }}" required>
+                  <input name="nombre" value="{{ editing_controller.nombre if editing_controller else '' }}" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:[ .'-][A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*" title="Usa solo letras, espacios, apóstrofes, guiones o puntos" required>
                 </label>
 
                 <label>
                   Credencial <span class="required-label-note">* Campo Obligatorio</span>
-                  <input name="credencial" value="{{ editing_controller.credencial if editing_controller else '' }}" required>
+                  <input name="credencial" value="{{ editing_controller.credencial if editing_controller else '' }}" inputmode="numeric" pattern="[0-9]+" title="Usa solo números" required>
                 </label>
 
                 <label>
