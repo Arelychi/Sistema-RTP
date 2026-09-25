@@ -555,7 +555,7 @@ function renderCalendar() {
     const specialState = state.specialStates.find((item) => state.special[item.codigo]?.has(day));
     const status = state.editingDays.has(day) ? 'editing-day' : specialState ? 'special' : state.vacation.has(day) ? 'vacation' : state.work.has(day) ? 'work' : state.rest.has(day) ? 'rest' : '';
     const detail = detailForDay(day);
-    const label = state.assignments[String(day)] || (specialState ? specialState.codigo : status === 'vacation' ? 'V' : status === 'work' ? `${detail.nomenclature}${detail.shift}` : status === 'rest' ? 'D' : '—');
+    const label = state.assignments[String(day)] || (specialState ? specialState.codigo : state.vacation.has(day) ? 'V' : state.work.has(day) ? `${detail.nomenclature}${detail.shift}` : state.rest.has(day) ? 'D' : '—');
     const edited = state.editedDays.has(day) ? ' edited-day' : '';
     calendar.insertAdjacentHTML('beforeend', `<button type="button" class="day ${status}${edited}" data-day="${day}" title="Haz clic para asignar, editar o cancelar"><b>${day}</b><small>${escapeHtml(label)}</small></button>`);
   }
