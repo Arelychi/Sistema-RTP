@@ -11,6 +11,9 @@ venv.bak/
 .env.*
 !.env.example
 
+# Backups locales de la base de datos
+backups/
+
 # Python generado
 __pycache__/
 *.py[cod]
