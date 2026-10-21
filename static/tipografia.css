@@ -38,6 +38,14 @@ body textarea {
   font-family: var(--project-font) !important;
 }
 
+body:not(.login-page),
+body:not(.login-page) button,
+body:not(.login-page) input,
+body:not(.login-page) select,
+body:not(.login-page) textarea {
+  font-size: .85rem;
+}
+
 body[data-module="1"] { --module-color: #237a57; --module-bg: #e2f1e8; --module-line: #b1d8bf; --module-ink: #fff; }
 body[data-module="2"] { --module-color: #b85c1e; --module-bg: #fae8d8; --module-line: #e9bd96; --module-ink: #fff; }
 body[data-module="3"] { --module-color: #a33d68; --module-bg: #f7e2eb; --module-line: #e4b6cb; --module-ink: #fff; }
@@ -64,23 +72,111 @@ body.admin-page-body {
 
 
 
-body[data-module] .sidebar h2,
-body[data-module] .sidebar nav a,
-body[data-module] .sidebar-module span,
-body[data-module] .sidebar-module strong,
-body[data-module] .sidebar-module button {
-  color: var(--module-ink) !important;
+
+
+/* =========================================================
+   NAVEGACIÓN DEL SIDEBAR (CORREGIDA)
+   ========================================================= */
+
+/* 1. Base para los enlaces */
+body[data-module] .sidebar nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-height: 48px;
+  
+  /* Padding ajustado para dar suficiente espacio al texto sin romperlo */
+  padding: 10px 16px 10px 24px !important;
+  
+
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  transition: all .2s ease;
+  overflow: hidden;
+  
+  /* Curva derecha para el formato píldora */
+  
 }
 
-body[data-module] .sidebar nav a:hover,
-body[data-module] .sidebar nav a.active {
-  background: var(--brand-green-dark, #346532) !important;
+/* 2. ICONOS (Se mantienen intactos en ::before) */
+body[data-module] .sidebar nav a::before {
+  display: inline-grid;
+ 
+  flex: 0 0 26px;
+  place-items: center;
+  color: currentColor;
+  background-color: currentColor;
+  content: "";
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  transition: background-color .2s ease;
 }
 
-body[data-module] .sidebar-module {
-  border-color: rgba(255, 255, 255, .28) !important;
-  background: rgba(255, 255, 255, .12) !important;
+/* Asignación de imágenes para cada icono */
+body[data-module] .sidebar nav a:nth-child(1)::before {
+  mask-image: url("imagenes/icons/asignacion.png");
+  -webkit-mask-image: url("imagenes/icons/asignacion.png");
+  transform: scale(.80);
 }
+
+body[data-module] .sidebar nav a:nth-child(2)::before {
+  mask-image: url("imagenes/icons/mas.png");
+  -webkit-mask-image: url("imagenes/icons/mas.png");
+  transform: scale(.80);
+}
+
+body[data-module] .sidebar nav a:nth-child(3)::before {
+  mask-image: url("imagenes/icons/destino.png");
+  -webkit-mask-image: url("imagenes/icons/destino.png");
+  transform: scale(.92);
+}
+
+body[data-module] .sidebar nav a:nth-child(4)::before {
+  mask-image: url("imagenes/icons/reloj-de-pared.png");
+  -webkit-mask-image: url("imagenes/icons/reloj-de-pared.png");
+}
+
+/* 3. ESTADO HOVER */
+body[data-module] .sidebar nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff !important;
+  transform: translateX(3px);
+}
+
+
+
+/* Cambia el color del icono a verde cuando la tarjeta es blanca */
+body[data-module] .sidebar nav a.active{
+  color: #ffff;
+}
+
+/* 5. INDICADOR LATERAL (Usamos ::after para no chocar con el icono de ::before) */
+body[data-module] .sidebar nav a.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background-color: #ffff; /* Barra verde sobre fondo blanco */
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+
+
+
+
+
+
 
 body[data-module] .sidebar-module button {
   border: 1px solid rgba(255, 255, 255, .28) !important;
@@ -89,11 +185,7 @@ body[data-module] .sidebar-module button {
 
 
 
-body[data-module] .sidebar nav a.active,
-body[data-module] .sidebar nav a:hover {
-  background: #f5f6f5 !important;
-  border-color: rgba(255, 255, 255, .2) !important;
-}
+
 
 
 
@@ -108,13 +200,7 @@ body.admin-page-body .admin-sidebar-module button:hover {
   background: #588d29 !important;
 }
 
-body[data-module] thead th,
-body[data-module] .data-table thead th,
-body.admin-page-body thead th,
-body.admin-page-body .history-table th,
-body.admin-page-body .admin-route-table th {
-  color: #fff !important;
-}
+
 
 body[data-module] .primary-button,
 body[data-module] .secondary-button,
@@ -129,7 +215,6 @@ body.admin-page-body .admin-edit-button,
 body.admin-page-body .admin-submit-button,
 body.admin-page-body .admin-action-button {
   border-radius: 5px;
-  color: #fff !important;
   background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
 }
 
@@ -167,17 +252,23 @@ body.admin-page-body {
 }
 
 body.admin-page-body .admin-main-content {
-  padding: clamp(24px, 4vw, 60px) !important;
+  
 }
+
 
 body.admin-page-body .admin-panel-card,
 body.admin-page-body .admin-landing-card {
-  border-radius: 20px !important;
-  border-color: #dce5e9 !important;
-  background: #fff !important;
-  box-shadow: 0 12px 35px rgba(24, 59, 89, .08) !important;
+  
   backdrop-filter: none !important;
 }
+
+.admin-panel-card-admin-form-panel{
+  background: #ffff !important;
+  box-shadow: 0 12px 35px rgba(24, 59, 89, .08) !important;
+  backdrop-filter: none !important;
+
+}
+
 
 body.admin-page-body .admin-form-panel::before {
   height: 4px;
@@ -217,8 +308,8 @@ body.admin-page-body .admin-connection-dot {
 
 .sidebar-toggle {
   position: absolute;
-  top: -5px;
-  right: -55px;
+  top: 20px;
+  right: -40px;
   z-index: 20;
   display: grid;
   width: 30px;
@@ -305,22 +396,23 @@ body[data-module] .sidebar {
   height: 100vh !important;
   min-height: 0;
   margin: 0;
-  padding: 28px 18px 26px !important;
-  overflow: visible;
-  border: 1px solid rgba(255, 255, 255, .24) !important;
+  padding: 0;  overflow: visible;
   border-radius: 0;
   background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
-  box-shadow: 0 14px 30px rgba(23, 67, 29, .24), inset 0 1px 0 rgba(255, 255, 255, .12);
 }
 
 body[data-module] .sidebar-brand {
+  padding-top: 28px;
+  padding-left: 30px;
+  padding-bottom: 28px;
   min-height: 82px;
   align-items: center;
-  gap: 14px;
+  border-bottom: 1px solid var(--module-line);
+
 }
 
 body[data-module] .module-brand-logo {
-  width: 78px;
+  width: 40px;
   max-width: 44%;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .12));
 }
@@ -333,24 +425,59 @@ body[data-module] .sidebar h2 {
 }
 
 body[data-module] .sidebar nav {
-  gap: 8px;
-  margin-top: 42px;
+  gap: 15px;
+  margin-top: 50px;
 }
 
 body[data-module] .sidebar nav a {
   position: relative;
   display: flex;
-  min-height: 0;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px !important;
- 
-  border-radius: 12px;
-  color: #fff !important;
+  gap: 20px;
+  width: 100%;
+  min-height: 48px;
   
-  font-size: .98rem;
-  line-height: 1.18;
-  transition: transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
+  /* Padding ajustado para dar suficiente espacio al texto sin romperlo */
+  padding: 10px 16px 10px 24px !important;
+  
+  
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  transition: all .2s ease;
+  overflow: hidden;
+  
+  /* Curva derecha para el formato píldora */
+ 
+}
+
+/* 2. ICONOS (Se mantienen intactos en ::before) */
+body[data-module] .sidebar nav a::before {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  color: currentColor;
+  background-color: currentColor;
+  content: "";
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  transition: background-color .2s ease;
+}
+
+body[data-module] .sidebar nav a svg,
+body[data-module] .sidebar nav a i {
+    width: 20px;
+    min-width: 20px;
+    text-align: center;
+    display: inline-flex;
+    justify-content: center;
 }
 
 body[data-module] .sidebar nav a::before {
@@ -395,25 +522,11 @@ body[data-module] .sidebar nav a:nth-child(4)::before {
 }
 
 body[data-module] .sidebar nav a:hover {
-  border-color: rgba(255, 255, 255, .52) !important;
-  background: #346532 !important;
-  box-shadow: 0 7px 16px rgba(17, 58, 23, .18);
   transform: translateY(-1px);
 }
 
-body[data-module] .sidebar nav a.active {
-  border-color: #fff !important;
-  color: #1f5927 !important;
-  background: #fff !important;
-  box-shadow: 0 8px 20px rgba(11, 55, 18, .2);
-}
 
-body[data-module] .sidebar-module {
-  padding: 18px;
-  border: 1px solid #5c9557 !important;
-  border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(13, 54, 18, .18), inset 0 1px 0 rgba(255, 255, 255, .12);
-}
+
 
 body[data-module] .sidebar-module span {
   color: rgba(255, 255, 255, .9) !important;

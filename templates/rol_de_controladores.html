@@ -18,7 +18,7 @@
         <a href="{{ url_for('routes_dashboard', module_number=module_number) }}">Rutas</a>
         <a href="{{ url_for('more_dashboard', module_number=module_number) }}">Turnos</a>
       </nav>
-      <div class="sidebar-module"><strong>{{ module_name or module_number }}</strong><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button></form></div>
+      <div class="sidebar-module"><form method="post" action="{{ url_for('logout') }}"><button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button></form></div>
     </aside>
 
     <section class="main-content schedule-content">

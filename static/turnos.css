@@ -50,7 +50,7 @@ button, input, select { font: inherit; }
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
 }
 
 .brand-mark {
@@ -79,23 +79,17 @@ button, input, select { font: inherit; }
 
 .sidebar nav a {
   padding: 14px 16px;
-  color: var(--muted);
-  border-radius: 12px;
+  color: #dff7c6;
   text-decoration: none;
   font-weight: 700;
 }
 
-.sidebar nav a.active {
-  color: #fff;
-  background: var(--navy);
-}
+
 
 .sidebar-module {
   margin-top: auto;
   padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #f8fbfc;
+  padding-bottom: 30px;
 }
 
 .sidebar-module span {
@@ -190,7 +184,7 @@ button, input, select { font: inherit; }
 .card {
   min-width: 0;
   padding: 26px;
-  border-radius: 20px;
+  border-radius: 5px;
   border: 1px solid rgba(220, 229, 233, .8);
   background: var(--panel);
   box-shadow: var(--shadow);

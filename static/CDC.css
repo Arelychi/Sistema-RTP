@@ -34,12 +34,11 @@ button { font: inherit; }
   box-shadow: 4px 0 20px rgba(24, 59, 89, .06);
 }
 
-.sidebar-brand { display: flex; align-items: center; gap: 10px; }
+.sidebar-brand { display: flex; align-items: center; gap: 20px; }
 .brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; color: #fff; border-radius: 7px; background: var(--navy); font-weight: 700; }
 .sidebar h2 { margin: 0; color: var(--navy); font-size: 1.05rem; }
 .sidebar nav { display: flex; flex-direction: column; gap: 8px; margin-top: 42px; }
 .sidebar nav a { padding: 14px 16px; color: var(--muted); border-radius: 12px; text-decoration: none; font-weight: 700; }
-.sidebar nav a.active { color: #fff; background: var(--navy); }
 .sidebar-module { margin-top: auto; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfc; }
 .sidebar-module span { color: var(--muted); font-size: .68rem; letter-spacing: .14em; }
 .sidebar-module strong { display: block; margin: 9px 0 18px; color: var(--ink); }

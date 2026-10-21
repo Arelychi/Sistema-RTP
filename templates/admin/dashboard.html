@@ -35,21 +35,11 @@
     </aside>
 
     <div class="admin-workspace">
-      {% include 'admin/_module_tabs.html' %}
+      
       <section class="admin-main-content">
+        {% include 'admin/_module_tabs.html' %}
 
-      <header class="admin-header">
-        <div>
-          <p class="eyebrow">Sistema</p>
-          <h1>Creación de controladores</h1>
-          <p class="subtitle">Gestión centralizada por módulo</p>
-        </div>
-
-        <div class="admin-connection">
-          <span class="admin-connection-dot"></span>
-          Conectado
-        </div>
-      </header>
+      
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -61,113 +51,138 @@
         {% endif %}
       {% endwith %}
 
+      
+
       <div class="admin-controller-content-grid">
-        <div class="admin-form-panel-wrap" data-admin-form-panel>
-          <div class="schedule-grid-toggle admin-form-toggle-bar">
-            <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de formulario</span>
-            <button class="schedule-grid-toggle-button admin-form-toggle" type="button" data-admin-form-toggle aria-label="Ocultar editor" aria-expanded="true" title="Ocultar editor"><span class="schedule-grid-toggle-icon admin-form-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar formulario</span></button>
-          </div>
-        <section class="admin-panel-card admin-form-panel">
-          <div class="admin-card-heading">
-            <div class="admin-card-title">
-              <span class="admin-step-number">01</span>
-              <h2>Creación de controladores</h2>
-            </div>
-          </div>
-
-          <div class="admin-form-shell">
-            <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form">
-              {% if editing_controller %}
-                <input type="hidden" name="controller_id" value="{{ editing_controller.id }}">
-              {% endif %}
-
-              <div class="admin-form-grid">
-                <label>
-                  Nombre Completo <span class="required-label-note">* Campo Obligatorio</span>
-                  <input name="nombre" value="{{ editing_controller.nombre if editing_controller else '' }}" required>
-                </label>
-
-                <label>
-                  Credencial <span class="required-label-note">* Campo Obligatorio</span>
-                  <input name="credencial" value="{{ editing_controller.credencial if editing_controller else '' }}" required>
-                </label>
-
-                <label>
-                  Género <span class="required-label-note">* Campo Obligatorio</span>
-                  <select name="sexo" required>
-                    <option value="">Selecciona</option>
-                    <option value="Masculino" {% if editing_controller and editing_controller.sexo == 'Masculino' %}selected{% endif %}>Masculino</option>
-                    <option value="Femenino" {% if editing_controller and editing_controller.sexo == 'Femenino' %}selected{% endif %}>Femenino</option>
-                    <option value="Otro" {% if editing_controller and editing_controller.sexo == 'Otro' %}selected{% endif %}>Otro</option>
-                  </select>
-                </label>
-
-                <label>
-                  Módulo <span class="required-label-note">* Campo Obligatorio</span>
-                  <select name="mod1" required>
-                    {% for module in modules %}
-                      <option value="{{ module.id }}" {% if editing_controller and editing_controller.mod1 == module.id %}selected{% elif not editing_controller and loop.first %}selected{% endif %}>{{ module.nombre }}</option>
-                    {% endfor %}
-                  </select>
-                </label>
-              </div>
-
-              <div class="admin-form-actions">
-                <button class="admin-primary-button" type="submit">
-                  {{ 'Actualizar controlador' if editing_controller else 'Guardar registro' }}
-                </button>
-                {% if editing_controller %}
-                  <a class="admin-secondary-button" href="{{ url_for('admin_dashboard') }}">Cancelar</a>
-                {% endif %}
-              </div>
-            </form>
-          </div>
-        </section>
-        </div>
-
         <section class="admin-panel-card admin-registry-panel">
-          <div class="admin-card-heading">
-            <div class="admin-card-title">
-              <span class="admin-step-number">02</span>
-              <h2>Controladores registrados</h2>
-            </div>
-          </div>
-
+          
           <div class="admin-registry-contents">
             {% for group in grouped_controllers %}
-              <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" id="module-{{ group.module_number }}" role="tabpanel">
+              
+            <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" id="module-{{ group.module_number }}" role="tabpanel">
                 <div class="admin-module-group admin-module-group-tabbed">
                   <div class="admin-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
-                    <strong>{{ group.controllers|length }}</strong>
+                    <div class="admin-connection">
+                       <span class="admin-connection-dot"></span>
+                        Conectado
+                      </div>
                   </div>
-
+                  <div class="admin-card-heading">
+                      <div class="admin-card-title">
+                        <h2>Controladores registrados</h2>
+                      </div>
+                
+                      <div class="admin-module-header-strong">
+                         <strong>{{ group.controllers|length }}</strong>
+                      </div>
+                  </div>
+                  <div class="admin-controller-toolbar" role="search">
+                          <label class="controller-filter admin-controller-search" for="controller-search">
+                            <span class="controller-filter-label">Buscar</span>
+                            <span class="controller-filter-field">
+                              <input id="controller-search" type="search" placeholder="Nombre o credencial" autocomplete="off">
+                              <button id="clear-controller-filter" class="controller-filter-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
+                            </span>
+                          </label>
+                          <label class="admin-controller-filter">
+                            <span class="sr-only">Filtrar por estatus</span>
+                            <select id="controller-status-filter">
+                              <option value="Todos">Todos</option>
+                              <option value="Activo">Activos</option>
+                              <option value="Inactivo">Inactivos</option>
+                            </select>
+                          </label>
+                          {% if not is_read_only_account %}
+                          <button class="admin-primary-button admin-create-controller-button" type="button" data-controller-modal-open>Crear controlador</button>
+                          {% endif %}
+                  </div>
                   {% if group.controllers %}
+                    <div class="admin-controller-table-head" aria-hidden="true">
+                      <span>Nombre</span>
+                      <span>Credencial</span>
+                      <span>Genero</span>
+                      <span>Estatus</span>
+                      <span>Acciones</span>
+                    </div>
                     <ul class="admin-controller-list">
                       {% for controller in group.controllers %}
-                        <li class="admin-controller-item">
-                          <div class="admin-controller-main">
+                        <li class="admin-controller-item" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}">
+                          <div class="admin-controller-name">
                             <strong>{{ controller.nombre }}</strong>
+                          </div>
+                          <div class="admin-controller-credential">
                             <span>{{ controller.credencial }}</span>
                           </div>
-                          <small>{{ controller.sexo }}</small>
-                          <form method="post" action="{{ url_for('admin_toggle_controller_status', controller_id=controller.id) }}">
-                            <input type="hidden" name="estado" value="{{ 'Activo' if controller.active else 'Inactivo' }}">
-                            <label class="route-switch" title="Cambiar estado del controlador">
-                              <input type="checkbox" {% if controller.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
-                              <span class="route-switch-slider">
-                                <span class="route-switch-knob"></span>
-                                <span class="route-switch-text route-switch-text-on">Activo</span>
-                                <span class="route-switch-text route-switch-text-off">Inactivo</span>
-                              </span>
-                            </label>
-                          </form>
+                          <div class="admin-controller-gender">
+                            <span>{{ controller.sexo }}</span>
+                          </div>
+
+
+                          <div class="admin-controller-status">
+
+                                {% if not is_read_only_account %}
+
+                                <form
+                                    method="post"
+                                    action="{{ url_for('admin_toggle_controller_status', controller_id=controller.id) }}"
+                                >
+
+                                    <input
+                                        type="hidden"
+                                        name="estado"
+                                        value="{{ 'Activo' if controller.active else 'Inactivo' }}"
+                                    >
+
+                                    <label
+                                        class="route-switch"
+                                        title="Cambiar estado del controlador"
+                                    >
+
+                                        <input
+                                            type="checkbox"
+                                            {% if controller.active %}checked{% endif %}
+                                            onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();"
+                                        >
+
+                                        <span class="route-status-badge">
+
+                                            <span class="route-status-dot"></span>
+
+                                            <span class="route-status-label route-status-active">
+                                                Activo
+                                            </span>
+
+                                            <span class="route-status-label route-status-inactive">
+                                                Inactivo
+                                            </span>
+
+                                        </span>
+
+                                    </label>
+
+                                </form>
+
+                                {% else %}
+
+                                    <span class="route-status-readonly">
+                                        <span class="route-status-dot"></span>
+                                        {{ 'Activo' if controller.active else 'Inactivo' }}
+                                    </span>
+
+                                {% endif %}
+
+                          </div>
+
+
+                          {% if not is_read_only_account %}
                           <div class="admin-controller-actions">
                             <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}">Editar</a>
                             <form method="post" action="{{ url_for('admin_delete_controller', controller_id=controller.id) }}" onsubmit="return confirm('¿Deseas eliminar este controlador?');">
                               <button class="admin-delete-button" type="submit">Eliminar</button>
                             </form>
                           </div>
+                          {% endif %}
                         </li>
                       {% endfor %}
                     </ul>
@@ -181,6 +196,95 @@
         </section>
       </div>
 
+      {% if not is_read_only_account %}
+      <div class="admin-controller-modal" id="controller-form-modal" role="dialog" aria-modal="true" aria-labelledby="controller-form-title" {% if not editing_controller %}hidden{% endif %}>
+        <div class="admin-controller-modal-dialog">
+          <section class="admin-panel-card admin-form-panel">
+            <div class="admin-card-heading">
+              <div class="admin-card-title admin-controller-step-heading">
+                <span class="admin-step-number">01</span>
+                <div>
+                  <strong id="controller-form-title">{{ 'Edición del controlador' if editing_controller else 'Información del controlador' }}</strong>
+                  <small>Datos principales del controlador.</small>
+                </div>
+              </div>
+              <button class="admin-modal-close" type="button" data-controller-modal-close aria-label="Cerrar formulario">&times;</button>
+            </div>
+
+            <div class="admin-form-shell">
+              <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form">
+                {% if editing_controller %}
+                  <input type="hidden" name="controller_id" value="{{ editing_controller.id }}">
+                {% endif %}
+
+                <div class="admin-form-grid admin-controller-fields-grid">
+                  <label class="admin-route-field admin-controller-field controller-field-full-row">
+                    Nombre Completo <span class="required-label-note">* Campo Obligatorio</span>
+                    <input id="controller-name" name="nombre" value="{{ editing_controller.nombre if editing_controller else '' }}" autocomplete="name" pattern="[\p{L}]+(?:\s+[\p{L}]+)*" title="Escribe solo letras, acentos y espacios" required required placeholder="Nombre del controlador">
+                  </label>
+
+                  <label class="admin-route-field admin-controller-field controller-field-full-row">
+                    Credencial <span class="required-label-note">* Campo Obligatorio</span>
+                    <input id="controller-credential" name="credencial" value="{{ editing_controller.credencial if editing_controller else '' }}" inputmode="numeric" maxlength="6" pattern="[0-9]{1,6}" title="Escribe solo números, máximo 6 dígitos" required required placeholder="Credencial del controlador">
+                  </label>
+
+                  <label class="admin-route-field admin-controller-field controller-field-full-row">
+                    Género <span class="required-label-note">* Campo Obligatorio</span>
+                    <select name="sexo" required>
+                      <option value="">Selecciona</option>
+                      <option value="Masculino" {% if editing_controller and editing_controller.sexo == 'Masculino' %}selected{% endif %}>Masculino</option>
+                      <option value="Femenino" {% if editing_controller and editing_controller.sexo == 'Femenino' %}selected{% endif %}>Femenino</option>
+                      <option value="Otro" {% if editing_controller and editing_controller.sexo == 'Otro' %}selected{% endif %}>Otro</option>
+                    </select>
+                  </label>
+
+                  <label class="admin-route-field admin-controller-field admin-controller-module-field">
+                    
+                    <div id="controller-module-display" class="admin-controller-module-display" aria-describedby="controller-module-help" role="status">
+                      <span class="admin-controller-module-copy">
+                        <strong data-controller-module-name>Módulo</strong>
+                        <small id="controller-module-help">Estatus de controlador en modulo</small>
+                      </span>
+                      <input id="controller-status-value" type="hidden" name="estado" value="{{ 'Inactivo' if editing_controller and not editing_controller.active else 'Activo' }}">
+                      <span class="route-switch route-status-switch" title="Cambiar estado del controlador">
+                        <input id="controller-status-toggle" type="checkbox" {% if not editing_controller or editing_controller.active %}checked{% endif %}>
+                        <span class="route-status-badge">
+                          <span class="route-status-dot"></span>
+                          <span class="route-status-label route-status-active">Activa</span>
+                          <span class="route-status-label route-status-inactive">Inactiva</span>
+                        </span>
+                      </span>
+                    </div>
+                    <div class="admin-controller-module-options" aria-hidden="true">
+                      {% for module in modules %}
+                        <span data-module-id="{{ module.id }}" data-module-name="{{ module.nombre }}"></span>
+                      {% endfor %}
+                    </div>
+                    <input
+                      id="controller-module-value"
+                      type="hidden"
+                      name="mod1"
+                      value="{{ editing_controller.mod1 if editing_controller else (modules[0].id if modules else '') }}"
+                      required
+                    >
+                  </label>
+
+                </div>
+
+                <div class="admin-form-actions">
+                  <button class="admin-secondary-button" type="button" data-controller-modal-close>Cancelar</button>
+                  <button class="admin-primary-button" type="submit" data-controller-submit-label>
+                    {{ 'Actualizar controlador' if editing_controller else 'Guardar registro' }}
+                  </button>
+                  
+                </div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+      {% endif %}
+
       </section>
     </div>
 
@@ -190,6 +294,131 @@
     document.addEventListener('DOMContentLoaded', function () {
       const tabs = document.querySelectorAll('.admin-registry-tab');
       const contents = document.querySelectorAll('.admin-registry-content');
+      const controllerSearch = document.querySelector('#controller-search');
+      const clearControllerFilter = document.querySelector('#clear-controller-filter');
+      const controllerStatusFilter = document.querySelector('#controller-status-filter');
+      const controllerRows = document.querySelectorAll('.admin-controller-item');
+      const controllerModal = document.querySelector('#controller-form-modal');
+      const controllerModalOpenButtons = document.querySelectorAll('[data-controller-modal-open]');
+      const controllerModalCloseButtons = document.querySelectorAll('[data-controller-modal-close]');
+      const controllerFormName = controllerModal?.querySelector('input[name="nombre"]');
+      const controllerCredential = controllerModal?.querySelector('input[name="credencial"]');
+      const controllerStatusToggle = controllerModal?.querySelector('#controller-status-toggle');
+      const controllerStatusValue = controllerModal?.querySelector('#controller-status-value');
+      const controllerModuleName = controllerModal?.querySelector('[data-controller-module-name]');
+      const controllerModuleOptions = controllerModal?.querySelectorAll('[data-module-id]');
+      const controllerModuleValue = controllerModal?.querySelector('#controller-module-value');
+      const controllerForm = controllerModal?.querySelector('form');
+      const controllerFormTitle = controllerModal?.querySelector('#controller-form-title');
+      const controllerSubmitLabel = controllerModal?.querySelector('[data-controller-submit-label]');
+      const editingController = Boolean(controllerModal?.querySelector('input[name="controller_id"]'));
+      const controllerModuleCard = controllerModal?.querySelector('#controller-module-display');
+
+      function getActiveControllerModule() {
+        return new URLSearchParams(window.location.search).get('module_number')
+          || localStorage.getItem('adminSelectedModule')
+          || document.querySelector('[data-admin-module].is-active')?.dataset.adminModule
+          || controllerModuleValue?.value
+          || '';
+      }
+
+      function setControllerModule(moduleId, force = false) {
+        if (!moduleId) return;
+        const option = Array.from(controllerModuleOptions || []).find(function (item) {
+          return item.dataset.moduleId === String(moduleId);
+        });
+        if (!option) return;
+        if (controllerModuleName) controllerModuleName.textContent = option.dataset.moduleName;
+        if (controllerModuleValue && (!editingController || force)) controllerModuleValue.value = String(moduleId);
+      }
+
+      setControllerModule(editingController ? controllerModuleValue?.value : getActiveControllerModule());
+      document.addEventListener('admin-module-changed', function (event) {
+        setControllerModule(event.detail?.moduleId || '');
+      });
+
+      function filterControllers() {
+        const query = controllerSearch?.value.trim().toLowerCase() || '';
+        const status = controllerStatusFilter?.value || 'Todos';
+
+        if (clearControllerFilter) clearControllerFilter.hidden = !query;
+
+        controllerRows.forEach(function (row) {
+          const matchesQuery = row.textContent.toLowerCase().includes(query);
+          const matchesStatus = status === 'Todos' || row.dataset.controllerStatus === status;
+          row.hidden = !matchesQuery || !matchesStatus;
+        });
+      }
+
+      controllerSearch?.addEventListener('input', filterControllers);
+      controllerStatusFilter?.addEventListener('change', filterControllers);
+      clearControllerFilter?.addEventListener('click', function () {
+        if (!controllerSearch) return;
+        controllerSearch.value = '';
+        filterControllers();
+        controllerSearch.focus();
+      });
+
+      controllerFormName?.addEventListener('input', function () {
+        this.value = this.value.replace(/[^\p{L}\s]/gu, '');
+      });
+
+      controllerCredential?.addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+      });
+
+      controllerStatusToggle?.addEventListener('change', function () {
+        if (controllerStatusValue) {
+          controllerStatusValue.value = this.checked ? 'Activo' : 'Inactivo';
+        }
+        controllerModuleCard?.classList.toggle('is-inactive', !this.checked);
+      });
+
+      controllerModuleCard?.classList.toggle('is-inactive', controllerStatusToggle ? !controllerStatusToggle.checked : false);
+
+      function closeControllerModal() {
+        if (!controllerModal) return;
+        controllerModal.hidden = true;
+      }
+
+      function resetControllerFormForCreate() {
+        if (!controllerForm) return;
+        controllerForm.reset();
+        controllerForm.querySelector('input[name="controller_id"]')?.remove();
+        if (controllerFormName) controllerFormName.value = '';
+        if (controllerCredential) controllerCredential.value = '';
+        const controllerGender = controllerForm.querySelector('select[name="sexo"]');
+        if (controllerGender) controllerGender.value = '';
+        if (controllerFormTitle) controllerFormTitle.textContent = 'Información del controlador';
+        if (controllerSubmitLabel) controllerSubmitLabel.textContent = 'Guardar registro';
+        if (controllerStatusToggle) controllerStatusToggle.checked = true;
+        if (controllerStatusValue) controllerStatusValue.value = 'Activo';
+        controllerModuleCard?.classList.remove('is-inactive');
+        setControllerModule(getActiveControllerModule(), true);
+        controllerFormName?.focus();
+      }
+
+      controllerModalOpenButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          if (!controllerModal) return;
+          resetControllerFormForCreate();
+          controllerModal.hidden = false;
+        });
+      });
+
+      controllerModalCloseButtons.forEach(function (button) {
+        button.addEventListener('click', closeControllerModal);
+      });
+
+      controllerModal?.addEventListener('click', function (event) {
+        if (event.target === controllerModal) closeControllerModal();
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && controllerModal && !controllerModal.hidden) {
+          closeControllerModal();
+        }
+      });
 
       tabs.forEach(function (tab) {
         tab.addEventListener('click', function () {

@@ -17,6 +17,12 @@
 }
 
 
+.card-heading-controlador {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 
 .primary-button, .secondary-button{
     flex: 1;
@@ -33,6 +39,62 @@
         box-shadow .2s ease,
         background .2s ease;
 }
+
+.button-excel{
+    flex: 1;
+    color: white;
+    background: #5d6a75;
+    border-radius: 5px;
+    border: 0;
+    padding: 11px 15px;
+    cursor: pointer;
+    font: inherit;
+    box-sizing: border-box;
+    box-shadow: 0 10px 20px rgba(24, 59, 89, .18);
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease,
+        background .2s ease;
+}
+
+.button-excel:hover{
+
+    transform:
+        translateY(-2px);
+
+}
+
+.button-subir{
+    
+    color: white;
+    cursor: pointer;
+    box-sizing: border-box;
+    flex: 1 1 0%;
+    background: var(--navy);
+    border-radius: 5px;
+    border-width: 0px;
+    border-style: none;
+    border-color: currentcolor;
+    border-image: none;
+    padding: 11px 15px;
+    font: inherit;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    
+}
+
+.module-brand-logo-subir{
+    margin-left: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.button-subir:hover{
+
+    transform:
+        translateY(-2px);
+
+}
+
 
 .primary-button:hover,
 
@@ -74,7 +136,7 @@ button, input, select { font: inherit; }
     position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
     min-height: 42px;
 }
 
@@ -107,23 +169,18 @@ button, input, select { font: inherit; }
 
 .sidebar nav a {
   padding: 14px 16px;
-  color: var(--muted);
-  border-radius: 12px;
+  color: #dff7c6;
   text-decoration: none;
   font-weight: 700;
 }
 
-.sidebar nav a.active {
-  color: #fff;
-  background: var(--navy);
-}
+
 
 .sidebar-module {
   margin-top: auto;
   padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #f8fbfc;
+  padding-bottom: 30px;
+ 
 }
 
 .sidebar-module span {
@@ -272,7 +329,7 @@ button, input, select { font: inherit; }
 
 }
 
-.card { min-width: 0; padding: 26px; border-radius: 20px; background: #fff; box-shadow: var(--shadow); }
+.card { min-width: 0; padding: 26px; border-radius:5px; background: #fff; box-shadow: var(--shadow); }
 .card { animation: scheduleCardAppear .45s ease both; }
 .card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 25px; }
 .step-number { color: var(--teal); font-size: .72rem; font-weight: 800; }
@@ -380,7 +437,7 @@ select.display-value-field { appearance: none; background-image: none !important
 .record-form-actions { display: flex; gap: 10px; min-width: 0; }
 .record-form-actions .primary-button,
 .record-form-actions .secondary-button { width: 100%; }
-.table-heading-actions { display: flex; align-items: center; gap: 12px; }
+.table-heading-actions { display: flex; align-items: center; gap: 12px; padding-bottom: 20px;}
 .table-heading-actions .primary-button { min-width: 110px; }
 .schedule-filter { display: grid; gap: 4px; min-width: min(230px, 30vw); color: var(--muted); font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .schedule-filter-field { position: relative; display: block; }
@@ -950,7 +1007,7 @@ button,
     min-height: 32px;
     padding: 7px 8px;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: 5px;
     font-size: .62rem;
     font-weight: 800;
     letter-spacing: .02em;
@@ -965,7 +1022,7 @@ button,
     padding: 3px 7px;
     color: #946d1c;
     border-color: rgba(241, 184, 75, .28);
-    border-radius: 4px;
+    border-radius: 5px;
     background: rgba(241, 184, 75, .18);
     font-size: .7rem;
     font-weight: 700;
@@ -985,7 +1042,7 @@ button,
     padding: 3px 7px;
     color: #b83f48;
     border-color: rgba(217,85,85,.28);
-    border-radius: 4px;
+    border-radius: 5px;
     background: #fff4f4;
     font-size: .7rem;
     font-weight: 700;

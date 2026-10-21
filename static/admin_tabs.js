@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     .map((tab) => tab.dataset.adminModule)
     .filter((value, index, values) => value && values.indexOf(value) === index);
   const storedModule = localStorage.getItem(storageKey);
+  let indicator = null;
   const moduleColors = {
     '1': '#027a35',
     '2': '#f08217',
@@ -28,17 +29,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const moduleName = selectedTab.textContent.trim();
     const moduleColor = moduleColors[selectedModule] || '#183b59';
     document.querySelectorAll('.admin-header').forEach(function (header) {
-      let indicator = header.querySelector('[data-admin-module-indicator]');
       if (!indicator) {
         indicator = document.createElement('div');
-        indicator.className = 'admin-header-module';
+       
         indicator.dataset.adminModuleIndicator = '';
         indicator.setAttribute('aria-live', 'polite');
         const connection = header.querySelector('.admin-connection');
         header.insertBefore(indicator, connection || null);
       }
       indicator.textContent = moduleName;
-      indicator.style.setProperty('--admin-module-color', moduleColor);
       indicator.setAttribute('aria-label', `Módulo activo: ${moduleName}`);
     });
   }
@@ -54,17 +53,24 @@ document.addEventListener('DOMContentLoaded', function () {
       panel.hidden = panel.dataset.adminModulePanel !== selectedModule;
       panel.classList.toggle('active', !panel.hidden);
     });
-    document.querySelectorAll('select[name="mod1"]').forEach(function (select) {
-      if (Array.from(select.options).some((option) => option.value === selectedModule)) {
-        select.value = selectedModule;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelectorAll('select[name="mod1"], input[name="mod1"], #user-module-select').forEach(function (field) {
+      if (field.tagName === 'SELECT') {
+        if (Array.from(field.options).some((option) => option.value === selectedModule)) {
+          field.value = selectedModule;
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
       }
+      field.value = selectedModule;
     });
     document.querySelectorAll('[data-admin-module-link]').forEach(function (link) {
       const url = new URL(link.href, window.location.origin);
       url.searchParams.set('module_number', selectedModule);
       link.href = url.toString();
     });
+    document.dispatchEvent(new CustomEvent('admin-module-changed', {
+      detail: { moduleId: selectedModule }
+    }));
     updateHeaderModuleIndicator();
   }
 

@@ -97,3 +97,17 @@ Cambia estas contraseñas antes de usar el sistema en producción. Las contrase�
 Si PostgreSQL no está disponible, la pantalla funciona en modo local temporal para poder probar la interfaz; esos registros se conservan mientras el proceso del servidor siga activo.
 
 El archivo `.env` está excluido de Git para evitar publicar credenciales.
+
+## Datos analíticos
+
+La programación mensual consolidada se almacena en el esquema `programacion`.
+Al inicializar la aplicación se prepara el esquema `analisis`, que contiene:
+
+- `analisis.trabajador_dia`: un registro limpio por trabajador y fecha.
+- `analisis.ruta_dia`: un registro limpio por ruta utilizada y fecha.
+- `analisis.analisis_trabajadores`: resumen mensual por trabajador, incluyendo sexo y estado activo.
+- `analisis.analisis_rutas`: resumen mensual por ruta y módulo, incluyendo rutas sin uso.
+
+Estas tablas se reconstruyen desde `programacion.registros` al iniciar la aplicación
+y después de guardar el rol mensual completo, por lo que Power BI puede consumirlas
+sin interpretar los JSON diarios ni los códigos operativos.

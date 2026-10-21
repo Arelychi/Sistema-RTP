@@ -49,6 +49,7 @@ def initialize_schema() -> None:
         if _schema_initialized:
             return
         _initialize_schema()
+        refresh_analysis_tables()
         _schema_initialized = True
 
 
@@ -57,7 +58,30 @@ def _initialize_schema() -> None:
         with connection.cursor() as cursor:
             cursor.execute("CREATE SCHEMA IF NOT EXISTS seguridad")
             cursor.execute("CREATE SCHEMA IF NOT EXISTS catalogos")
-            cursor.execute("CREATE SCHEMA IF NOT EXISTS progrmacion")
+            cursor.execute(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_namespace WHERE nspname = 'progrmacion'
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM pg_namespace WHERE nspname = 'programacion'
+                    ) THEN
+                        ALTER SCHEMA progrmacion RENAME TO programacion;
+                    ELSIF EXISTS (
+                        SELECT 1 FROM pg_namespace WHERE nspname = 'progrmacion'
+                    ) AND EXISTS (
+                        SELECT 1 FROM pg_namespace WHERE nspname = 'programacion'
+                    ) AND to_regclass('progrmacion.registros') IS NOT NULL
+                      AND to_regclass('programacion.registros') IS NULL THEN
+                        ALTER TABLE progrmacion.registros SET SCHEMA programacion;
+                    END IF;
+                END
+                $$
+                """
+            )
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS programacion")
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS analisis")
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS catalogos.modulos (
@@ -98,6 +122,7 @@ def _initialize_schema() -> None:
                     CONSTRAINT usuarios_access_target_ck CHECK (
                         (is_admin AND module_number IS NULL)
                         OR (NOT is_admin AND module_number BETWEEN 1 AND 20)
+                        OR (NOT is_admin AND module_number IS NULL)
                     )
                 )
                 """
@@ -105,7 +130,12 @@ def _initialize_schema() -> None:
             cursor.execute("ALTER TABLE seguridad.usuarios ADD COLUMN IF NOT EXISTS correo VARCHAR(160)")
             cursor.execute("ALTER TABLE seguridad.usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(40)")
             cursor.execute("ALTER TABLE seguridad.usuarios ADD COLUMN IF NOT EXISTS tipo_usuario VARCHAR(20)")
-            cursor.execute("UPDATE seguridad.usuarios SET tipo_usuario = CASE WHEN is_admin THEN 'admin' ELSE 'usuario' END WHERE tipo_usuario IS NULL OR tipo_usuario NOT IN ('usuario', 'admin') OR tipo_usuario <> CASE WHEN is_admin THEN 'admin' ELSE 'usuario' END")
+            cursor.execute(
+                "UPDATE seguridad.usuarios SET tipo_usuario = CASE WHEN is_admin THEN 'admin' ELSE 'usuario' END "
+                "WHERE tipo_usuario IS NULL "
+                "OR tipo_usuario NOT IN ('usuario', 'admin', 'consultor') "
+                "OR (tipo_usuario IN ('usuario', 'admin') AND tipo_usuario <> CASE WHEN is_admin THEN 'admin' ELSE 'usuario' END)"
+            )
             cursor.execute("ALTER TABLE seguridad.usuarios ALTER COLUMN tipo_usuario SET DEFAULT 'usuario'")
             cursor.execute("ALTER TABLE seguridad.usuarios ALTER COLUMN tipo_usuario SET NOT NULL")
             cursor.execute(
@@ -174,31 +204,51 @@ def _initialize_schema() -> None:
             )
             cursor.execute(
                 """
-                CREATE TABLE IF NOT EXISTS catalogos.nomenclaturas (
-                    id BIGSERIAL PRIMARY KEY,
-                    nomenclatura VARCHAR(40) NOT NULL UNIQUE,
-                    activa BOOLEAN NOT NULL DEFAULT TRUE
-                )
-                """
-            )
-            cursor.execute(
-                """
                 CREATE TABLE IF NOT EXISTS catalogos.turnos (
                     id BIGSERIAL PRIMARY KEY,
                     numero INTEGER NOT NULL UNIQUE,
                     hora_inicio TIME NOT NULL,
                     hora_fin TIME NOT NULL,
-                    activo BOOLEAN NOT NULL DEFAULT TRUE
+                    activo BOOLEAN NOT NULL DEFAULT TRUE,
+                    alcance VARCHAR(20) NOT NULL DEFAULT 'especifico'
                 )
                 """
+            )
+            cursor.execute(
+                "ALTER TABLE catalogos.turnos ADD COLUMN IF NOT EXISTS alcance VARCHAR(20) NOT NULL DEFAULT 'especifico'"
             )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS catalogos.turno_modulo (
                     turno_id BIGINT NOT NULL REFERENCES catalogos.turnos(id) ON DELETE CASCADE,
                     modulo_id SMALLINT NOT NULL REFERENCES catalogos.modulos(id) ON DELETE CASCADE,
+                    activo BOOLEAN NOT NULL DEFAULT TRUE,
                     PRIMARY KEY (turno_id, modulo_id)
                 )
+                """
+            )
+            cursor.execute(
+                "ALTER TABLE catalogos.turno_modulo ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+            cursor.execute(
+                """
+                UPDATE catalogos.turnos AS t
+                SET alcance = 'general'
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM catalogos.turno_modulo AS tm
+                    WHERE tm.turno_id = t.id
+                )
+                """
+            )
+            cursor.execute(
+                """
+                INSERT INTO catalogos.turno_modulo (turno_id, modulo_id, activo)
+                SELECT t.id, m.id, TRUE
+                FROM catalogos.turnos AS t
+                CROSS JOIN catalogos.modulos AS m
+                WHERE t.alcance = 'general'
+                ON CONFLICT (turno_id, modulo_id) DO NOTHING
                 """
             )
             cursor.execute(
@@ -237,6 +287,12 @@ def _initialize_schema() -> None:
                     nombre VARCHAR(160) NOT NULL UNIQUE
                 )
                 """
+            )
+            cursor.execute(
+                "ALTER TABLE catalogos.tipos_rutas ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+            cursor.execute(
+                "ALTER TABLE catalogos.servicio ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"
             )
             for descripcion in (
                 "Ruta Oficial RTP",
@@ -301,6 +357,7 @@ def _initialize_schema() -> None:
                 ADD CONSTRAINT usuarios_access_target_ck CHECK (
                     (tipo_usuario = 'admin' AND is_admin AND module_number IS NULL)
                     OR (tipo_usuario = 'usuario' AND NOT is_admin AND module_number BETWEEN 1 AND 20)
+                    OR (tipo_usuario = 'consultor' AND NOT is_admin AND module_number IS NULL)
                 )
                 """
             )
@@ -369,7 +426,7 @@ def _initialize_schema() -> None:
             )
             cursor.execute(
                 """
-                CREATE TABLE IF NOT EXISTS progrmacion.registros (
+                CREATE TABLE IF NOT EXISTS programacion.registros (
                     id BIGSERIAL PRIMARY KEY,
                     module_number SMALLINT NOT NULL,
                     name VARCHAR(160) NOT NULL,
@@ -387,6 +444,131 @@ def _initialize_schema() -> None:
                     saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE (module_number, credential, month, year)
                 )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS analisis.trabajador_dia (
+                    id BIGSERIAL PRIMARY KEY,
+                    source_record_id BIGINT NOT NULL,
+                    work_date DATE NOT NULL,
+                    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                    year INTEGER NOT NULL CHECK (year > 0),
+                    module_number SMALLINT NOT NULL,
+                    credential VARCHAR(80) NOT NULL,
+                    name VARCHAR(160) NOT NULL,
+                    status_code VARCHAR(40) NOT NULL,
+                    status VARCHAR(40) NOT NULL,
+                    shift VARCHAR(40),
+                    route VARCHAR(80),
+                    nomenclature VARCHAR(20),
+                    daily_code VARCHAR(40),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (source_record_id, work_date)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS trabajador_dia_period_idx
+                ON analisis.trabajador_dia (year, month, module_number, credential)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS analisis.ruta_dia (
+                    id BIGSERIAL PRIMARY KEY,
+                    source_record_id BIGINT NOT NULL,
+                    work_date DATE NOT NULL,
+                    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                    year INTEGER NOT NULL CHECK (year > 0),
+                    route_id BIGINT,
+                    route VARCHAR(80) NOT NULL,
+                    nomenclature VARCHAR(40),
+                    origin VARCHAR(120),
+                    destination VARCHAR(120),
+                    route_type_id INTEGER,
+                    route_type VARCHAR(160),
+                    service VARCHAR(120),
+                    route_status VARCHAR(20),
+                    module_number SMALLINT NOT NULL,
+                    credential VARCHAR(80) NOT NULL,
+                    name VARCHAR(160) NOT NULL,
+                    shift VARCHAR(40),
+                    assignment_status VARCHAR(40) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (source_record_id, work_date)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ruta_dia_period_idx
+                ON analisis.ruta_dia (year, month, module_number, route_id)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS analisis.analisis_trabajadores (
+                    id BIGSERIAL PRIMARY KEY,
+                    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                    year INTEGER NOT NULL CHECK (year > 0),
+                    module_number SMALLINT NOT NULL,
+                    credential VARCHAR(80) NOT NULL,
+                    name VARCHAR(160) NOT NULL,
+                    sexo VARCHAR(20),
+                    active BOOLEAN NOT NULL DEFAULT TRUE,
+                    work_days_count INTEGER NOT NULL DEFAULT 0,
+                    rest_days_count INTEGER NOT NULL DEFAULT 0,
+                    absence_days_count INTEGER NOT NULL DEFAULT 0,
+                    holiday_days_count INTEGER NOT NULL DEFAULT 0,
+                    vacation_days_count INTEGER NOT NULL DEFAULT 0,
+                    incapacity_days_count INTEGER NOT NULL DEFAULT 0,
+                    permission_days_count INTEGER NOT NULL DEFAULT 0,
+                    special_status_days_count INTEGER NOT NULL DEFAULT 0,
+                    most_used_shift VARCHAR(40),
+                    most_used_shift_count INTEGER NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (month, year, module_number, credential)
+                )
+                """
+            )
+            cursor.execute(
+                "ALTER TABLE analisis.analisis_trabajadores ADD COLUMN IF NOT EXISTS sexo VARCHAR(20)"
+            )
+            cursor.execute(
+                "ALTER TABLE analisis.analisis_trabajadores ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS analisis.analisis_rutas (
+                    id BIGSERIAL PRIMARY KEY,
+                    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                    year INTEGER NOT NULL CHECK (year > 0),
+                    route_id BIGINT,
+                    route VARCHAR(80) NOT NULL,
+                    nomenclature VARCHAR(40),
+                    origin VARCHAR(120),
+                    destination VARCHAR(120),
+                    route_type_id INTEGER,
+                    route_type VARCHAR(160),
+                    service VARCHAR(120),
+                    route_status VARCHAR(20),
+                    module_number SMALLINT NOT NULL,
+                    assignment_count INTEGER NOT NULL DEFAULT 0,
+                    work_day_count INTEGER NOT NULL DEFAULT 0,
+                    controller_count INTEGER NOT NULL DEFAULT 0,
+                    shared_module_count INTEGER NOT NULL DEFAULT 0,
+                    is_shared BOOLEAN NOT NULL DEFAULT FALSE,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (month, year, route_id, route, module_number)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS analisis_rutas_period_idx
+                ON analisis.analisis_rutas (year, month, module_number, route_id)
                 """
             )
             cursor.execute(
@@ -609,8 +791,8 @@ def create_controller(controller: dict) -> dict:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO catalogos.controladores (nombre, credencial, sexo, mod1)
-                VALUES (%(nombre)s, %(credencial)s, %(sexo)s, %(mod1)s)
+                INSERT INTO catalogos.controladores (nombre, credencial, sexo, mod1, active)
+                VALUES (%(nombre)s, %(credencial)s, %(sexo)s, %(mod1)s, %(active)s)
                 RETURNING id, nombre, credencial, sexo, mod1, active
                 """,
                 controller,
@@ -628,11 +810,11 @@ def update_controller(controller_id: int, payload: dict) -> dict | None:
             cursor.execute(
                 """
                 UPDATE catalogos.controladores
-                SET nombre = %s, credencial = %s, sexo = %s, mod1 = %s
+                SET nombre = %s, credencial = %s, sexo = %s, mod1 = %s, active = %s
                 WHERE id = %s
                 RETURNING id, nombre, credencial, sexo, mod1, active
                 """,
-                (nombre, payload["credencial"], sexo, payload.get("mod1", 1), controller_id),
+                (nombre, payload["credencial"], sexo, payload.get("mod1", 1), payload.get("active", True), controller_id),
             )
             row = cursor.fetchone()
             if row is None:
@@ -646,7 +828,7 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "DELETE FROM progrmacion.registros WHERE module_number = %s AND month = %s AND year = %s",
+                "DELETE FROM programacion.registros WHERE module_number = %s AND month = %s AND year = %s",
                 (module_number, month, year),
             )
             for record in records:
@@ -669,7 +851,7 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
                     ]
                 cursor.execute(
                     """
-                    INSERT INTO progrmacion.registros
+                    INSERT INTO programacion.registros
                         (module_number, name, credential, shift, route, nomenclature,
                          month, year, work_days, rest_days, vacation_days,
                          daily_assignments, daily_details)
@@ -693,7 +875,216 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
                     ),
                 )
         connection.commit()
+    refresh_analysis_tables()
     return len(records)
+
+
+def refresh_analysis_tables() -> None:
+    """Rebuild clean daily and monthly datasets for Power BI."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("TRUNCATE analisis.trabajador_dia, analisis.ruta_dia, analisis.analisis_trabajadores, analisis.analisis_rutas")
+            cursor.execute(
+                """
+                INSERT INTO analisis.trabajador_dia (
+                    source_record_id, work_date, month, year, module_number,
+                    credential, name, status_code, status, shift, route,
+                    nomenclature, daily_code
+                )
+                SELECT sr.id,
+                       calendar.work_date,
+                       sr.month,
+                       sr.year,
+                       sr.module_number,
+                       sr.credential,
+                       sr.name,
+                       COALESCE(day_data.assignment, day_detail->>'code', '') AS status_code,
+                       CASE
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('V', 'VAC', 'VACACIONES')
+                               THEN 'VACACIONES'
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('INC', 'INCAPACIDAD')
+                               THEN 'INCAPACIDAD'
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('PER', 'PERMISO')
+                               THEN 'PERMISO'
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('F', 'FALTA')
+                               THEN 'FALTA'
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('DF', 'FESTIVO')
+                               THEN 'FESTIVO'
+                           WHEN sr.rest_days @> to_jsonb(EXTRACT(DAY FROM calendar.work_date)::integer)
+                               OR upper(COALESCE(day_data.assignment, day_detail->>'code', '')) = 'D'
+                               THEN 'DESCANSO'
+                           WHEN COALESCE(day_data.assignment, day_detail->>'code', '') <> ''
+                               THEN 'TRABAJADO'
+                           ELSE 'NO_PROGRAMADO'
+                       END AS status,
+                       COALESCE(day_detail->>'shift', sr.shift),
+                       COALESCE(day_detail->>'route', sr.route),
+                       COALESCE(day_detail->>'nomenclature', sr.nomenclature),
+                       COALESCE(day_data.assignment, day_detail->>'code', '')
+                FROM schedule_records AS sr
+                CROSS JOIN LATERAL generate_series(
+                    make_date(sr.year, sr.month, 1),
+                    (make_date(sr.year, sr.month, 1) + INTERVAL '1 month - 1 day')::date,
+                    INTERVAL '1 day'
+                ) AS calendar(work_date)
+                LEFT JOIN LATERAL (
+                    SELECT sr.daily_assignments ->> EXTRACT(DAY FROM calendar.work_date)::integer::text AS assignment
+                ) AS day_data ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT sr.daily_details -> (EXTRACT(DAY FROM calendar.work_date)::integer::text) AS day_detail
+                ) AS detail_data ON TRUE
+                WHERE sr.year > 0 AND sr.month BETWEEN 1 AND 12
+                """
+            )
+            cursor.execute(
+                """
+                INSERT INTO analisis.ruta_dia (
+                    source_record_id, work_date, month, year, route_id, route,
+                    nomenclature, origin, destination, route_type_id, route_type,
+                    service, route_status, module_number, credential, name, shift,
+                    assignment_status
+                )
+                SELECT td.source_record_id,
+                       td.work_date,
+                       td.month,
+                       td.year,
+                       route_data.id,
+                       td.route,
+                       COALESCE(route_data.nomenclatura, td.nomenclature),
+                       route_data.origen,
+                       route_data.destino,
+                       route_data.tipos,
+                       route_data.route_type,
+                       route_data.servicio,
+                       route_data.estado,
+                       td.module_number,
+                       td.credential,
+                       td.name,
+                       td.shift,
+                       td.status
+                FROM analisis.trabajador_dia AS td
+                LEFT JOIN LATERAL (
+                    SELECT r.id, r.nomenclatura, r.origen, r.destino, r.tipos,
+                           r.servicio, r.estado, tr.descripcion AS route_type
+                    FROM catalogos.rutas AS r
+                    LEFT JOIN catalogos.tipos_rutas AS tr ON tr.id = r.tipos
+                    WHERE lower(r.ruta) = lower(td.route)
+                       OR lower(r.nomenclatura) = lower(td.nomenclature)
+                    ORDER BY CASE WHEN lower(r.ruta) = lower(td.route) THEN 0 ELSE 1 END,
+                             r.id
+                    LIMIT 1
+                ) AS route_data ON TRUE
+                WHERE NULLIF(TRIM(td.route), '') IS NOT NULL
+                  AND td.status = 'TRABAJADO'
+                """
+            )
+            cursor.execute(
+                """
+                INSERT INTO analisis.analisis_trabajadores (
+                    month, year, module_number, credential, name, sexo, active,
+                    work_days_count, rest_days_count, absence_days_count,
+                    holiday_days_count, vacation_days_count, incapacity_days_count,
+                    permission_days_count, special_status_days_count,
+                    most_used_shift, most_used_shift_count
+                )
+                SELECT td.month,
+                       td.year,
+                       td.module_number,
+                       td.credential,
+                       MAX(td.name),
+                       MAX(controller.sexo),
+                       COALESCE(BOOL_AND(controller.active), TRUE),
+                       COUNT(*) FILTER (WHERE td.status = 'TRABAJADO'),
+                       COUNT(*) FILTER (WHERE td.status = 'DESCANSO'),
+                       COUNT(*) FILTER (WHERE td.status = 'FALTA'),
+                       COUNT(*) FILTER (WHERE td.status = 'FESTIVO'),
+                       COUNT(*) FILTER (WHERE td.status = 'VACACIONES'),
+                       COUNT(*) FILTER (WHERE td.status = 'INCAPACIDAD'),
+                       COUNT(*) FILTER (WHERE td.status = 'PERMISO'),
+                       COUNT(*) FILTER (WHERE td.status IN ('FALTA', 'FESTIVO', 'VACACIONES', 'INCAPACIDAD', 'PERMISO')),
+                       shift_usage.shift,
+                       COALESCE(shift_usage.usage_count, 0)
+                FROM analisis.trabajador_dia AS td
+                LEFT JOIN catalogos.controladores AS controller
+                    ON controller.credencial = td.credential
+                LEFT JOIN LATERAL (
+                    SELECT td2.shift, COUNT(*) AS usage_count
+                    FROM analisis.trabajador_dia AS td2
+                    WHERE td2.month = td.month
+                      AND td2.year = td.year
+                      AND td2.module_number = td.module_number
+                      AND td2.credential = td.credential
+                      AND td2.status = 'TRABAJADO'
+                      AND NULLIF(TRIM(td2.shift), '') IS NOT NULL
+                    GROUP BY td2.shift
+                    ORDER BY COUNT(*) DESC, td2.shift
+                    LIMIT 1
+                ) AS shift_usage ON TRUE
+                GROUP BY td.month, td.year, td.module_number, td.credential,
+                         shift_usage.shift, shift_usage.usage_count
+                """
+            )
+            cursor.execute(
+                """
+                INSERT INTO analisis.analisis_rutas (
+                    month, year, route_id, route, nomenclature, origin, destination,
+                    route_type_id, route_type, service, route_status, module_number,
+                    assignment_count, work_day_count, controller_count,
+                    shared_module_count, is_shared
+                )
+                WITH periods AS (
+                    SELECT DISTINCT month, year
+                    FROM schedule_records
+                ),
+                route_modules AS (
+                    SELECT r.id AS route_id, r.mod1 AS module_number
+                    FROM catalogos.rutas AS r
+                    UNION
+                    SELECT mr.ruta_id, mr.modulo_id
+                    FROM catalogos.modulo_ruta AS mr
+                ),
+                route_usage AS (
+                    SELECT route_id, month, year, module_number,
+                           COUNT(*) AS assignment_count,
+                           COUNT(DISTINCT work_date) AS work_day_count,
+                           COUNT(DISTINCT credential) AS controller_count
+                    FROM analisis.ruta_dia
+                    GROUP BY route_id, month, year, module_number
+                )
+                SELECT periods.month,
+                       periods.year,
+                       r.id,
+                       r.ruta,
+                       r.nomenclatura,
+                       r.origen,
+                       r.destino,
+                       r.tipos,
+                       tr.descripcion,
+                       r.servicio,
+                       r.estado,
+                       route_modules.module_number,
+                       COALESCE(route_usage.assignment_count, 0),
+                       COALESCE(route_usage.work_day_count, 0),
+                       COALESCE(route_usage.controller_count, 0),
+                       shared.module_count,
+                       shared.module_count > 1
+                FROM periods
+                CROSS JOIN route_modules
+                JOIN catalogos.rutas AS r ON r.id = route_modules.route_id
+                LEFT JOIN catalogos.tipos_rutas AS tr ON tr.id = r.tipos
+                LEFT JOIN route_usage
+                    ON route_usage.route_id = r.id
+                   AND route_usage.month = periods.month
+                   AND route_usage.year = periods.year
+                   AND route_usage.module_number = route_modules.module_number
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*)::integer AS module_count
+                    FROM route_modules AS shared_modules
+                    WHERE shared_modules.route_id = r.id
+                ) AS shared ON TRUE
+                """
+            )
+        connection.commit()
 
 
 def update_controller_status(controller_id: int, active: bool) -> dict | None:
@@ -769,7 +1160,7 @@ def fetch_users(module_number: int | None = None) -> list[dict]:
                 """
                 SELECT id, username, password_hash, correo, telefono, module_number, is_admin, tipo_usuario, active
                 FROM seguridad.usuarios
-                WHERE (%s::integer IS NULL OR module_number = %s::integer) AND active = TRUE
+                WHERE (%s::integer IS NULL OR module_number = %s::integer)
                 ORDER BY username
                 """,
                 (module_number, module_number),
@@ -890,7 +1281,22 @@ def fetch_admin_users() -> list[dict]:
                 """
                 SELECT id, username, password_hash, correo, telefono, module_number, is_admin, tipo_usuario, active
                 FROM seguridad.usuarios
-                WHERE active = TRUE AND (is_admin = TRUE OR tipo_usuario = 'admin')
+                WHERE is_admin = TRUE OR tipo_usuario = 'admin'
+                ORDER BY username
+                """
+            )
+            columns = tuple(column.name for column in cursor.description)
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def fetch_consultant_users() -> list[dict]:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, username, password_hash, correo, telefono, module_number, is_admin, tipo_usuario, active
+                FROM seguridad.usuarios
+                WHERE tipo_usuario = 'consultor'
                 ORDER BY username
                 """
             )
@@ -922,21 +1328,21 @@ def update_user(user_id: int, payload: dict) -> dict | None:
                 cursor.execute(
                     """
                     UPDATE seguridad.usuarios
-                    SET username = %s, password_hash = %s, correo = %s, telefono = %s, module_number = %s, is_admin = %s, tipo_usuario = %s
+                    SET username = %s, password_hash = %s, correo = %s, telefono = %s, module_number = %s, is_admin = %s, tipo_usuario = %s, active = %s
                     WHERE id = %s
                     RETURNING id, username, correo, telefono, module_number, is_admin, tipo_usuario, active
                     """,
-                    (payload["username"], payload["password_hash"], payload.get("correo"), payload.get("telefono"), payload.get("module_number"), payload["is_admin"], payload["tipo_usuario"], user_id),
+                    (payload["username"], payload["password_hash"], payload.get("correo"), payload.get("telefono"), payload.get("module_number"), payload["is_admin"], payload["tipo_usuario"], payload.get("active", True), user_id),
                 )
             else:
                 cursor.execute(
                     """
                     UPDATE seguridad.usuarios
-                    SET username = %s, correo = %s, telefono = %s, module_number = %s, is_admin = %s, tipo_usuario = %s
+                    SET username = %s, correo = %s, telefono = %s, module_number = %s, is_admin = %s, tipo_usuario = %s, active = %s
                     WHERE id = %s
                     RETURNING id, username, correo, telefono, module_number, is_admin, tipo_usuario, active
                     """,
-                    (payload["username"], payload.get("correo"), payload.get("telefono"), payload.get("module_number"), payload["is_admin"], payload["tipo_usuario"], user_id),
+                    (payload["username"], payload.get("correo"), payload.get("telefono"), payload.get("module_number"), payload["is_admin"], payload["tipo_usuario"], payload.get("active", True), user_id),
                 )
             row = cursor.fetchone()
             if row is None:
@@ -944,6 +1350,21 @@ def update_user(user_id: int, payload: dict) -> dict | None:
             columns = tuple(column.name for column in cursor.description)
         connection.commit()
     return dict(zip(columns, row))
+
+
+def update_user_status(user_id: int, active: bool) -> dict | None:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE seguridad.usuarios SET active = %s WHERE id = %s "
+                "RETURNING id, username, active",
+                (active, user_id),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+        connection.commit()
+    return {"id": row[0], "username": row[1], "active": row[2]}
 
 
 def delete_user(user_id: int) -> bool:
@@ -1087,7 +1508,7 @@ def fetch_analysis_metrics() -> dict:
                        COUNT(*) AS assignments,
                        COUNT(DISTINCT sr.credential) AS controllers,
                        COUNT(DISTINCT sr.module_number) AS modules
-                FROM progrmacion.registros AS sr
+                FROM programacion.registros AS sr
                 WHERE NULLIF(TRIM(sr.route), '') IS NOT NULL
                 GROUP BY sr.route
                 ORDER BY assignments DESC, controllers DESC, sr.route
@@ -1109,7 +1530,7 @@ def fetch_analysis_metrics() -> dict:
                   SELECT sr.route,
                       COUNT(DISTINCT sr.credential) AS controllers,
                       COUNT(DISTINCT sr.module_number) AS modules
-                  FROM progrmacion.registros AS sr
+                  FROM programacion.registros AS sr
                   WHERE NULLIF(TRIM(sr.route), '') IS NOT NULL
                   GROUP BY sr.route
                   ORDER BY controllers DESC, modules DESC, sr.route
@@ -1152,7 +1573,7 @@ def fetch_analysis_metrics() -> dict:
                        SUM(jsonb_array_length(sr.work_days)) AS dias_trabajados,
                        SUM(jsonb_array_length(sr.rest_days)) AS dias_descanso,
                        SUM(jsonb_array_length(sr.vacation_days)) AS dias_vacaciones
-                FROM progrmacion.registros AS sr
+                FROM programacion.registros AS sr
                 GROUP BY sr.credential, sr.name
                 ORDER BY sr.name, sr.credential
                 LIMIT 100
@@ -1172,7 +1593,7 @@ def fetch_analysis_metrics() -> dict:
             cursor.execute(
                 """
                 SELECT NULLIF(TRIM(shift), '') AS turno, COUNT(*) AS usos
-                FROM progrmacion.registros
+                FROM programacion.registros
                 WHERE NULLIF(TRIM(shift), '') IS NOT NULL
                 GROUP BY 1
                 ORDER BY usos DESC, turno
@@ -1344,7 +1765,17 @@ def fetch_shared_modules(route_id: int) -> list[int]:
             return [row[0] for row in cursor.fetchall()]
 
 
-def link_route_to_module(route_id: int, module_number: int) -> dict:
+def fetch_shared_module_statuses(route_id: int) -> dict[int, str]:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT modulo_id, estado FROM catalogos.modulo_ruta WHERE ruta_id = %s ORDER BY modulo_id",
+                (route_id,),
+            )
+            return {row[0]: row[1] for row in cursor.fetchall()}
+
+
+def link_route_to_module(route_id: int, module_number: int, estado: str | None = None) -> dict:
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -1355,6 +1786,7 @@ def link_route_to_module(route_id: int, module_number: int) -> dict:
             if route_row is None or route_row[1] == module_number:
                 raise ValueError("La ruta no existe o pertenece al módulo actual")
 
+            module_status = estado or route_row[2]
             nomenclatura = next_route_nomenclature(connection, module_number)
             cursor.execute(
                 """
@@ -1365,7 +1797,7 @@ def link_route_to_module(route_id: int, module_number: int) -> dict:
                         nomenclatura = EXCLUDED.nomenclatura
                 RETURNING id, modulo_id, ruta_id, estado, nomenclatura
                 """,
-                (module_number, route_id, route_row[2], nomenclatura),
+                (module_number, route_id, module_status, nomenclatura),
             )
             row = cursor.fetchone()
             if row is None:
@@ -1405,11 +1837,10 @@ def _catalog_item(columns: tuple[str, ...], row: tuple) -> dict:
 
 def fetch_catalog_items(table: str, module_number: int | None = None) -> list[dict]:
     queries = {
-        "nomenclaturas": "SELECT id, nomenclatura, activa FROM catalogos.nomenclaturas ORDER BY nomenclatura",
-        "turnos": "SELECT id, numero, hora_inicio, hora_fin, activo FROM catalogos.turnos ORDER BY numero",
+        "turnos": "SELECT id, numero, hora_inicio, hora_fin, activo, alcance FROM catalogos.turnos ORDER BY hora_inicio, id",
         "estados_especiales": "SELECT id, codigo, descripcion, activo FROM catalogos.estados_especiales ORDER BY codigo",
-        "tipos_rutas": "SELECT id, descripcion FROM catalogos.tipos_rutas ORDER BY descripcion",
-        "servicio": "SELECT id, nombre FROM catalogos.servicio ORDER BY nombre",
+        "tipos_rutas": "SELECT id, descripcion, activo FROM catalogos.tipos_rutas ORDER BY descripcion",
+        "servicio": "SELECT id, nombre, activo FROM catalogos.servicio ORDER BY nombre",
     }
     if table not in queries:
         raise ValueError("Catálogo no válido")
@@ -1417,11 +1848,11 @@ def fetch_catalog_items(table: str, module_number: int | None = None) -> list[di
         with connection.cursor() as cursor:
             if table == "turnos" and module_number is not None:
                 queries[table] = """
-                    SELECT t.id, t.numero, t.hora_inicio, t.hora_fin, t.activo
+                    SELECT t.id, t.numero, t.hora_inicio, t.hora_fin, t.activo, t.alcance
                     FROM catalogos.turnos AS t
                     JOIN catalogos.turno_modulo AS tm ON tm.turno_id = t.id
-                    WHERE tm.modulo_id = %s
-                    ORDER BY t.numero
+                    WHERE tm.modulo_id = %s AND tm.activo
+                    ORDER BY t.hora_inicio, t.id
                 """
                 cursor.execute(queries[table], (module_number,))
             else:
@@ -1440,6 +1871,45 @@ def fetch_turno_modules(turno_id: int) -> list[int]:
             return [row[0] for row in cursor.fetchall()]
 
 
+def turno_start_exists(hora_inicio: str, exclude_id: int | None = None) -> bool:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            query = "SELECT 1 FROM catalogos.turnos WHERE hora_inicio = %s"
+            values: list[object] = [hora_inicio]
+            if exclude_id is not None:
+                query += " AND id <> %s"
+                values.append(exclude_id)
+            query += " LIMIT 1"
+            cursor.execute(query, tuple(values))
+            return cursor.fetchone() is not None
+
+
+def get_next_turno_number() -> int:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COALESCE(MAX(numero), 0) + 1 FROM catalogos.turnos")
+            return int(cursor.fetchone()[0])
+
+
+def renumber_turnos_by_start() -> None:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id FROM catalogos.turnos ORDER BY hora_inicio, id")
+            turno_ids = [row[0] for row in cursor.fetchall()]
+            if not turno_ids:
+                return
+            cursor.execute(
+                "UPDATE catalogos.turnos SET numero = -1000000000 - id WHERE id = ANY(%s)",
+                (turno_ids,),
+            )
+            for number, turno_id in enumerate(turno_ids, start=1):
+                cursor.execute(
+                    "UPDATE catalogos.turnos SET numero = %s WHERE id = %s",
+                    (number, turno_id),
+                )
+        connection.commit()
+
+
 def fetch_turno_modules_map(turno_ids: list[int]) -> dict[int, list[int]]:
     if not turno_ids:
         return {}
@@ -1455,34 +1925,77 @@ def fetch_turno_modules_map(turno_ids: list[int]) -> dict[int, list[int]]:
             return modules_by_shift
 
 
-def set_turno_modules(turno_id: int, module_numbers: list[int]) -> None:
+def fetch_turno_module_status_map(turno_id: int) -> dict[int, bool]:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT modulo_id, activo FROM catalogos.turno_modulo WHERE turno_id = %s ORDER BY modulo_id",
+                (turno_id,),
+            )
+            return {module_id: active for module_id, active in cursor.fetchall()}
+
+
+def fetch_turno_module_statuses_map(turno_ids: list[int]) -> dict[int, dict[int, bool]]:
+    if not turno_ids:
+        return {}
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT turno_id, modulo_id, activo FROM catalogos.turno_modulo WHERE turno_id = ANY(%s) ORDER BY turno_id, modulo_id",
+                (turno_ids,),
+            )
+            statuses: dict[int, dict[int, bool]] = {}
+            for turno_id, module_id, active in cursor.fetchall():
+                statuses.setdefault(turno_id, {})[module_id] = active
+            return statuses
+
+
+def update_turno_module_status(turno_id: int, module_id: int, active: bool) -> bool:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE catalogos.turno_modulo
+                SET activo = %s
+                WHERE turno_id = %s AND modulo_id = %s
+                """,
+                (active, turno_id, module_id),
+            )
+            updated = cursor.rowcount == 1
+        connection.commit()
+    return updated
+
+
+def set_turno_modules(
+    turno_id: int,
+    module_numbers: list[int],
+    module_statuses: dict[int, bool] | None = None,
+) -> None:
+    module_statuses = module_statuses or {}
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM catalogos.turno_modulo WHERE turno_id = %s", (turno_id,))
             for module_number in module_numbers:
                 cursor.execute(
-                    "INSERT INTO catalogos.turno_modulo (turno_id, modulo_id) VALUES (%s, %s)",
-                    (turno_id, module_number),
+                    "INSERT INTO catalogos.turno_modulo (turno_id, modulo_id, activo) VALUES (%s, %s, %s)",
+                    (turno_id, module_number, module_statuses.get(module_number, True)),
                 )
         connection.commit()
 
 
 def create_catalog_item(table: str, payload: dict) -> dict:
-    if table == "nomenclaturas":
-        statement = "INSERT INTO catalogos.nomenclaturas (nomenclatura, activa) VALUES (%s, %s) RETURNING id, nomenclatura, activa"
-        values = (payload["nomenclatura"], payload.get("activa", True))
-    elif table == "turnos":
-        statement = "INSERT INTO catalogos.turnos (numero, hora_inicio, hora_fin, activo) VALUES (%s, %s, %s, %s) RETURNING id, numero, hora_inicio, hora_fin, activo"
-        values = (payload["numero"], payload["hora_inicio"], payload["hora_fin"], payload.get("activo", True))
+    if table == "turnos":
+        statement = "INSERT INTO catalogos.turnos (numero, hora_inicio, hora_fin, activo, alcance) VALUES (%s, %s, %s, %s, %s) RETURNING id, numero, hora_inicio, hora_fin, activo, alcance"
+        values = (payload["numero"], payload["hora_inicio"], payload["hora_fin"], payload.get("activo", True), payload.get("alcance", "especifico"))
     elif table == "tipos_rutas":
-        statement = "INSERT INTO catalogos.tipos_rutas (descripcion) VALUES (%s) RETURNING id, descripcion"
-        values = (normalize_display_text(payload["descripcion"]),)
+        statement = "INSERT INTO catalogos.tipos_rutas (descripcion, activo) VALUES (%s, %s) RETURNING id, descripcion, activo"
+        values = (normalize_display_text(payload["descripcion"]), payload.get("activo", True))
     elif table == "estados_especiales":
         statement = "INSERT INTO catalogos.estados_especiales (codigo, descripcion, activo) VALUES (%s, %s, %s) RETURNING id, codigo, descripcion, activo"
         values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload.get("activo", True))
     elif table == "servicio":
-        statement = "INSERT INTO catalogos.servicio (nombre) VALUES (%s) RETURNING id, nombre"
-        values = (normalize_display_text(payload["nombre"]),)
+        statement = "INSERT INTO catalogos.servicio (nombre, activo) VALUES (%s, %s) RETURNING id, nombre, activo"
+        values = (normalize_display_text(payload["nombre"]), payload.get("activo", True))
     else:
         raise ValueError("Catálogo no válido")
     with get_connection() as connection:
@@ -1495,21 +2008,18 @@ def create_catalog_item(table: str, payload: dict) -> dict:
 
 
 def update_catalog_item(table: str, item_id: int, payload: dict) -> dict:
-    if table == "nomenclaturas":
-        statement = "UPDATE catalogos.nomenclaturas SET nomenclatura = %s, activa = %s WHERE id = %s RETURNING id, nomenclatura, activa"
-        values = (payload["nomenclatura"], payload.get("activa", True), item_id)
-    elif table == "turnos":
-        statement = "UPDATE catalogos.turnos SET numero = %s, hora_inicio = %s, hora_fin = %s, activo = %s WHERE id = %s RETURNING id, numero, hora_inicio, hora_fin, activo"
-        values = (payload["numero"], payload["hora_inicio"], payload["hora_fin"], payload.get("activo", True), item_id)
+    if table == "turnos":
+        statement = "UPDATE catalogos.turnos SET numero = %s, hora_inicio = %s, hora_fin = %s, activo = %s, alcance = %s WHERE id = %s RETURNING id, numero, hora_inicio, hora_fin, activo, alcance"
+        values = (payload["numero"], payload["hora_inicio"], payload["hora_fin"], payload.get("activo", True), payload.get("alcance", "especifico"), item_id)
     elif table == "tipos_rutas":
-        statement = "UPDATE catalogos.tipos_rutas SET descripcion = %s WHERE id = %s RETURNING id, descripcion"
-        values = (normalize_display_text(payload["descripcion"]), item_id)
+        statement = "UPDATE catalogos.tipos_rutas SET descripcion = %s, activo = %s WHERE id = %s RETURNING id, descripcion, activo"
+        values = (normalize_display_text(payload["descripcion"]), payload.get("activo", True), item_id)
     elif table == "estados_especiales":
         statement = "UPDATE catalogos.estados_especiales SET codigo = %s, descripcion = %s, activo = %s WHERE id = %s RETURNING id, codigo, descripcion, activo"
         values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload.get("activo", True), item_id)
     elif table == "servicio":
-        statement = "UPDATE catalogos.servicio SET nombre = %s WHERE id = %s RETURNING id, nombre"
-        values = (normalize_display_text(payload["nombre"]), item_id)
+        statement = "UPDATE catalogos.servicio SET nombre = %s, activo = %s WHERE id = %s RETURNING id, nombre, activo"
+        values = (normalize_display_text(payload["nombre"]), payload.get("activo", True), item_id)
     else:
         raise ValueError("Catálogo no válido")
     with get_connection() as connection:
@@ -1524,9 +2034,33 @@ def update_catalog_item(table: str, item_id: int, payload: dict) -> dict:
     return result
 
 
+def update_catalog_status(table: str, item_id: int, active: bool) -> dict | None:
+    statements = {
+        "tipos_rutas": (
+            "UPDATE catalogos.tipos_rutas SET activo = %s WHERE id = %s "
+            "RETURNING id, descripcion, activo"
+        ),
+        "servicio": (
+            "UPDATE catalogos.servicio SET activo = %s WHERE id = %s "
+            "RETURNING id, nombre, activo"
+        ),
+    }
+    if table not in statements:
+        raise ValueError("Catálogo no válido para cambiar estado")
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(statements[table], (active, item_id))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            columns = tuple(column.name for column in cursor.description)
+            result = _catalog_item(columns, row)
+        connection.commit()
+    return result
+
+
 def delete_catalog_item(table: str, item_id: int) -> bool:
     tables = {
-        "nomenclaturas": "catalogos.nomenclaturas",
         "turnos": "catalogos.turnos",
         "tipos_rutas": "catalogos.tipos_rutas",
         "estados_especiales": "catalogos.estados_especiales",

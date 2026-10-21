@@ -37,10 +37,15 @@ from app.db import (
     fetch_external_routes,
     fetch_routes,
     fetch_shared_modules,
+    fetch_shared_module_statuses,
     get_monthly_role_activation,
     fetch_turno_modules_map,
+    fetch_turno_module_status_map,
+    fetch_turno_module_statuses_map,
+    get_next_turno_number,
+    renumber_turnos_by_start,
+    turno_start_exists,
     fetch_users,
-    fetch_admin_users,
     fetch_modules,
     fetch_history_entries,
     fetch_analysis_metrics,
@@ -50,12 +55,15 @@ from app.db import (
     normalize_display_text,
     update_admin_route,
     update_catalog_item,
+    update_catalog_status,
     update_controller,
     update_controller_status,
     update_shift_status,
+    update_turno_module_status,
     update_route,
     update_route_status,
     update_user,
+    update_user_status,
     update_module,
     link_route_to_module,
     update_module_route_status,
@@ -92,6 +100,13 @@ def request_modules() -> list[dict]:
     return modules
 
 
+def account_can_view_admin(account: dict | None) -> bool:
+    """True for admins and for the read-only 'consultor' role."""
+    if not account:
+        return False
+    return bool(account.get("is_admin")) or account.get("tipo_usuario") == "consultor"
+
+
 @app.context_processor
 def inject_module_name():
     module_number = request.view_args.get("module_number") if request.view_args else None
@@ -104,10 +119,12 @@ def inject_module_name():
             module_name = module["nombre"] if module else None
         except Exception:
             module_name = None
+    account = session.get("account")
     return {
         "module_name": module_name,
         "modules": modules,
         "module_names": {str(item["id"]): item["nombre"] for item in modules},
+        "is_read_only_account": bool(account) and account.get("tipo_usuario") == "consultor",
     }
 
 
@@ -250,7 +267,7 @@ def connection_status():
                 "inicio_sesion",
             )
             session["account"] = account
-            if account.get("is_admin"):
+            if account_can_view_admin(account):
                 return redirect(url_for("admin_dashboard"))
             return redirect(url_for("schedule_dashboard", module_number=account["module_number"]))
         return render_template("inicio_de_sesion.html", login_error="Credenciales inválidas o acceso no permitido."), 401
@@ -344,7 +361,7 @@ def reset_password(token: str):
 @app.get("/administrador")
 def admin_dashboard():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
@@ -373,20 +390,33 @@ def admin_dashboard():
 @app.get("/administrador/rol-mensual")
 def admin_monthly_role_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    edit_estado_id = request.args.get("edit_estado_id", type=int)
     try:
         initialize_schema()
         modules = request_modules()
+        estados_especiales = fetch_catalog_items("estados_especiales")
     except Exception:
         modules = []
-    return render_template("admin/rol_mensual.html", account=account, modules=modules)
+        estados_especiales = []
+    editing_estado_especial = next(
+        (item for item in estados_especiales if item.get("id") == edit_estado_id),
+        None,
+    ) if edit_estado_id else None
+    return render_template(
+        "admin/rol_mensual.html",
+        account=account,
+        modules=modules,
+        estados_especiales=estados_especiales,
+        editing_estado_especial=editing_estado_especial,
+    )
 
 
 @app.get("/administrador/historial")
 def admin_history_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
@@ -403,7 +433,11 @@ def admin_monthly_role_status(module_number: int):
         return jsonify(error="No autorizado."), 403
     if request.method == "POST" and not account.get("is_admin"):
         return jsonify(error="No autorizado."), 403
-    if request.method == "GET" and not account.get("is_admin") and account.get("module_number") != module_number:
+    if (
+        request.method == "GET"
+        and not account_can_view_admin(account)
+        and account.get("module_number") != module_number
+    ):
         return jsonify(error="No autorizado."), 403
     source = request.args if request.method == "GET" else request.form
     month = source.get("month", type=int)
@@ -430,7 +464,7 @@ def admin_monthly_role_status(module_number: int):
 @app.get("/administrador/controladores")
 def admin_controllers_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     edit_controller_id = request.args.get("edit_id", type=int)
     try:
@@ -471,7 +505,7 @@ def admin_controllers_page():
 @app.get("/administrador/usuarios")
 def admin_users_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     edit_user_id = request.args.get("edit_user_id", type=int)
     try:
@@ -480,7 +514,8 @@ def admin_users_page():
         users = fetch_users()
         users_by_module = {}
         for user in users:
-            users_by_module.setdefault(user.get("module_number"), []).append(user)
+            if user.get("tipo_usuario") == "usuario" and user.get("module_number") is not None:
+                users_by_module.setdefault(user["module_number"], []).append(user)
         grouped_users = [
             {
                 "module_number": module["id"],
@@ -489,16 +524,14 @@ def admin_users_page():
             }
             for module in modules
         ]
-        try:
-            admin_users = fetch_admin_users()
-        except Exception:
-            app.logger.exception("No fue posible cargar los usuarios administradores")
-            admin_users = []
+        admin_users = [user for user in users if user.get("tipo_usuario") == "admin"]
+        consultant_users = [user for user in users if user.get("tipo_usuario") == "consultor"]
     except Exception:
         app.logger.exception("No fue posible cargar los usuarios y módulos")
         modules = []
         grouped_users = []
         admin_users = []
+        consultant_users = []
 
     editing_user = None
     if edit_user_id:
@@ -511,6 +544,8 @@ def admin_users_page():
                 break
         if editing_user is None:
             editing_user = next((user for user in admin_users if user.get("id") == edit_user_id), None)
+        if editing_user is None:
+            editing_user = next((user for user in consultant_users if user.get("id") == edit_user_id), None)
 
     return render_template(
         "admin/usuarios.html",
@@ -519,13 +554,14 @@ def admin_users_page():
         modules=modules,
         editing_user=editing_user,
         admin_users=admin_users,
+        consultant_users=consultant_users,
     )
 
 
 @app.get("/administrador/modulos")
 def admin_modules_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
@@ -596,9 +632,14 @@ def admin_delete_module(module_id: int):
 @app.get("/administrador/rutas")
 def admin_routes_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     edit_route_id = request.args.get("edit_id", type=int)
+    edit_tipo_id = request.args.get("edit_tipo_id", type=int)
+    edit_servicio_id = request.args.get("edit_servicio_id", type=int)
+    catalog_tab = request.args.get("catalog_tab", "rutas")
+    if catalog_tab not in {"rutas", "tipos", "servicios"}:
+        catalog_tab = "rutas"
     try:
         initialize_schema()
         modules = request_modules()
@@ -617,6 +658,14 @@ def admin_routes_page():
         grouped_routes = []
         tipos_rutas = []
         servicios = []
+    editing_tipo_ruta = next(
+        (tipo for tipo in tipos_rutas if tipo.get("id") == edit_tipo_id),
+        None,
+    ) if edit_tipo_id else None
+    editing_servicio = next(
+        (servicio for servicio in servicios if servicio.get("id") == edit_servicio_id),
+        None,
+    ) if edit_servicio_id else None
     editing_route = None
     if edit_route_id:
         for group in grouped_routes:
@@ -627,11 +676,14 @@ def admin_routes_page():
             if editing_route:
                 break
     shared_modules = []
+    shared_module_statuses = {}
     if editing_route:
         try:
             shared_modules = fetch_shared_modules(editing_route["id"])
+            shared_module_statuses = fetch_shared_module_statuses(editing_route["id"])
         except Exception:
             shared_modules = []
+            shared_module_statuses = {}
     return render_template(
         "admin/rutas.html",
         account=account,
@@ -639,15 +691,19 @@ def admin_routes_page():
         grouped_routes=grouped_routes,
         editing_route=editing_route,
         shared_modules=shared_modules,
+        shared_module_statuses=shared_module_statuses,
         tipos_rutas=tipos_rutas,
         servicios=servicios,
+        editing_tipo_ruta=editing_tipo_ruta,
+        editing_servicio=editing_servicio,
+        catalog_tab=catalog_tab,
     )
 
 
 @app.get("/administrador/analisis")
 def admin_analysis_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
@@ -680,6 +736,8 @@ def admin_create_route():
         return redirect(url_for("connection_status"))
 
     payload = {field: str(request.form.get(field, "")).strip() for field in ("ruta", "origen", "destino", "servicio", "estado")}
+    # El módulo principal siempre representa la ruta base y se guarda activo.
+    payload["estado"] = "Activo"
     route_id = request.form.get("route_id")
     tipos_raw = str(request.form.get("tipos", "")).strip()
     try:
@@ -704,6 +762,19 @@ def admin_create_route():
         flash("Los módulos compartidos no son válidos.", "error")
         return redirect(url_for("admin_routes_page"))
     shared_modules = [shared_module for shared_module in shared_modules if shared_module != module_number]
+    shared_module_statuses = {}
+    for raw_status in request.form.getlist("module_statuses"):
+        try:
+            raw_module, status = raw_status.split(":", 1)
+            shared_module_statuses[int(raw_module)] = status if status in {"Activo", "Inactivo"} else "Activo"
+        except (TypeError, ValueError):
+            flash("Los estados de los módulos no son válidos.", "error")
+            return redirect(url_for("admin_routes_page"))
+    shared_module_statuses = {
+        module_id: status
+        for module_id, status in shared_module_statuses.items()
+        if module_id in shared_modules
+    }
 
     try:
         initialize_schema()
@@ -728,7 +799,11 @@ def admin_create_route():
             )
             flash("Ruta creada correctamente.", "success")
         for shared_module in shared_modules:
-            link_route_to_module(int(saved["id"]), shared_module)
+            link_route_to_module(
+                int(saved["id"]),
+                shared_module,
+                shared_module_statuses.get(shared_module),
+            )
     except Exception:
         flash("No se pudo guardar la ruta. Verifica los datos.", "error")
     return redirect(url_for("admin_routes_page"))
@@ -813,26 +888,40 @@ def admin_unlink_shared_route(route_id: int, module_number: int):
 @app.get("/administrador/turnos")
 def admin_turnos_page():
     account = session.get("account")
-    if not account or not account.get("is_admin"):
+    if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
     edit_turno_id = request.args.get("edit_id", type=int)
+    module_names = {}
     try:
         initialize_schema()
+        renumber_turnos_by_start()
         modules = request_modules()
         turnos = fetch_catalog_items("turnos")
         module_names = {module["id"]: module["nombre"] for module in modules}
         turno_modules = fetch_turno_modules_map([turno["id"] for turno in turnos])
+        turno_module_statuses = fetch_turno_module_statuses_map([turno["id"] for turno in turnos])
         for turno in turnos:
+            turno["module_ids"] = turno_modules.get(turno["id"], [])
+            turno["module_statuses"] = turno_module_statuses.get(turno["id"], {})
             turno["modules"] = [
                 module_names.get(module_id, f"Módulo {module_id}")
-                for module_id in turno_modules.get(turno["id"], [])
-            ]
+                for module_id in turno["module_ids"]
+            ] if turno.get("alcance") != "general" else []
+        next_turno_number = max((turno["numero"] for turno in turnos), default=0) + 1
     except Exception:
         modules = []
         turnos = []
         turno_modules = {}
+        turno_module_statuses = {}
+        next_turno_number = 1
     editing_turno = next((turno for turno in turnos if turno.get("id") == edit_turno_id), None) if edit_turno_id else None
     selected_turno_modules = turno_modules.get(edit_turno_id, []) if editing_turno else []
+    selected_turno_module_statuses = {}
+    if editing_turno:
+        try:
+            selected_turno_module_statuses = fetch_turno_module_status_map(edit_turno_id)
+        except Exception:
+            selected_turno_module_statuses = {}
     return render_template(
         "admin/turnos.html",
         account=account,
@@ -840,6 +929,9 @@ def admin_turnos_page():
         editing_turno=editing_turno,
         modules=modules,
         selected_turno_modules=selected_turno_modules,
+        selected_turno_module_statuses=selected_turno_module_statuses,
+        module_names=module_names,
+        next_turno_number=next_turno_number,
     )
 
 
@@ -853,17 +945,68 @@ def admin_create_turno():
     numero = str(request.form.get("numero", "")).strip()
     hora_inicio = str(request.form.get("hora_inicio", "")).strip()
     hora_fin = str(request.form.get("hora_fin", "")).strip()
-    activo = request.form.get("activo") == "on"
+    alcance = request.form.get("turno_scope", "especifico")
+    if alcance not in {"general", "especifico"}:
+        flash("El alcance del turno no es válido.", "error")
+        return redirect(url_for("admin_turnos_page"))
+    current_turno_id = int(turno_id) if turno_id and turno_id.isdigit() else None
+    if current_turno_id is not None and not numero.isdigit():
+        try:
+            with get_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT numero FROM catalogos.turnos WHERE id = %s",
+                        (current_turno_id,),
+                    )
+                    existing_turno = cursor.fetchone()
+        except Exception:
+            app.logger.exception("No se pudo leer el número del turno %s", current_turno_id)
+            flash("No se pudo cargar el turno para actualizar.", "error")
+            return redirect(url_for("admin_turnos_page"))
+        if existing_turno is None:
+            flash("No se encontró el turno para actualizar.", "error")
+            return redirect(url_for("admin_turnos_page"))
+        numero = str(existing_turno[0])
+    activo = alcance == "general" or request.form.get("activo") == "on"
     selected_modules = sorted({int(value) for value in request.form.getlist("turno_modules") if value.isdigit()})
+    if alcance == "general":
+        selected_modules = [module["id"] for module in request_modules()]
+    elif not selected_modules:
+        flash("Selecciona al menos un módulo para un turno específico.", "error")
+        return redirect(url_for("admin_turnos_page"))
+    module_statuses = {
+        module_number: request.form.get(f"turno_module_status_{module_number}") == "Activo"
+        for module_number in selected_modules
+    }
+    if alcance == "general":
+        module_statuses = {module_number: True for module_number in selected_modules}
     if any(module_number not in range(1, MAX_MODULES + 1) for module_number in selected_modules):
         flash("Selecciona módulos válidos para el turno.", "error")
         return redirect(url_for("admin_turnos_page"))
 
-    if not numero.isdigit() or not hora_inicio or not hora_fin:
-        flash("Completa el número de turno y ambas horas.", "error")
+    if not hora_inicio or not hora_fin:
+        flash("Completa las horas de inicio y fin.", "error")
         return redirect(url_for("admin_turnos_page"))
 
-    payload = {"numero": int(numero), "hora_inicio": hora_inicio, "hora_fin": hora_fin, "activo": activo}
+    try:
+        if turno_start_exists(hora_inicio, current_turno_id):
+            flash("Ya existe un turno con esa hora de inicio.", "error")
+            return redirect(url_for("admin_turnos_page"))
+        numero = str(get_next_turno_number()) if current_turno_id is None else numero
+        if not numero.isdigit():
+            flash("No se pudo determinar el número consecutivo del turno.", "error")
+            return redirect(url_for("admin_turnos_page"))
+    except Exception:
+        flash("No se pudo validar la hora de inicio del turno.", "error")
+        return redirect(url_for("admin_turnos_page"))
+
+    payload = {
+        "numero": int(numero),
+        "hora_inicio": hora_inicio,
+        "hora_fin": hora_fin,
+        "activo": activo,
+        "alcance": alcance,
+    }
 
     try:
         initialize_schema()
@@ -872,13 +1015,16 @@ def admin_create_turno():
             if updated_turno is None:
                 flash("No se encontró el turno para actualizar.", "error")
                 return redirect(url_for("admin_turnos_page"))
-            set_turno_modules(int(turno_id), selected_modules)
+            set_turno_modules(int(turno_id), selected_modules, module_statuses)
+            renumber_turnos_by_start()
             flash("Turno actualizado correctamente.", "success")
         else:
             created_turno = create_catalog_item("turnos", payload)
-            set_turno_modules(created_turno["id"], selected_modules)
+            set_turno_modules(created_turno["id"], selected_modules, module_statuses)
+            renumber_turnos_by_start()
             flash("Turno registrado correctamente.", "success")
     except Exception:
+        app.logger.exception("No se pudo guardar el turno %s", current_turno_id or "nuevo")
         flash("No se pudo guardar el turno. Verifica que el número no esté repetido.", "error")
 
     return redirect(url_for("admin_turnos_page"))
@@ -921,39 +1067,35 @@ def admin_toggle_turno_status(turno_id: int):
     return redirect(url_for("admin_turnos_page"))
 
 
-@app.get("/administrador/tipos-rutas")
-def admin_tipos_rutas_page():
+@app.post("/administrador/turnos/<int:turno_id>/modulos/<int:module_id>/estado")
+def admin_toggle_turno_module_status(turno_id: int, module_id: int):
     account = session.get("account")
     if not account or not account.get("is_admin"):
         return redirect(url_for("connection_status"))
-    edit_tipo_id = request.args.get("edit_id", type=int)
+    requested_status = str(request.form.get("estado", "")).strip()
+    if requested_status not in {"Activo", "Inactivo"}:
+        flash("El estado del turno por módulo no es válido.", "error")
+        return redirect(url_for("admin_turnos_page"))
     try:
         initialize_schema()
-        modules = request_modules()
-        tipos_rutas = fetch_catalog_items("tipos_rutas")
-        estados_especiales = fetch_catalog_items("estados_especiales")
-        servicios = fetch_catalog_items("servicio")
+        updated = update_turno_module_status(
+            turno_id,
+            module_id,
+            requested_status == "Activo",
+        )
+        flash(
+            f"Turno {requested_status.lower()} en el módulo correctamente."
+            if updated else "No se encontró la asignación del turno en el módulo.",
+            "success" if updated else "error",
+        )
     except Exception:
-        modules = []
-        tipos_rutas = []
-        estados_especiales = []
-        servicios = []
-    editing_tipo_ruta = next((tipo for tipo in tipos_rutas if tipo.get("id") == edit_tipo_id), None) if edit_tipo_id else None
-    edit_estado_id = request.args.get("edit_estado_id", type=int)
-    editing_estado_especial = next((item for item in estados_especiales if item.get("id") == edit_estado_id), None) if edit_estado_id else None
-    edit_servicio_id = request.args.get("edit_servicio_id", type=int)
-    editing_servicio = next((item for item in servicios if item.get("id") == edit_servicio_id), None) if edit_servicio_id else None
-    return render_template(
-        "admin/tipos_rutas.html",
-        account=account,
-        modules=modules,
-        tipos_rutas=tipos_rutas,
-        editing_tipo_ruta=editing_tipo_ruta,
-        estados_especiales=estados_especiales,
-        editing_estado_especial=editing_estado_especial,
-        servicios=servicios,
-        editing_servicio=editing_servicio,
-    )
+        flash("No se pudo cambiar el estado del turno en el módulo.", "error")
+    return redirect(url_for("admin_turnos_page", module_number=module_id))
+
+
+@app.get("/administrador/tipos-rutas")
+def admin_tipos_rutas_page():
+    return redirect(url_for("admin_routes_page"))
 
 
 @app.post("/administrador/tipos-rutas")
@@ -970,7 +1112,7 @@ def admin_create_tipo_ruta():
         activo = request.form.get("activo") == "on"
         if not codigo or not descripcion:
             flash("El código y la descripción del estado especial son obligatorios.", "error")
-            return redirect(url_for("admin_tipos_rutas_page"))
+            return redirect(url_for("admin_monthly_role_page"))
         payload = {"codigo": codigo, "descripcion": descripcion, "activo": activo}
         try:
             initialize_schema()
@@ -982,37 +1124,43 @@ def admin_create_tipo_ruta():
                 flash("Estado especial registrado correctamente.", "success")
         except Exception:
             flash("No se pudo guardar el estado especial. Verifica que el código no esté repetido.", "error")
-        return redirect(url_for("admin_tipos_rutas_page"))
+        return redirect(url_for("admin_monthly_role_page"))
 
     if catalog == "servicio":
+        catalog_tab = "servicios"
         servicio_id = request.form.get("servicio_id")
         nombre = str(request.form.get("nombre", "")).strip()
+        activo_values = request.form.getlist("activo")
+        activo = not activo_values or "on" in activo_values
         if not nombre:
             flash("El nombre del servicio es obligatorio.", "error")
-            return redirect(url_for("admin_tipos_rutas_page"))
+            return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
         try:
             initialize_schema()
             if servicio_id:
-                updated_servicio = update_catalog_item("servicio", int(servicio_id), {"nombre": nombre})
+                updated_servicio = update_catalog_item("servicio", int(servicio_id), {"nombre": nombre, "activo": activo})
                 if updated_servicio is None:
                     flash("No se encontró el servicio para actualizar.", "error")
                 else:
                     flash("Servicio actualizado correctamente.", "success")
             else:
-                create_catalog_item("servicio", {"nombre": nombre})
+                create_catalog_item("servicio", {"nombre": nombre, "activo": activo})
                 flash("Servicio registrado correctamente.", "success")
         except Exception:
             flash("No se pudo guardar el servicio. Verifica que el nombre no esté repetido.", "error")
-        return redirect(url_for("admin_tipos_rutas_page"))
+        return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
 
+    catalog_tab = "tipos"
     tipo_id = request.form.get("tipo_id")
     descripcion = str(request.form.get("descripcion", "")).strip()
+    activo_values = request.form.getlist("activo")
+    activo = not activo_values or "on" in activo_values
 
     if not descripcion:
         flash("La descripción del tipo de ruta es obligatoria.", "error")
-        return redirect(url_for("admin_tipos_rutas_page"))
+        return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
 
-    payload = {"descripcion": descripcion}
+    payload = {"descripcion": descripcion, "activo": activo}
 
     try:
         initialize_schema()
@@ -1020,7 +1168,7 @@ def admin_create_tipo_ruta():
             updated_tipo = update_catalog_item("tipos_rutas", int(tipo_id), payload)
             if updated_tipo is None:
                 flash("No se encontró el tipo de ruta para actualizar.", "error")
-                return redirect(url_for("admin_tipos_rutas_page"))
+                return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
             flash("Tipo de ruta actualizado correctamente.", "success")
         else:
             create_catalog_item("tipos_rutas", payload)
@@ -1028,7 +1176,7 @@ def admin_create_tipo_ruta():
     except Exception:
         flash("No se pudo guardar el tipo de ruta. Verifica que la descripción no esté repetida.", "error")
 
-    return redirect(url_for("admin_tipos_rutas_page"))
+    return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
 
 
 @app.post("/administrador/tipos-rutas/<int:tipo_id>/eliminar")
@@ -1044,7 +1192,29 @@ def admin_delete_tipo_ruta(tipo_id: int):
             flash("No se encontró el tipo de ruta para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el tipo de ruta.", "error")
-    return redirect(url_for("admin_tipos_rutas_page"))
+    return redirect(url_for("admin_routes_page", catalog_tab="tipos"))
+
+
+@app.post("/administrador/tipos-rutas/<int:tipo_id>/estado")
+def admin_toggle_tipo_ruta_status(tipo_id: int):
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    requested_status = str(request.form.get("estado", "")).strip()
+    if requested_status not in {"Activo", "Inactivo"}:
+        flash("El estado del tipo de ruta no es válido.", "error")
+        return redirect(url_for("admin_routes_page", catalog_tab="tipos"))
+    try:
+        initialize_schema()
+        updated = update_catalog_status("tipos_rutas", tipo_id, requested_status == "Activo")
+        flash(
+            f"Tipo de ruta {requested_status.lower()} correctamente."
+            if updated else "No se encontró el tipo de ruta para actualizar.",
+            "success" if updated else "error",
+        )
+    except Exception:
+        flash("No se pudo cambiar el estado del tipo de ruta.", "error")
+    return redirect(url_for("admin_routes_page", catalog_tab="tipos"))
 
 
 @app.post("/administrador/estados-especiales/<int:estado_id>/eliminar")
@@ -1060,7 +1230,7 @@ def admin_delete_estado_especial(estado_id: int):
             flash("No se encontró el estado especial para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el estado especial.", "error")
-    return redirect(url_for("admin_tipos_rutas_page"))
+    return redirect(url_for("admin_monthly_role_page"))
 
 
 @app.post("/administrador/servicios/<int:servicio_id>/eliminar")
@@ -1076,7 +1246,29 @@ def admin_delete_servicio(servicio_id: int):
             flash("No se encontró el servicio para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el servicio.", "error")
-    return redirect(url_for("admin_tipos_rutas_page"))
+    return redirect(url_for("admin_routes_page", catalog_tab="servicios"))
+
+
+@app.post("/administrador/servicios/<int:servicio_id>/estado")
+def admin_toggle_servicio_status(servicio_id: int):
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    requested_status = str(request.form.get("estado", "")).strip()
+    if requested_status not in {"Activo", "Inactivo"}:
+        flash("El estado del servicio no es válido.", "error")
+        return redirect(url_for("admin_routes_page", catalog_tab="servicios"))
+    try:
+        initialize_schema()
+        updated = update_catalog_status("servicio", servicio_id, requested_status == "Activo")
+        flash(
+            f"Servicio {requested_status.lower()} correctamente."
+            if updated else "No se encontró el servicio para actualizar.",
+            "success" if updated else "error",
+        )
+    except Exception:
+        flash("No se pudo cambiar el estado del servicio.", "error")
+    return redirect(url_for("admin_routes_page", catalog_tab="servicios"))
 
 
 @app.post("/administrador/controladores")
@@ -1091,10 +1283,11 @@ def admin_create_controller():
         "credencial": str(request.form.get("credencial", "")).strip(),
         "sexo": str(request.form.get("sexo", "")).strip(),
         "mod1": int(request.form.get("mod1", 1) or 1),
+        "active": request.form.get("estado", "Activo") == "Activo",
     }
 
     controller_id = request.form.get("controller_id")
-    if any(not value for value in payload.values()):
+    if not payload["nombre"] or not payload["credencial"] or not payload["sexo"] or not payload["mod1"]:
         flash("Completa todos los campos del controlador.", "error")
         return redirect(url_for("admin_controllers_page"))
 
@@ -1193,7 +1386,7 @@ def admin_create_user():
     correo = str(request.form.get("correo", "")).strip() or None
     telefono = str(request.form.get("telefono", "")).strip() or None
     tipo_usuario = str(request.form.get("tipo_usuario", "usuario")).strip().lower()
-    if tipo_usuario not in {"usuario", "admin"}:
+    if tipo_usuario not in {"usuario", "admin", "consultor"}:
         flash("Selecciona un tipo de usuario válido.", "error")
         return redirect(url_for("admin_users_page"))
     module_number = None
@@ -1224,6 +1417,7 @@ def admin_create_user():
             "module_number": module_number,
             "is_admin": tipo_usuario == "admin",
             "tipo_usuario": tipo_usuario,
+            "active": request.form.get("activo") == "on",
         }
         if user_id:
             if password:
@@ -1242,6 +1436,28 @@ def admin_create_user():
     except Exception:
         flash("No se pudo guardar el usuario. Verifica que los datos no estén repetidos.", "error")
 
+    return redirect(url_for("admin_users_page"))
+
+
+@app.post("/administrador/usuarios/<int:user_id>/estado")
+def admin_toggle_user_status(user_id: int):
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    requested_status = str(request.form.get("estado", "")).strip()
+    if requested_status not in {"Activo", "Inactivo"}:
+        flash("El estado del usuario no es válido.", "error")
+        return redirect(url_for("admin_users_page"))
+    try:
+        initialize_schema()
+        updated = update_user_status(user_id, requested_status == "Activo")
+        flash(
+            f"Usuario {requested_status.lower()} correctamente."
+            if updated else "No se encontró el usuario para actualizar.",
+            "success" if updated else "error",
+        )
+    except Exception:
+        flash("No se pudo cambiar el estado del usuario.", "error")
     return redirect(url_for("admin_users_page"))
 
 
@@ -1428,7 +1644,6 @@ def more_dashboard(module_number: int):
 
 
 CATALOG_FIELDS = {
-    "nomenclaturas": ("nomenclatura",),
     "turnos": ("numero", "hora_inicio", "hora_fin"),
     "estados_especiales": ("codigo", "descripcion"),
 }

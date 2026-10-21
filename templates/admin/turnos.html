@@ -7,7 +7,7 @@
   <title>Turnos | Administrador</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
 </head>
-<body class="admin-page-body">
+<body class="admin-page-body admin-turnos-page">
   <main class="admin-dashboard-layout">
     <aside class="admin-sidebar">
       <div class="admin-sidebar-brand">
@@ -28,19 +28,8 @@
     </aside>
 
     <div class="admin-workspace">
-      {% include 'admin/_module_tabs.html' %}
       <section class="admin-main-content">
-      <header class="admin-header">
-        <div>
-          <p class="eyebrow">Sistema</p>
-          <h1>Turnos</h1>
-          <p class="subtitle">Catálogo global de horarios de turno</p>
-        </div>
-        <div class="admin-connection">
-          <span class="admin-connection-dot"></span>
-          Conectado
-        </div>
-      </header>
+      
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -53,139 +42,295 @@
       {% endwith %}
 
       <div class="admin-content-grid">
-        <div class="admin-form-panel-wrap" data-admin-form-panel>
-          <div class="schedule-grid-toggle admin-form-toggle-bar">
-            <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de formulario</span>
-            <button class="schedule-grid-toggle-button admin-form-toggle" type="button" data-admin-form-toggle aria-label="Ocultar editor" aria-expanded="true" title="Ocultar editor"><span class="schedule-grid-toggle-icon admin-form-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar editor</span></button>
-          </div>
-        <section class="admin-panel-card admin-form-panel">
-          <div class="admin-card-heading">
-            <div class="admin-card-title">
-              <span class="admin-step-number">01</span>
-              <h2>{{ 'Editar turno' if editing_turno else 'Crear turno' }}</h2>
-            </div>
-          </div>
-
-          <div class="admin-form-shell">
-            <form method="post" action="{{ url_for('admin_create_turno') }}" class="controller-form admin-controller-form">
+        <div class="admin-turno-modal admin-controller-modal" id="turno-form-modal" role="dialog" aria-modal="true" aria-labelledby="turno-form-title" {% if not editing_turno %}hidden{% endif %}>
+          <div class="admin-controller-modal-dialog">
+            <section class="admin-panel-card admin-form-panel">
+              
+              <button class="admin-modal-close" type="button" data-turno-modal-close aria-label="Cerrar formulario">
+                  <img src="{{ url_for('static', filename='imagenes/icons/multiplicar.png') }}" alt="">
+                </button>
+              <div class="admin-form-shell">
+                
+                <form id="turno-form" method="post" action="{{ url_for('admin_create_turno') }}" class="controller-form admin-controller-form">
               {% if editing_turno %}
                 <input type="hidden" name="turno_id" value="{{ editing_turno.id }}">
+                <input type="hidden" name="numero" value="{{ editing_turno.numero }}">
               {% endif %}
+                <input type="hidden" name="activo" value="on">
 
-              <div class="admin-form-grid">
-                <label>
-                  Número de turno <span class="required-label-note">* Campo Obligatorio</span>
-                  <input type="number" name="numero" min="1" value="{{ editing_turno.numero if editing_turno else '' }}" required>
-                </label>
+              <div class="admin-turno-step is-active" data-turno-step="1">
 
-                <label>
-                  Hora de inicio <span class="required-label-note">* Campo Obligatorio</span>
-                  <input type="time" name="hora_inicio" value="{{ editing_turno.hora_inicio if editing_turno else '' }}" required>
-                </label>
+                <div class="admin-turno-step-heading">
+                  <span
+                    class="admin-step-number admin-turno-number-badge"
+                    data-turno-step-number
+                    data-next-turno-number="{{ next_turno_number }}"
+                    aria-label="Turno {{ editing_turno.numero if editing_turno else next_turno_number }}">#{{ editing_turno.numero if editing_turno else next_turno_number }}</span>
+                  <div>
+                    <strong data-turno-step-title>{{ 'Edición del turno' if editing_turno else 'Creación del turno' }}</strong>
+                    <small>Define el número y horario del turno.</small>
+                  </div>
+                </div>
+                <div class="admin-form-grid">
 
-                <label>
-                  Hora de fin <span class="required-label-note">* Campo Obligatorio</span>
-                  <input type="time" name="hora_fin" value="{{ editing_turno.hora_fin if editing_turno else '' }}" required>
-                </label>
+                <fieldset class="admin-turno-scope-field">
+                  <legend>Tipo de turno</legend>
+                  <label>
+                    <input type="radio" name="turno_scope" value="general"
+                      {% if not editing_turno or editing_turno.alcance == 'general' %}checked{% endif %}>
+                    <span>General</span>
+                    <small>Disponible y activo en todos los módulos.</small>
+                  </label>
+                  <label>
+                    <input type="radio" name="turno_scope" value="especifico"
+                      {% if editing_turno and editing_turno.alcance != 'general' %}checked{% endif %}>
+                    <span>Específico</span>
+                    <small>Disponible solo en los módulos seleccionados.</small>
+                  </label>
+                </fieldset>
+                  
+                  <fieldset class="admin-turno-schedule-field">
+                    <legend>Asignación de hora</legend>
+                    
 
-                <label class="admin-turno-active-field">
-                  <input type="checkbox" name="activo" {% if not editing_turno or editing_turno.activo %}checked{% endif %}>
-                  <span>Turno activo</span>
-                </label>
+                  
+                  <input id="turno-hora-inicio" type="hidden" name="hora_inicio" value="{{ editing_turno.hora_inicio if editing_turno else '07:00' }}" required>
+                  <input id="turno-hora-fin" type="hidden" name="hora_fin" value="{{ editing_turno.hora_fin if editing_turno else '15:00' }}" required>
+                    
+                  
+                  <div class="admin-turno-summary-grid">
 
-                <div class="admin-shared-modules-field">
-                  Módulos del turno
-                  <span class="admin-checkbox-list" role="group" aria-label="Módulos donde estará disponible el turno">
-                    <label class="admin-checkbox-option admin-select-all-option">
-                      <input id="turno-modules-all" type="checkbox">
-                      <span>Seleccionar todos</span>
-                    </label>
-                    {% for module in modules %}
-                      <label class="admin-checkbox-option">
-                        <input class="turno-module-checkbox" type="checkbox" name="turno_modules" value="{{ module.id }}" {% if module.id in selected_turno_modules %}checked{% endif %}>
-                        <span>{{ module.nombre }}</span>
-                      </label>
-                    {% endfor %}
-                  </span>
-                  <small class="admin-field-help">Si no seleccionas módulos, el turno no estará disponible en ninguno.</small>
+                    
+                    <div class="admin-turno-summary-card">
+                      <span>Hora de inicio</span>
+                      <strong id="turno-start-display">07:00 AM</strong>
+                      <small id="turno-start-day">Día actual</small>
+                    </div>
+                    <div class="admin-turno-summary-card">
+                      <span>Hora de fin (+8h)</span>
+                      <strong id="turno-end-display">15:00 PM</strong>
+                      <small id="turno-end-day">Finaliza el mismo día</small>
+                    </div>
+                    <div class="admin-turno-summary-card">
+                      <span>Duración del turno</span>
+                      <strong>8 horas <em>Fijo</em></strong>
+                      <small>Turno laboral fijo</small>
+                    </div>
+                  </div>
+
+                  <div class="admin-turno-slider-card">
+                    <div class="admin-turno-slider-heading">
+                      <strong>Desliza para definir la hora de inicio</strong>
+                      
+                    </div>
+                    
+                    <div class="admin-turno-slider-track">
+                      <span id="turno-track-first" class="admin-turno-track-segment"></span>
+                      <span id="turno-track-second" class="admin-turno-track-segment"></span>
+                      <input id="turno-start-slider" type="range" min="0" max="95" step="1" value="28" aria-label="Hora de inicio del turno">
+                    </div>
+                    <div class="admin-turno-slider-markers" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="admin-turno-slider-labels">
+                      
+                      <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:45</span>
+                    </div>
+                    
+                  </div>
+                 
+                  
+
+                  
+                  </fieldset>
+                </div>
+
+              </div>
+
+              <div class="admin-turno-step" data-turno-step="2" hidden>
+                <div class="admin-turno-step-heading">
+                  <span class="admin-step-number">02</span>
+                  <div>
+                    <strong>Configuración del turno</strong>
+                    <small>Define el estado y los módulos disponibles.</small>
+                  </div>
+                </div>
+
+                <div class="admin-form-grid admin-turno-settings-grid">
+                <div class="admin-shared-modules-field admin-route-field-module">
+                  <label for="turno-module-menu">
+                    Módulos disponibles para el turno
+                  </label>
+                  <div
+                    class="admin-route-module-picker admin-turno-module-picker"
+                    data-turno-module-picker
+                    data-selected-modules="{{ selected_turno_modules|join(',') }}"
+                    {% if not editing_turno or editing_turno.alcance == 'general' %}hidden{% endif %}>
+                    <div id="turno-module-menu" class="admin-route-module-menu" role="listbox">
+                      {% for module in modules %}
+                        <button
+                          type="button"
+                          class="admin-route-module-option"
+                          data-module-id="{{ module.id }}"
+                          data-module-name="{{ module.nombre }}"
+                          data-module-status="{{ 'Activo' if selected_turno_module_statuses.get(module.id, True) else 'Inactivo' }}"
+                          role="option">
+                          {{ module.nombre }}
+                        </button>
+                      {% endfor %}
+                    </div>
+                    <small id="turno-modules-help" class="admin-field-help">
+                      Nota: Selecciona los módulos y estatus donde estará disponible el turno.
+                    </small>
+                    <div
+                      id="turno-selected-modules"
+                      class="admin-route-selected-modules admin-checkbox-list admin-turno-module-list"
+                      aria-live="polite">
+                    </div>
+                    <div id="turno-module-inputs"></div>
+                  </div>
+                  
                 </div>
               </div>
-
-              <div class="admin-form-actions">
-                <button class="admin-primary-button" type="submit">
-                  {{ 'Actualizar turno' if editing_turno else 'Guardar turno' }}
-                </button>
-                {% if editing_turno %}
-                  <a class="admin-secondary-button" href="{{ url_for('admin_turnos_page') }}">Cancelar</a>
-                {% endif %}
               </div>
-            </form>
+
+                </form>
+              </div>
+
+              <div class="admin-form-actions admin-turno-final-actions" hidden>
+                <button class="admin-secondary-button" type="button" data-turno-previous>Regresar</button>
+                <button class="admin-primary-button" type="submit" form="turno-form">
+                  <span data-turno-save-label>{{ 'Actualizar turno' if editing_turno else 'Guardar turno' }}</span>
+                </button>
+              </div>
+
+              <div class="admin-form-actions admin-turno-step-actions">
+                <button class="admin-primary-button admin-turno-general-save" type="submit" form="turno-form">
+                  <span data-turno-save-label>{{ 'Actualizar turno' if editing_turno else 'Guardar turno' }}</span>
+                </button>
+                <button class="admin-primary-button admin-turno-specific-next" type="button" data-turno-next>
+                  Siguiente
+                </button>
+              </div>
+            </section>
           </div>
-        </section>
         </div>
 
         <section class="admin-panel-card admin-registry-panel admin-route-panel">
-          <div class="admin-card-heading">
-            <div class="admin-card-title">
-              <span class="admin-step-number">02</span>
-              <h2>Turnos registrados</h2>
-            </div>
-          </div>
+          
 
           {% if turnos %}
-            <div class="admin-route-table-wrap">
-              <table class="admin-route-table">
-                <thead>
-                  <tr>
-                    <th>Número</th>
-                    <th>Hora inicio</th>
-                    <th>Hora fin</th>
-                    <th>Módulos</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for turno in turnos %}
+            <div class="admin-module-group admin-module-group-tabbed">
+              <div class="admin-module-header">
+                <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">Turnos registrados</span>
+                <div class="admin-connection">
+                  <span class="admin-connection-dot"></span>
+                  Conectado
+                </div>
+                
+              </div>
+
+              <div class="admin-card-heading">
+                      <div class="admin-card-title">
+                        <h2>Turnos registrados</h2>
+                      </div>
+                
+                      <div class="admin-module-header-strong">
+                         <strong data-admin-visible-count>{{ turnos|length }}</strong>
+                      </div>
+              </div>
+              <div class="admin-controller-toolbar" data-admin-toolbar data-admin-ignore-module-filter role="search">
+                <label class="controller-filter admin-controller-search">
+                  <span class="controller-filter-label">Buscar</span>
+                  <span class="controller-filter-field">
+                    <input type="search" data-admin-search placeholder="Número, horario o módulo" autocomplete="off">
+                    <button class="controller-filter-clear" data-admin-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
+                  </span>
+                </label>
+                <label class="admin-controller-filter">
+                  <span class="sr-only">Filtrar por estado</span>
+                  <select data-admin-status-filter>
+                    <option value="Todos">Todos</option>
+                    <option value="Activo">Activos</option>
+                    <option value="Inactivo">Inactivos</option>
+                  </select>
+                </label>
+                {% if not is_read_only_account %}
+                <button class="admin-primary-button admin-create-controller-button" type="button" data-turno-modal-open data-turno-create>
+                  Crear turno
+                </button>
+                {% endif %}
+              </div>
+              <div class="admin-route-table-wrap">
+                <table class="admin-route-table">
+                  <thead>
                     <tr>
-                      <td>{{ turno.numero }}</td>
-                      <td>{{ turno.hora_inicio }}</td>
-                      <td>{{ turno.hora_fin }}</td>
-                      <td>
-                        <div class="admin-turno-modules">
-                          {% for module_name in turno.modules %}
-                            <span>{{ module_name }}</span>
-                          {% else %}
-                            <span class="is-empty">Sin módulos</span>
-                          {% endfor %}
-                        </div>
-                      </td>
-                      <td>
-                        <form method="post" action="{{ url_for('admin_toggle_turno_status', turno_id=turno.id) }}">
-                          <input type="hidden" name="estado" value="{{ 'Activo' if turno.activo else 'Inactivo' }}">
-                          <label class="route-switch" title="Cambiar estado del turno">
-                            <input type="checkbox" {% if turno.activo %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
-                            <span class="route-switch-slider">
-                              <span class="route-switch-knob"></span>
-                              <span class="route-switch-text route-switch-text-on">Activo</span>
-                              <span class="route-switch-text route-switch-text-off">Inactivo</span>
-                            </span>
-                          </label>
-                        </form>
-                      </td>
-                      <td class="admin-controller-actions">
-                        <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_turnos_page', edit_id=turno.id) }}">Editar</a>
-                        <form method="post" action="{{ url_for('admin_delete_turno', turno_id=turno.id) }}" onsubmit="return confirm('¿Deseas eliminar este turno?');">
-                          <button class="admin-delete-button" type="submit">Eliminar</button>
-                        </form>
-                      </td>
+                      <th>Número</th>
+                      <th>Hora inicio</th>
+                      <th>Hora fin</th>
+                      <th>Tipo</th>
+                      <th>Módulos</th>
+                      <th>Acciones</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {% for turno in turnos %}
+                      <tr
+                        data-admin-filter-row
+                        data-filter-status="{{ 'Activo' if turno.activo else 'Inactivo' }}"
+                        data-filter-modules="{{ turno.module_ids|join(',') }}"
+                        data-filter-module-statuses='{{ turno.module_statuses|tojson }}'>
+                        <td>{{ turno.numero }}</td>
+                        <td>{{ turno.hora_inicio }}</td>
+                        <td>{{ turno.hora_fin }}</td>
+                        <td>
+                          <span class="admin-turno-type-badge {{ 'is-general' if turno.alcance == 'general' else 'is-specific' }}">
+                            {{ 'General' if turno.alcance == 'general' else 'Específico' }}
+                          </span>
+                        </td>
+                        <td>
+                          <div class="admin-turno-modules">
+                            {% if turno.alcance == 'general' %}
+                              <span class="is-empty" title="Activo en todos los módulos">Todos los modulos</span>
+                            {% else %}
+                              {% for module_id in turno.module_ids %}
+                                <span class="{{ 'is-active' if turno.module_statuses.get(module_id, false) else 'is-inactive' }}"
+                                  title="{{ 'Activo' if turno.module_statuses.get(module_id, false) else 'Inactivo' }}">
+                                  {{ module_names.get(module_id, 'Módulo ' ~ module_id) }}
+                                </span>
+                              {% else %}
+                                <span class="is-empty">Sin módulos</span>
+                              {% endfor %}
+                            {% endif %}
+                          </div>
+                        </td>
+                        <td class="admin-controller-actions">
+                          <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_turnos_page', edit_id=turno.id) }}">Editar</a>
+                          <form method="post" action="{{ url_for('admin_delete_turno', turno_id=turno.id) }}" onsubmit="return confirm('¿Deseas eliminar este turno?');">
+                            <button class="admin-delete-button" type="submit">Eliminar</button>
+                          </form>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
           {% else %}
-            <p class="empty-state">Sin turnos registrados.</p>
+            <div class="admin-module-group admin-module-group-tabbed">
+              <div class="admin-module-header">
+                <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">Turnos registrados</span>
+                <strong>0</strong>
+              </div>
+              {% if not is_read_only_account %}
+              <div class="admin-controller-toolbar admin-turno-empty-toolbar">
+                <button class="admin-primary-button admin-create-controller-button" type="button" data-turno-modal-open data-turno-create>
+                  Crear turno
+                </button>
+              </div>
+              {% endif %}
+              <p class="empty-state">Sin turnos registrados.</p>
+            </div>
           {% endif %}
         </section>
       </div>
@@ -194,26 +339,356 @@
   </main>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const moduleCheckboxes = document.querySelectorAll('.turno-module-checkbox');
-      const selectAll = document.querySelector('#turno-modules-all');
+      const turnoModulePicker = document.querySelector('[data-turno-module-picker]');
+      const turnoModuleMenu = document.querySelector('#turno-module-menu');
+      const turnoSelectedModules = document.querySelector('#turno-selected-modules');
+      const turnoModuleInputs = document.querySelector('#turno-module-inputs');
+      const turnoScopeInputs = document.querySelectorAll('input[name="turno_scope"]');
+      const turnoGeneralSaveButton = document.querySelector('.admin-turno-general-save');
+      const turnoSpecificNextButton = document.querySelector('.admin-turno-specific-next');
+      const multiplyIconUrl = {{ url_for('static', filename='imagenes/icons/multiplicar.png')|tojson }};
+      const selectedTurnoModuleIds = (turnoModulePicker?.dataset.selectedModules || '')
+        .split(',')
+        .map((moduleId) => moduleId.trim())
+        .filter(Boolean);
+      const turnoModuleStatusForms = document.querySelectorAll('[data-turno-module-status]');
 
-      function updateSelectAllState() {
-        if (!selectAll) return;
-        selectAll.checked = moduleCheckboxes.length > 0 && Array.from(moduleCheckboxes).every((checkbox) => checkbox.checked);
-        selectAll.indeterminate = Array.from(moduleCheckboxes).some((checkbox) => checkbox.checked) && !selectAll.checked;
+      function updateTurnoModuleStatusVisibility(moduleId) {
+        turnoModuleStatusForms.forEach(function (form) {
+          form.hidden = form.dataset.turnoModuleStatus !== String(moduleId);
+        });
       }
 
-      moduleCheckboxes.forEach(function (checkbox) {
-        checkbox.addEventListener('change', updateSelectAllState);
+      const initialModule = new URLSearchParams(window.location.search).get('module_number')
+        || localStorage.getItem('adminSelectedModule')
+        || document.querySelector('[data-admin-module]')?.dataset.adminModule;
+      if (initialModule) updateTurnoModuleStatusVisibility(initialModule);
+      document.addEventListener('admin-module-changed', function (event) {
+        updateTurnoModuleStatusVisibility(event.detail?.moduleId || '');
       });
-      selectAll?.addEventListener('change', function () {
-        moduleCheckboxes.forEach((checkbox) => { checkbox.checked = selectAll.checked; });
+
+      function getTurnoModuleOption(moduleId) {
+        return turnoModuleMenu?.querySelector(`[data-module-id="${moduleId}"]`);
+      }
+
+      function renderTurnoModules() {
+        if (!turnoSelectedModules || !turnoModuleInputs) return;
+        turnoSelectedModules.innerHTML = '';
+        turnoModuleInputs.innerHTML = '';
+        turnoSelectedModules.classList.toggle('is-scrollable', selectedTurnoModuleIds.length > 6);
+
+        if (selectedTurnoModuleIds.length) {
+          const header = document.createElement('div');
+          header.className = 'admin-turno-module-table-header';
+          header.innerHTML = '<span>Módulo</span><span>Estatus</span><span aria-hidden="true"></span>';
+          turnoSelectedModules.appendChild(header);
+        }
+
+        selectedTurnoModuleIds.forEach(function (moduleId) {
+          const option = getTurnoModuleOption(moduleId);
+          if (!option) return;
+          const moduleName = option.dataset.moduleName || `Módulo ${moduleId}`;
+          const active = option.dataset.moduleStatus !== 'Inactivo';
+
+          const row = document.createElement('div');
+          row.className = 'admin-turno-module-row admin-route-module-chip is-shared';
+          row.dataset.moduleId = moduleId;
+
+          const name = document.createElement('span');
+          name.className = 'admin-turno-module-name';
+          name.textContent = moduleName;
+          row.appendChild(name);
+
+          const moduleInput = document.createElement('input');
+          moduleInput.type = 'hidden';
+          moduleInput.name = 'turno_modules';
+          moduleInput.value = moduleId;
+          turnoModuleInputs.appendChild(moduleInput);
+
+          const statusInput = document.createElement('input');
+          statusInput.type = 'hidden';
+          statusInput.name = `turno_module_status_${moduleId}`;
+          statusInput.value = active ? 'Activo' : 'Inactivo';
+          turnoModuleInputs.appendChild(statusInput);
+
+          const statusLabel = document.createElement('label');
+          statusLabel.className = 'route-switch admin-turno-module-status';
+          statusLabel.title = `Cambiar el estado del turno en ${moduleName}`;
+
+          const statusCheckbox = document.createElement('input');
+          statusCheckbox.className = 'turno-module-status-checkbox';
+          statusCheckbox.type = 'checkbox';
+          statusCheckbox.checked = active;
+          statusCheckbox.dataset.moduleId = moduleId;
+          statusCheckbox.addEventListener('change', function () {
+            statusInput.value = statusCheckbox.checked ? 'Activo' : 'Inactivo';
+            option.dataset.moduleStatus = statusInput.value;
+          });
+
+          const badge = document.createElement('span');
+          badge.className = 'route-status-badge';
+          badge.innerHTML = '<span class="route-status-dot"></span><span class="route-status-label route-status-active">Activo</span><span class="route-status-label route-status-inactive">Inactivo</span>';
+          statusLabel.append(statusCheckbox, badge);
+          row.appendChild(statusLabel);
+
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'admin-turno-module-remove';
+          remove.setAttribute('aria-label', `Quitar ${moduleName}`);
+          const removeIcon = document.createElement('img');
+          removeIcon.src = multiplyIconUrl;
+          removeIcon.alt = '';
+          remove.appendChild(removeIcon);
+          remove.addEventListener('click', function () {
+            const index = selectedTurnoModuleIds.indexOf(moduleId);
+            if (index >= 0) selectedTurnoModuleIds.splice(index, 1);
+            renderTurnoModules();
+            filterTurnoModuleOptions();
+          });
+          row.appendChild(remove);
+          turnoSelectedModules.appendChild(row);
+        });
+      }
+
+      function filterTurnoModuleOptions() {
+        turnoModuleMenu?.querySelectorAll('.admin-route-module-option').forEach(function (option) {
+          option.hidden = selectedTurnoModuleIds.includes(option.dataset.moduleId);
+        });
+      }
+
+      function updateTurnoScope() {
+        const selectedScope = document.querySelector('input[name="turno_scope"]:checked')?.value || 'general';
+        turnoScopeInputs.forEach(function (input) {
+          input.closest('label')?.classList.toggle('is-selected', input.checked);
+        });
+        if (turnoModulePicker) turnoModulePicker.hidden = selectedScope !== 'especifico';
+        if (turnoGeneralSaveButton) turnoGeneralSaveButton.hidden = selectedScope !== 'general';
+        if (turnoSpecificNextButton) turnoSpecificNextButton.hidden = selectedScope !== 'especifico';
+        if (selectedScope === 'general' && turnoModuleInputs) {
+          turnoModuleInputs.innerHTML = '';
+        } else {
+          renderTurnoModules();
+          filterTurnoModuleOptions();
+        }
+      }
+
+      turnoScopeInputs.forEach(function (input) {
+        input.addEventListener('change', updateTurnoScope);
       });
-      updateSelectAllState();
+
+      turnoModuleMenu?.querySelectorAll('.admin-route-module-option').forEach(function (option) {
+        option.addEventListener('click', function () {
+          if (!selectedTurnoModuleIds.includes(option.dataset.moduleId)) {
+            selectedTurnoModuleIds.push(option.dataset.moduleId);
+          }
+          renderTurnoModules();
+          filterTurnoModuleOptions();
+          updateTurnoScope();
+        });
+      });
+
+      renderTurnoModules();
+      filterTurnoModuleOptions();
+      updateTurnoScope();
+
+      const turnoStartSlider = document.querySelector('#turno-start-slider');
+      const turnoStartInput = document.querySelector('#turno-hora-inicio');
+      const turnoEndInput = document.querySelector('#turno-hora-fin');
+      const turnoStartDisplay = document.querySelector('#turno-start-display');
+      const turnoEndDisplay = document.querySelector('#turno-end-display');
+      const turnoStartDay = document.querySelector('#turno-start-day');
+      const turnoEndDay = document.querySelector('#turno-end-day');
+      const turnoTrackFirst = document.querySelector('#turno-track-first');
+      const turnoTrackSecond = document.querySelector('#turno-track-second');
+      const turnoSliderTrack = document.querySelector('.admin-turno-slider-track');
+      function refreshTurnoSlider() {
+        if (turnoStartSlider) {
+          window.requestAnimationFrame(function () {
+            updateTurnoSchedule(Number(turnoStartSlider.value));
+          });
+        }
+      }
+
+      function timeToStep(value) {
+        const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+        if (!match) return 28;
+        return (Number(match[1]) * 60 + Number(match[2])) / 15;
+      }
+
+      function formatTime(minutes) {
+        const normalized = ((minutes % 1440) + 1440) % 1440;
+        const hours = Math.floor(normalized / 60);
+        const mins = normalized % 60;
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHour = hours % 12 || 12;
+        return `${String(displayHour).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${period}`;
+      }
+
+      function updateTurnoSchedule(step) {
+        if (!turnoStartInput || !turnoEndInput) return;
+        const startMinutes = step * 15;
+        const endMinutes = startMinutes + 8 * 60;
+        const crossesDay = endMinutes > 1440;
+        const endOfDay = endMinutes % 1440;
+        const startValue = `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:${String(startMinutes % 60).padStart(2, '0')}`;
+        const endValue = `${String(Math.floor(endOfDay / 60)).padStart(2, '0')}:${String(endOfDay % 60).padStart(2, '0')}`;
+
+        turnoStartInput.value = startValue;
+        turnoEndInput.value = endValue;
+        if (turnoStartDisplay) turnoStartDisplay.textContent = formatTime(startMinutes);
+        if (turnoEndDisplay) turnoEndDisplay.textContent = formatTime(endOfDay);
+        if (turnoStartDay) turnoStartDay.textContent = 'Día actual';
+        if (turnoEndDay) turnoEndDay.textContent = crossesDay ? 'Día siguiente (+1d)' : 'Finaliza el mismo día';
+
+        const trackWidth = turnoSliderTrack?.clientWidth || 0;
+        const trackInset = 12;
+        const usableTrackWidth = Math.max(0, trackWidth - trackInset * 2);
+        const startPosition = trackInset + (step / 95) * usableTrackWidth;
+        if (turnoTrackFirst && turnoTrackSecond) {
+          if (crossesDay) {
+            turnoTrackFirst.style.left = `${startPosition}px`;
+            turnoTrackFirst.style.width = `${Math.max(0, trackWidth - trackInset - startPosition)}px`;
+            turnoTrackSecond.style.left = `${trackInset}px`;
+            turnoTrackSecond.style.width = `${(endOfDay / 1440) * usableTrackWidth}px`;
+          } else {
+            turnoTrackFirst.style.left = `${startPosition}px`;
+            turnoTrackFirst.style.width = `${Math.min(usableTrackWidth * (32 / 95), Math.max(0, trackWidth - startPosition - trackInset))}px`;
+            turnoTrackSecond.style.width = '0';
+          }
+        }
+      }
+
+      if (turnoStartSlider) {
+        const initialStep = Math.max(0, Math.min(95, Math.round(timeToStep(turnoStartInput?.value))));
+        turnoStartSlider.value = initialStep;
+        turnoStartSlider.addEventListener('input', function () {
+          updateTurnoSchedule(Number(turnoStartSlider.value));
+        });
+        document.querySelectorAll('[data-turno-preset]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            turnoStartSlider.value = button.dataset.turnoPreset;
+            updateTurnoSchedule(Number(turnoStartSlider.value));
+          });
+        });
+        updateTurnoSchedule(initialStep);
+      }
+
+      const turnoModal = document.querySelector('#turno-form-modal');
+      const turnoModalOpenButtons = document.querySelectorAll('[data-turno-modal-open]');
+      const turnoModalCloseButtons = document.querySelectorAll('[data-turno-modal-close]');
+      const turnoSteps = document.querySelectorAll('[data-turno-step]');
+      const turnoConfigureModulesButton = document.querySelector('[data-turno-configure-modules]');
+      const turnoPreviousButton = document.querySelector('[data-turno-previous]');
+      const turnoFinalActions = document.querySelector('.admin-turno-final-actions');
+      const turnoStepActions = document.querySelector('.admin-turno-step-actions');
+      const turnoNumberInput = document.querySelector('input[name="numero"]');
+      const turnoProgressSteps = document.querySelectorAll('[data-turno-progress]');
+      const turnoStepNumber = document.querySelector('[data-turno-step-number]');
+      const turnoForm = document.querySelector('#turno-form');
+      const turnoFormTitle = document.querySelector('#turno-form-title');
+      const turnoStepTitle = document.querySelector('[data-turno-step-title]');
+
+      function showTurnoStep(stepNumber) {
+        turnoSteps.forEach(function (step) {
+          const active = step.dataset.turnoStep === String(stepNumber);
+          step.hidden = !active;
+          step.classList.toggle('is-active', active);
+        });
+        turnoProgressSteps.forEach(function (step) {
+          const progressStep = Number(step.dataset.turnoProgress);
+          step.classList.toggle('is-active', progressStep === stepNumber);
+          step.classList.toggle('is-complete', progressStep < stepNumber);
+          const status = progressStep < stepNumber ? 'Completado' : progressStep === stepNumber ? 'En progreso' : 'Pendiente';
+          const statusLabel = step.querySelector('small');
+          if (statusLabel) statusLabel.textContent = status;
+        });
+        if (turnoFinalActions) turnoFinalActions.hidden = stepNumber !== 2;
+        if (turnoStepActions) turnoStepActions.hidden = stepNumber !== 1;
+        if (stepNumber === 1) updateTurnoScope();
+      }
+
+      function resetTurnoFormForCreate() {
+        if (!turnoForm) return;
+        turnoForm.reset();
+        turnoForm.querySelector('input[name="turno_id"]')?.remove();
+        turnoForm.querySelector('input[name="numero"]')?.remove();
+        turnoForm.querySelector('[data-turno-edit-number]')?.remove();
+        if (turnoFormTitle) turnoFormTitle.textContent = 'Crear turno';
+        if (turnoStepTitle) turnoStepTitle.textContent = 'Creación del turno';
+        document.querySelectorAll('[data-turno-save-label]').forEach(function (label) {
+          label.textContent = 'Guardar turno';
+        });
+        if (turnoStepNumber) {
+          const nextNumber = turnoStepNumber.dataset.nextTurnoNumber || '1';
+          turnoStepNumber.textContent = `#${nextNumber}`;
+          turnoStepNumber.setAttribute('aria-label', `Turno ${nextNumber}`);
+        }
+        const generalScope = document.querySelector('input[name="turno_scope"][value="general"]');
+        const specificScope = document.querySelector('input[name="turno_scope"][value="especifico"]');
+        if (generalScope) generalScope.checked = true;
+        if (specificScope) specificScope.checked = false;
+        if (turnoStartInput) turnoStartInput.value = '07:00';
+        if (turnoEndInput) turnoEndInput.value = '15:00';
+        if (turnoStartSlider) turnoStartSlider.value = '28';
+        selectedTurnoModuleIds.splice(0, selectedTurnoModuleIds.length);
+        renderTurnoModules();
+        filterTurnoModuleOptions();
+        updateTurnoScope();
+        updateTurnoSchedule(28);
+      }
+
+      turnoConfigureModulesButton?.addEventListener('click', function () {
+        if (turnoNumberInput && !turnoNumberInput.checkValidity()) {
+          turnoNumberInput.reportValidity();
+          return;
+        }
+        const specificScope = document.querySelector('input[name="turno_scope"][value="especifico"]');
+        if (specificScope) {
+          specificScope.checked = true;
+          updateTurnoScope();
+        }
+        showTurnoStep(2);
+      });
+      turnoSpecificNextButton?.addEventListener('click', function () {
+        if (turnoNumberInput && !turnoNumberInput.checkValidity()) {
+          turnoNumberInput.reportValidity();
+          return;
+        }
+        showTurnoStep(2);
+      });
+      turnoPreviousButton?.addEventListener('click', function () {
+        showTurnoStep(1);
+        refreshTurnoSlider();
+      });
+
+      function closeTurnoModal() {
+        if (turnoModal) turnoModal.hidden = true;
+      }
+
+      turnoModalOpenButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          if (turnoModal) {
+            if (button.hasAttribute('data-turno-create')) resetTurnoFormForCreate();
+            showTurnoStep(1);
+            turnoModal.hidden = false;
+            refreshTurnoSlider();
+          }
+        });
+      });
+      turnoModalCloseButtons.forEach(function (button) {
+        button.addEventListener('click', closeTurnoModal);
+      });
+      turnoModal?.addEventListener('click', function (event) {
+        if (event.target === turnoModal) closeTurnoModal();
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && turnoModal && !turnoModal.hidden) closeTurnoModal();
+      });
     });
   </script>
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
 </body>
 </html>

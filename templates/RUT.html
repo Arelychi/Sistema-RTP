@@ -23,7 +23,7 @@
       </nav>
       <div class="sidebar-module">
         
-        <strong>{{ module_name or module_number }}</strong>
+        
         <form method="post" action="{{ url_for('logout') }}">
           <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
         </form>
@@ -33,7 +33,7 @@
     <section class="main-content">
       <header class="content-header">
         <div>
-          <p class="eyebrow">RUT</p>
+          <p class="eyebrow">Visualización</p>
           <h1>Rutas registradas</h1>
           <p class="subtitle">{{ module_name or 'Módulo ' ~ module_number }} | {{ account.username }}</p>
         </div>
