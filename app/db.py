@@ -268,8 +268,30 @@ def _initialize_schema() -> None:
                     id BIGSERIAL PRIMARY KEY,
                     codigo VARCHAR(40) NOT NULL UNIQUE,
                     descripcion VARCHAR(160) NOT NULL,
+                    categoria VARCHAR(20) NOT NULL DEFAULT 'falta'
+                        CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad')),
                     activo BOOLEAN NOT NULL DEFAULT TRUE
                 )
+                """
+            )
+            cursor.execute(
+                """
+                ALTER TABLE catalogos.estados_especiales
+                ADD COLUMN IF NOT EXISTS categoria VARCHAR(20) NOT NULL DEFAULT 'falta'
+                    CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad'))
+                """
+            )
+            cursor.execute(
+                """
+                ALTER TABLE catalogos.estados_especiales
+                DROP CONSTRAINT IF EXISTS estados_especiales_categoria_check
+                """
+            )
+            cursor.execute(
+                """
+                ALTER TABLE catalogos.estados_especiales
+                ADD CONSTRAINT estados_especiales_categoria_check
+                CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad'))
                 """
             )
             cursor.execute(
@@ -902,6 +924,16 @@ def refresh_analysis_tables() -> None:
                        CASE
                            WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('V', 'VAC', 'VACACIONES')
                                THEN 'VACACIONES'
+                           WHEN special_state.categoria = 'vacaciones'
+                               THEN 'VACACIONES'
+                           WHEN special_state.categoria = 'descanso'
+                               THEN 'DESCANSO'
+                           WHEN special_state.categoria = 'falta'
+                               THEN 'FALTA'
+                           WHEN special_state.categoria = 'incapacidad'
+                               THEN 'INCAPACIDAD'
+                           WHEN sr.rest_days @> to_jsonb(EXTRACT(DAY FROM calendar.work_date)::integer)
+                               THEN 'DESCANSO'
                            WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('INC', 'INCAPACIDAD')
                                THEN 'INCAPACIDAD'
                            WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('PER', 'PERMISO')
@@ -910,8 +942,7 @@ def refresh_analysis_tables() -> None:
                                THEN 'FALTA'
                            WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) IN ('DF', 'FESTIVO')
                                THEN 'FESTIVO'
-                           WHEN sr.rest_days @> to_jsonb(EXTRACT(DAY FROM calendar.work_date)::integer)
-                               OR upper(COALESCE(day_data.assignment, day_detail->>'code', '')) = 'D'
+                           WHEN upper(COALESCE(day_data.assignment, day_detail->>'code', '')) = 'D'
                                THEN 'DESCANSO'
                            WHEN COALESCE(day_data.assignment, day_detail->>'code', '') <> ''
                                THEN 'TRABAJADO'
@@ -933,6 +964,10 @@ def refresh_analysis_tables() -> None:
                 LEFT JOIN LATERAL (
                     SELECT sr.daily_details -> (EXTRACT(DAY FROM calendar.work_date)::integer::text) AS day_detail
                 ) AS detail_data ON TRUE
+                LEFT JOIN catalogos.estados_especiales AS special_state
+                    ON upper(special_state.codigo) = upper(
+                        COALESCE(day_data.assignment, day_detail->>'code', '')
+                    )
                 WHERE sr.year > 0 AND sr.month BETWEEN 1 AND 12
                 """
             )
@@ -1838,7 +1873,7 @@ def _catalog_item(columns: tuple[str, ...], row: tuple) -> dict:
 def fetch_catalog_items(table: str, module_number: int | None = None) -> list[dict]:
     queries = {
         "turnos": "SELECT id, numero, hora_inicio, hora_fin, activo, alcance FROM catalogos.turnos ORDER BY hora_inicio, id",
-        "estados_especiales": "SELECT id, codigo, descripcion, activo FROM catalogos.estados_especiales ORDER BY codigo",
+        "estados_especiales": "SELECT id, codigo, descripcion, categoria, activo FROM catalogos.estados_especiales ORDER BY codigo",
         "tipos_rutas": "SELECT id, descripcion, activo FROM catalogos.tipos_rutas ORDER BY descripcion",
         "servicio": "SELECT id, nombre, activo FROM catalogos.servicio ORDER BY nombre",
     }
@@ -1991,8 +2026,8 @@ def create_catalog_item(table: str, payload: dict) -> dict:
         statement = "INSERT INTO catalogos.tipos_rutas (descripcion, activo) VALUES (%s, %s) RETURNING id, descripcion, activo"
         values = (normalize_display_text(payload["descripcion"]), payload.get("activo", True))
     elif table == "estados_especiales":
-        statement = "INSERT INTO catalogos.estados_especiales (codigo, descripcion, activo) VALUES (%s, %s, %s) RETURNING id, codigo, descripcion, activo"
-        values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload.get("activo", True))
+        statement = "INSERT INTO catalogos.estados_especiales (codigo, descripcion, categoria, activo) VALUES (%s, %s, %s, %s) RETURNING id, codigo, descripcion, categoria, activo"
+        values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload["categoria"], payload.get("activo", True))
     elif table == "servicio":
         statement = "INSERT INTO catalogos.servicio (nombre, activo) VALUES (%s, %s) RETURNING id, nombre, activo"
         values = (normalize_display_text(payload["nombre"]), payload.get("activo", True))
@@ -2015,8 +2050,8 @@ def update_catalog_item(table: str, item_id: int, payload: dict) -> dict:
         statement = "UPDATE catalogos.tipos_rutas SET descripcion = %s, activo = %s WHERE id = %s RETURNING id, descripcion, activo"
         values = (normalize_display_text(payload["descripcion"]), payload.get("activo", True), item_id)
     elif table == "estados_especiales":
-        statement = "UPDATE catalogos.estados_especiales SET codigo = %s, descripcion = %s, activo = %s WHERE id = %s RETURNING id, codigo, descripcion, activo"
-        values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload.get("activo", True), item_id)
+        statement = "UPDATE catalogos.estados_especiales SET codigo = %s, descripcion = %s, categoria = %s, activo = %s WHERE id = %s RETURNING id, codigo, descripcion, categoria, activo"
+        values = (str(payload["codigo"]).strip().upper(), normalize_display_text(payload["descripcion"]), payload["categoria"], payload.get("activo", True), item_id)
     elif table == "servicio":
         statement = "UPDATE catalogos.servicio SET nombre = %s, activo = %s WHERE id = %s RETURNING id, nombre, activo"
         values = (normalize_display_text(payload["nombre"]), payload.get("activo", True), item_id)
@@ -2145,26 +2180,13 @@ def upsert_record(record: dict) -> dict:
             }
             for day in deleted_days:
                 normalized_assignments.pop(str(day), None)
-            for day in sorted(new_rest_days):
-                normalized_assignments.pop(str(day), None)
             for day in sorted(day for day in new_work_days if day not in deleted_days):
                 normalized_assignments.setdefault(str(day), f"{record['nomenclature']}{record['shift']}")
             for day in sorted({int(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}):
                 normalized_assignments[str(day)] = "V"
             vacation_mask = {str(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}
-            for day in list(normalized_assignments):
-                if day in vacation_mask:
-                    continue
-                day_number = int(day)
-                if day_number in new_rest_days:
-                    normalized_assignments.pop(day, None)
             work_days = sorted(day for day in new_work_days if day not in deleted_days and str(day) not in vacation_mask)
             rest_days = sorted(day for day in new_rest_days if day not in deleted_days and str(day) not in vacation_mask)
-            for day in list(normalized_assignments):
-                if day in vacation_mask:
-                    continue
-                if int(day) in new_rest_days:
-                    normalized_assignments.pop(day, None)
             normalized_details = {
                 str(day): {
                     **value,

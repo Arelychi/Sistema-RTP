@@ -28,6 +28,7 @@
     </aside>
 
     <div class="admin-workspace">
+      {% include 'admin/_module_tabs.html' %}
       <section class="admin-main-content">
       
 
@@ -41,7 +42,18 @@
         {% endif %}
       {% endwith %}
 
-      <div class="admin-content-grid">
+      <div class="admin-module-header admin-routes-page-header route-tab-active admin-registry-page-header admin-turnos-page-header">
+        <div class="admin-local-tabs route-page-tabs" role="tablist" aria-label="Sección de turnos">
+          <button class="admin-registry-tab active" type="button" role="tab" aria-selected="true">
+            <span class="admin-page-tab-label">Turnos</span>
+            <span class="admin-route-tab-meta">
+              <span class="admin-module-header-strong"><strong id="turno-page-count">{{ turnos|length }}</strong></span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-content-grid admin-registry-page-grid admin-turnos-page-grid">
         <div class="admin-turno-modal admin-controller-modal" id="turno-form-modal" role="dialog" aria-modal="true" aria-labelledby="turno-form-title" {% if not editing_turno %}hidden{% endif %}>
           <div class="admin-controller-modal-dialog">
             <section class="admin-panel-card admin-form-panel">
@@ -235,11 +247,8 @@
                         <h2>Turnos registrados</h2>
                       </div>
                 
-                      <div class="admin-module-header-strong">
-                         <strong data-admin-visible-count>{{ turnos|length }}</strong>
-                      </div>
               </div>
-              <div class="admin-controller-toolbar" data-admin-toolbar data-admin-ignore-module-filter role="search">
+              <div class="admin-controller-toolbar" data-admin-toolbar data-admin-visible-count-target="turno-page-count" role="search">
                 <label class="controller-filter admin-controller-search">
                   <span class="controller-filter-label">Buscar</span>
                   <span class="controller-filter-field">

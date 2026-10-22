@@ -60,6 +60,116 @@ def test_admin_users_page_is_available():
     assert b'Creaci\xc3\xb3n de controladores' not in response.data
 
 
+def test_admin_monthly_role_form_exposes_special_state_category(monkeypatch):
+    monkeypatch.setattr("app.web.initialize_schema", lambda: None)
+    monkeypatch.setattr("app.web.request_modules", lambda: [])
+    monkeypatch.setattr(
+        "app.web.fetch_catalog_items",
+        lambda catalog: [
+            {
+                "id": 3,
+                "codigo": "D/F",
+                "descripcion": "Descanso por festivo",
+                "categoria": "descanso",
+                "activo": True,
+            }
+        ],
+    )
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["account"] = {
+            "username": "administrador",
+            "module_number": None,
+            "is_admin": True,
+        }
+
+    response = client.get("/administrador/rol-mensual")
+
+    assert response.status_code == 200
+    assert b'name="categoria"' in response.data
+    assert b'value="descanso"' in response.data
+    assert b'value="falta"' in response.data
+    assert b'value="vacaciones"' in response.data
+    assert b'value="incapacidad"' in response.data
+    assert b'Descanso por festivo' in response.data
+    assert b'<th>Categor\xc3\xada</th>' in response.data
+
+
+def test_special_state_category_is_required_and_saved(monkeypatch):
+    saved = []
+    monkeypatch.setattr("app.web.initialize_schema", lambda: None)
+    monkeypatch.setattr("app.web.refresh_analysis_tables", lambda: None)
+    monkeypatch.setattr(
+        "app.web.create_catalog_item",
+        lambda catalog, payload: saved.append((catalog, payload)),
+    )
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["account"] = {
+            "username": "administrador",
+            "module_number": None,
+            "is_admin": True,
+        }
+
+    for code, category in (
+        ("D/F", "descanso"),
+        ("F", "falta"),
+        ("V", "vacaciones"),
+        ("I", "incapacidad"),
+    ):
+        response = client.post(
+            "/administrador/tipos-rutas",
+            data={
+                "catalog": "estados_especiales",
+                "codigo": code.lower(),
+                "descripcion": "Estado especial",
+                "categoria": category,
+                "activo": "on",
+            },
+        )
+
+        assert response.status_code == 302
+
+    assert [catalog for catalog, _ in saved] == ["estados_especiales"] * 4
+    assert [payload["categoria"] for _, payload in saved] == [
+        "descanso",
+        "falta",
+        "vacaciones",
+        "incapacidad",
+    ]
+    assert saved[0][1]["codigo"] == "D/F"
+
+
+def test_special_state_rejects_categories_outside_supported_values(monkeypatch):
+    created = []
+    monkeypatch.setattr("app.web.initialize_schema", lambda: None)
+    monkeypatch.setattr(
+        "app.web.create_catalog_item",
+        lambda catalog, payload: created.append((catalog, payload)),
+    )
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["account"] = {
+            "username": "administrador",
+            "module_number": None,
+            "is_admin": True,
+        }
+
+    response = client.post(
+        "/administrador/tipos-rutas",
+        data={
+            "catalog": "estados_especiales",
+            "codigo": "X",
+            "descripcion": "Estado inválido",
+            "categoria": "otro",
+            "activo": "on",
+        },
+    )
+
+    assert response.status_code == 302
+    assert created == []
+
+
 def test_admin_modules_page_has_creation_modal_and_module_filter(monkeypatch):
     monkeypatch.setattr("app.web.initialize_schema", lambda: None)
     monkeypatch.setattr(

@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const typeFilter = toolbar.querySelector('[data-admin-type-filter]');
     const ignoreModuleFilter = toolbar.hasAttribute('data-admin-ignore-module-filter');
     const clearButton = toolbar.querySelector('[data-admin-search-clear]');
-    const visibleCount = group?.querySelector('[data-admin-visible-count]');
+    const visibleCount = toolbar.dataset.adminVisibleCountTarget
+      ? document.getElementById(toolbar.dataset.adminVisibleCountTarget)
+      : group?.querySelector('[data-admin-visible-count]');
     const rows = group ? group.querySelectorAll('[data-admin-filter-row]') : [];
     const queryModule = new URLSearchParams(window.location.search).get('module_number');
     let activeModule = queryModule || localStorage.getItem('adminSelectedModule') || '';

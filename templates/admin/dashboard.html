@@ -35,9 +35,9 @@
     </aside>
 
     <div class="admin-workspace">
-      
-      <section class="admin-main-content">
-        {% include 'admin/_module_tabs.html' %}
+      {% include 'admin/_module_tabs.html' %}
+
+      <section class="admin-main-content admin-routes-content admin-controller-page-content">
 
       
 
@@ -51,30 +51,34 @@
         {% endif %}
       {% endwith %}
 
-      
+      <div class="admin-controller-page-header admin-routes-page-header route-tab-active">
+        <div class="admin-local-tabs route-page-tabs controller-page-tabs" role="tablist" aria-label="Sección de controladores">
+          <button class="admin-registry-tab controller-page-tab active" type="button" role="tab" aria-selected="true">
+            <span class="admin-page-tab-label">Controladores</span>
+            <span class="admin-route-tab-meta">
+              <span class="admin-module-header-strong"><strong data-controller-page-count aria-live="polite">0</strong></span>
+            </span>
+          </button>
+        </div>
+      </div>
 
-      <div class="admin-controller-content-grid">
-        <section class="admin-panel-card admin-registry-panel">
+      <div class="admin-controller-content-grid admin-controller-page-grid">
+        <section class="admin-panel-card admin-registry-panel admin-controller-page-panel">
           
           <div class="admin-registry-contents">
             {% for group in grouped_controllers %}
               
-            <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" id="module-{{ group.module_number }}" role="tabpanel">
+            <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" data-controller-module-count="{{ group.controllers|length }}" id="module-{{ group.module_number }}" role="tabpanel">
+              
                 <div class="admin-module-group admin-module-group-tabbed">
-                  <div class="admin-module-header">
+                  
+                  <div class="admin-module-header admin-controller-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
-                    <div class="admin-connection">
-                       <span class="admin-connection-dot"></span>
-                        Conectado
-                      </div>
                   </div>
                   <div class="admin-card-heading">
+                    
                       <div class="admin-card-title">
                         <h2>Controladores registrados</h2>
-                      </div>
-                
-                      <div class="admin-module-header-strong">
-                         <strong>{{ group.controllers|length }}</strong>
                       </div>
                   </div>
                   <div class="admin-controller-toolbar" role="search">
@@ -292,7 +296,7 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      const tabs = document.querySelectorAll('.admin-registry-tab');
+      const tabs = document.querySelectorAll('.admin-registry-tab:not(.controller-page-tab)');
       const contents = document.querySelectorAll('.admin-registry-content');
       const controllerSearch = document.querySelector('#controller-search');
       const clearControllerFilter = document.querySelector('#clear-controller-filter');
@@ -313,13 +317,35 @@
       const controllerSubmitLabel = controllerModal?.querySelector('[data-controller-submit-label]');
       const editingController = Boolean(controllerModal?.querySelector('input[name="controller_id"]'));
       const controllerModuleCard = controllerModal?.querySelector('#controller-module-display');
+      const controllerPageCount = document.querySelector('[data-controller-page-count]');
+      const controllerModulePanels = document.querySelectorAll('[data-admin-module-panel][data-controller-module-count]');
+
+      function setControllerPageCount(moduleId) {
+        const modulePanel = Array.from(controllerModulePanels).find(function (panel) {
+          return panel.dataset.adminModulePanel === String(moduleId);
+        });
+        if (controllerPageCount) {
+          controllerPageCount.textContent = modulePanel?.dataset.controllerModuleCount || '0';
+        }
+      }
 
       function getActiveControllerModule() {
-        return new URLSearchParams(window.location.search).get('module_number')
-          || localStorage.getItem('adminSelectedModule')
-          || document.querySelector('[data-admin-module].is-active')?.dataset.adminModule
-          || controllerModuleValue?.value
-          || '';
+        const availableModuleIds = Array.from(controllerModulePanels, function (panel) {
+          return panel.dataset.adminModulePanel;
+        });
+        const requestedModule = new URLSearchParams(window.location.search).get('module_number');
+        const storedModule = localStorage.getItem('adminSelectedModule');
+        const selectedModule = document.querySelector('[data-admin-module].active')?.dataset.adminModule;
+        const candidates = [
+          requestedModule,
+          storedModule,
+          selectedModule,
+          controllerModuleValue?.value,
+          availableModuleIds[0]
+        ];
+        return candidates.find(function (moduleId) {
+          return availableModuleIds.includes(String(moduleId));
+        }) || '';
       }
 
       function setControllerModule(moduleId, force = false) {
@@ -333,8 +359,11 @@
       }
 
       setControllerModule(editingController ? controllerModuleValue?.value : getActiveControllerModule());
+      setControllerPageCount(getActiveControllerModule());
       document.addEventListener('admin-module-changed', function (event) {
-        setControllerModule(event.detail?.moduleId || '');
+        const moduleId = event.detail?.moduleId || '';
+        setControllerModule(moduleId);
+        setControllerPageCount(moduleId);
       });
 
       function filterControllers() {

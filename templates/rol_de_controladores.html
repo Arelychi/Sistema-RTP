@@ -407,7 +407,7 @@ function finishDayEdit() { state.editingDays.clear(); state.editingSnapshots.cle
 function markDayForEdit(day) {
   if (!state.selectedRecord || state.editingSnapshots.has(day)) return;
   state.editingDays.add(day);
-  state.editingSnapshots.set(day, { assignment: state.assignments[String(day)], detail: state.dailyDetails[String(day)], work: state.work.has(day), rest: state.rest.has(day), vacation: state.vacation.has(day) });
+  state.editingSnapshots.set(day, { assignment: state.assignments[String(day)], detail: state.dailyDetails[String(day)], work: state.work.has(day), rest: state.rest.has(day), vacation: state.vacation.has(day), special: state.specialStates.filter((item) => state.special[item.codigo]?.has(day)).map((item) => item.codigo) });
   saveAssignmentButton.disabled = false;
   updateSaveAssignmentButton();
 }
@@ -553,9 +553,17 @@ function renderCalendar() {
   for (let i = 0; i < first; i += 1) calendar.insertAdjacentHTML('beforeend', '<span class="day blank"></span>');
   for (let day = 1; day <= daysInMonth(); day += 1) {
     const specialState = state.specialStates.find((item) => state.special[item.codigo]?.has(day));
-    const status = state.editingDays.has(day) ? 'editing-day' : specialState ? 'special' : state.vacation.has(day) ? 'vacation' : state.work.has(day) ? 'work' : state.rest.has(day) ? 'rest' : '';
+    const specialStatus = {
+      descanso: 'rest',
+      falta: 'absence',
+      vacaciones: 'vacation',
+      incapacidad: 'incapacity',
+    }[specialState?.categoria] || 'special';
+    const status = state.editingDays.has(day) ? 'editing-day' : specialState ? specialStatus : state.vacation.has(day) ? 'vacation' : state.work.has(day) ? 'work' : state.rest.has(day) ? 'rest' : '';
     const detail = detailForDay(day);
-    const label = state.assignments[String(day)] || (specialState ? specialState.codigo : state.vacation.has(day) ? 'V' : state.work.has(day) ? `${detail.nomenclature}${detail.shift}` : state.rest.has(day) ? 'D' : '—');
+    const assignment = state.assignments[String(day)];
+    const assignmentCategory = state.specialStates.find((item) => item.codigo === assignment)?.categoria;
+    const label = assignment === 'V' || assignmentCategory === 'vacaciones' ? 'V' : assignment || (specialState ? specialState.codigo : state.vacation.has(day) ? 'V' : state.work.has(day) ? `${detail.nomenclature}${detail.shift}` : state.rest.has(day) ? 'D' : '—');
     const edited = state.editedDays.has(day) ? ' edited-day' : '';
     calendar.insertAdjacentHTML('beforeend', `<button type="button" class="day ${status}${edited}" data-day="${day}" title="Haz clic para asignar, editar o cancelar"><b>${day}</b><small>${escapeHtml(label)}</small></button>`);
   }
@@ -583,8 +591,15 @@ function renderCalendar() {
       delete state.dailyDetails[String(selected)];
 
       if (isSpecialMode) {
-        state.special[state.mode].add(selected);
-        state.assignments[String(selected)] = state.mode;
+        const selectedState = state.specialStates.find((item) => item.codigo === state.mode);
+        if (selectedState.categoria === 'vacaciones') {
+          state.vacation.add(selected);
+          state.assignments[String(selected)] = 'V';
+        } else {
+          state.special[state.mode].add(selected);
+          state.assignments[String(selected)] = state.mode;
+          if (selectedState.categoria === 'descanso') state.rest.add(selected);
+        }
       } else if (state.mode === 'vacation') {
         state.vacation.add(selected);
         state.assignments[String(selected)] = 'V';
@@ -603,9 +618,19 @@ function renderCalendar() {
     ['work','rest','vacation'].forEach((mode) => state[mode].delete(selected));
     state.specialStates.forEach((item) => { if (item.codigo !== state.mode) state.special[item.codigo]?.delete(selected); });
     if (isSpecialMode) {
-      state.special[state.mode].has(selected) ? state.special[state.mode].delete(selected) : state.special[state.mode].add(selected);
-      if (state.special[state.mode].has(selected)) state.assignments[String(selected)] = state.mode;
-      else delete state.assignments[String(selected)];
+      const selectedState = state.specialStates.find((item) => item.codigo === state.mode);
+      if (selectedState.categoria === 'vacaciones') {
+        state.vacation.add(selected);
+        state.assignments[String(selected)] = 'V';
+      } else {
+        state.special[state.mode].has(selected) ? state.special[state.mode].delete(selected) : state.special[state.mode].add(selected);
+        if (state.special[state.mode].has(selected)) {
+          state.assignments[String(selected)] = state.mode;
+          if (selectedState.categoria === 'descanso') state.rest.add(selected);
+        } else {
+          delete state.assignments[String(selected)];
+        }
+      }
     } else if (state.mode === 'vacation') {
       active.has(selected) ? active.delete(selected) : active.add(selected);
       if (active.has(selected)) state.assignments[String(selected)] = 'V';
@@ -640,7 +665,7 @@ function renderTable(records) {
     const controller = controllerMap.get(record.credential);
     const displayName = controller?.nombre || record.name;
     const assignments = record.daily_assignments || {}; const details = record.daily_details || {}; const work = new Set(record.work_days || []); const rest = new Set(record.rest_days || []);
-    const cells = Array.from({length: daysInMonth()}, (_, i) => { const day = i + 1; const detail = details[String(day)]; const code = detail?.code || assignments[String(day)]; const custom = detail ? ' table-custom' : ''; const edited = state.lastEditedDay === day ? ' table-edited-last' : ''; if (code === 'V') return `<td class="table-vacation${custom}${edited}">V</td>`; if (code && !/^[A-Z]+\d+$/.test(code)) return `<td class="table-special${custom}${edited}">${escapeHtml(code)}</td>`; if (code) return `<td class="table-work${custom}${edited}">${escapeHtml(code)}</td>`; if (work.has(day)) return `<td class="table-work${custom}${edited}">${escapeHtml(record.nomenclature)}${escapeHtml(record.shift)}</td>`; if (rest.has(day)) return `<td class="table-rest${custom}${edited}">D</td>`; return '<td></td>'; }).join('');
+    const cells = Array.from({length: daysInMonth()}, (_, i) => { const day = i + 1; const detail = details[String(day)]; const code = detail?.code || assignments[String(day)]; const custom = detail ? ' table-custom' : ''; const edited = state.lastEditedDay === day ? ' table-edited-last' : ''; const category = state.specialStates.find((item) => item.codigo === code)?.categoria; if (code === 'V' || category === 'vacaciones') return `<td class="table-vacation${custom}${edited}">V</td>`; if (category === 'descanso') return `<td class="table-rest${custom}${edited}">${escapeHtml(code)}</td>`; if (category === 'falta') return `<td class="table-absence${custom}${edited}">${escapeHtml(code)}</td>`; if (category === 'incapacidad') return `<td class="table-incapacity${custom}${edited}">${escapeHtml(code)}</td>`; if (code && !/^[A-Z]+\d+$/.test(code)) return `<td class="table-special${custom}${edited}">${escapeHtml(code)}</td>`; if (code) return `<td class="table-work${custom}${edited}">${escapeHtml(code)}</td>`; if (work.has(day)) return `<td class="table-work${custom}${edited}">${escapeHtml(record.nomenclature)}${escapeHtml(record.shift)}</td>`; if (rest.has(day)) return `<td class="table-rest${custom}${edited}">D</td>`; return '<td></td>'; }).join('');
     const disabled = monthIsClosed() ? ' disabled' : '';
     return `<tr data-credential="${escapeHtml(record.credential)}"><td class="name-cell"><div class="person-meta"><button class="person-button" type="button" data-credential="${escapeHtml(record.credential)}">${escapeHtml(displayName)}</button></div><div class="table-row-actions"><button class="table-update-button" type="button" data-credential="${escapeHtml(record.credential)}" title="Editar registro de ${escapeHtml(displayName)}"${disabled}>Editar</button><button class="table-delete-button" type="button" data-credential="${escapeHtml(record.credential)}" title="Eliminar registro de ${escapeHtml(displayName)}"${disabled}>Eliminar</button></div></td><td>${escapeHtml(record.credential)}</td>${cells}</tr>`;
   }).join('') : '<tr><td class="empty-state" colspan="40">No hay registros para este mes.</td></tr>';
@@ -726,8 +751,12 @@ function selectRecord(record) {
   state.specialStates.forEach((item) => state.special[item.codigo]?.clear());
   Object.entries(record.daily_assignments || {}).forEach(([day, code]) => {
     const numericDay = Number(day);
-    if (code === 'V') state.vacation.add(numericDay);
-    else if (state.special[code]) state.special[code].add(numericDay);
+    if (code === 'V' || state.specialStates.find((item) => item.codigo === code)?.categoria === 'vacaciones') state.vacation.add(numericDay);
+    else if (state.special[code]) {
+      state.special[code].add(numericDay);
+      const category = state.specialStates.find((item) => item.codigo === code)?.categoria;
+      if (category === 'descanso') state.rest.add(numericDay);
+    }
   });
   $('#form-message').textContent = `Registro de ${record.name} seleccionado.`;
   updateCalendarLock();
@@ -752,6 +781,7 @@ function editCalendarDay(day) {
   state.work.add(day);
   state.rest.delete(day);
   state.vacation.delete(day);
+  state.specialStates.forEach((item) => state.special[item.codigo]?.delete(day));
   markLastEditedDay(day);
   $('#form-message').textContent = `Día ${day} preparado con el código ${code}. Presiona Guardar asignación para confirmar.`;
   renderCalendar();
@@ -764,6 +794,8 @@ function cancelDayEdit(dayToCancel = null) {
     if (snapshot.assignment === undefined) delete state.assignments[String(day)]; else state.assignments[String(day)] = snapshot.assignment;
     if (snapshot.detail === undefined) delete state.dailyDetails[String(day)]; else state.dailyDetails[String(day)] = snapshot.detail;
     ['work', 'rest', 'vacation'].forEach((mode) => snapshot[mode] ? state[mode].add(day) : state[mode].delete(day));
+    state.specialStates.forEach((item) => state.special[item.codigo]?.delete(day));
+    snapshot.special.forEach((code) => state.special[code]?.add(day));
     state.editingDays.delete(day);
     state.editingSnapshots.delete(day);
   });
@@ -951,7 +983,7 @@ form.addEventListener('submit', async (event) => {
     updateCalendarLock();
   }
 });
-async function loadSpecialStates() { const response = await fetch('/api/catalogos/estados_especiales'); if (!response.ok) return; state.specialStates = (await response.json()).filter((item) => item.activo); state.specialStates.forEach((item) => { state.special[item.codigo] = new Set(); $('#calendar-modes').insertAdjacentHTML('beforeend', `<button class="mode-button special-mode" data-mode="${item.codigo}" type="button" title="${item.descripcion}">${item.codigo} - ${item.descripcion}</button>`); }); bindModeButtons(); }
+async function loadSpecialStates() { const response = await fetch('/api/catalogos/estados_especiales'); if (!response.ok) return; state.specialStates = (await response.json()).filter((item) => item.activo); state.specialStates.forEach((item) => { state.special[item.codigo] = new Set(); $('#calendar-modes').insertAdjacentHTML('beforeend', `<button class="mode-button special-mode" data-mode="${escapeHtml(item.codigo)}" type="button" title="${escapeHtml(item.descripcion)}">${escapeHtml(item.codigo)} - ${escapeHtml(item.descripcion)}</button>`); }); bindModeButtons(); }
 Promise.all([loadScheduleCatalogs(), loadSpecialStates(), loadMonthStatus()]).then(() => loadRecords()).catch((error) => { $('#form-message').textContent = error.message; }).finally(() => { updateMonthEditability(); renderCalendar(); });
 </script>
 <script src="{{ url_for('static', filename='sidebar.js') }}"></script>

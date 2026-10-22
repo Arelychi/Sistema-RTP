@@ -94,6 +94,8 @@ Cambia estas contraseñas antes de usar el sistema en producción. Las contrase�
 - Días de trabajo y descanso alternables con clic.
 - Tabla mensual estilo rol, con el código combinado de nomenclatura y turno, por ejemplo `A` + `1` = `A1`.
 
+Los estados especiales del rol mensual tienen una categoría: **Descanso**, **Falta**, **Vacaciones** o **Incapacidad**. Los estados de Descanso conservan su código visible (por ejemplo, `D/F`) y cuentan como descanso; Vacaciones aplica la lógica de `V`; Falta e Incapacidad se guardan como estados diarios y se incluyen en sus contadores analíticos. En el calendario, Falta se marca en rojo e Incapacidad en azul claro. Al agregar la categoría a una base existente, los estados especiales ya registrados se migran como **Falta** para conservar su clasificación previa.
+
 Si PostgreSQL no está disponible, la pantalla funciona en modo local temporal para poder probar la interfaz; esos registros se conservan mientras el proceso del servidor siga activo.
 
 El archivo `.env` está excluido de Git para evitar publicar credenciales.
@@ -108,6 +110,6 @@ Al inicializar la aplicación se prepara el esquema `analisis`, que contiene:
 - `analisis.analisis_trabajadores`: resumen mensual por trabajador, incluyendo sexo y estado activo.
 - `analisis.analisis_rutas`: resumen mensual por ruta y módulo, incluyendo rutas sin uso.
 
-Estas tablas se reconstruyen desde `programacion.registros` al iniciar la aplicación
-y después de guardar el rol mensual completo, por lo que Power BI puede consumirlas
-sin interpretar los JSON diarios ni los códigos operativos.
+Estas tablas se reconstruyen desde `schedule_records` al iniciar la aplicación,
+después de guardar el rol mensual completo y al guardar o eliminar un registro individual,
+por lo que Power BI puede consumirlas sin interpretar los JSON diarios ni los códigos operativos.

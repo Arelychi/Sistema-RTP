@@ -60,6 +60,39 @@ def test_daily_details_are_updated_without_changing_other_days(monkeypatch):
         assert saved["daily_assignments"]["2"] == "A1"
 
 
+def test_single_record_save_refreshes_analysis_tables(monkeypatch):
+    refreshed = []
+    saved_record = {
+        "id": 9,
+        "name": "Arely",
+        "credential": "AR-01",
+        "shift": "1",
+        "route": "Ruta Centro",
+        "nomenclature": "A",
+        "month": TEST_MONTH,
+        "year": TEST_YEAR,
+        "work_days": [1],
+        "rest_days": [],
+        "daily_assignments": {"1": "A1"},
+        "daily_details": {},
+        "module_number": 1,
+    }
+    monkeypatch.setattr(web, "initialize_schema", lambda: None)
+    monkeypatch.setattr(web, "records_for", lambda *args: [])
+    monkeypatch.setattr(web, "upsert_record", lambda record: dict(saved_record))
+    monkeypatch.setattr(web, "refresh_analysis_tables", lambda: refreshed.append(True))
+    monkeypatch.setattr(web, "record_history", lambda *args, **kwargs: None)
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(client)
+
+    assert response.status_code == 201
+    assert refreshed == [True]
+
+
 def test_deleted_day_does_not_return_from_memory_merge(monkeypatch):
     force_memory_mode(monkeypatch)
     with app.test_client() as client:
@@ -120,6 +153,31 @@ def test_switching_work_to_rest_or_vacation_replaces_previous_assignment(monkeyp
         assert 1 not in vacation_saved["work_days"]
         assert 1 not in vacation_saved["rest_days"]
         assert vacation_saved["daily_assignments"]["1"] == "V"
+
+
+def test_special_rest_code_is_preserved_and_counted_as_rest_in_memory(monkeypatch):
+    force_memory_mode(monkeypatch)
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            work_days=[],
+            rest_days=[1],
+            daily_assignments={"1": "D/F"},
+            daily_details={},
+        )
+
+        assert response.status_code == 201
+        saved = response.get_json()
+        assert saved["rest_days"] == [1]
+        assert saved["daily_assignments"]["1"] == "D/F"
+
+        fetched = client.get(f"/api/records?month={TEST_MONTH}&year={TEST_YEAR}")
+        assert fetched.status_code == 200
+        assert fetched.get_json()[0]["daily_assignments"]["1"] == "D/F"
+        assert fetched.get_json()[0]["rest_days"] == [1]
 
 
 def test_delete_record_by_credential(monkeypatch):

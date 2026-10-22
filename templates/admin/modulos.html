@@ -30,18 +30,6 @@
     <div class="admin-workspace">
       {% include 'admin/_module_tabs.html' %}
       <section class="admin-main-content">
-        <header class="admin-header">
-          <div>
-            <p class="eyebrow">Sistema</p>
-            <h1>Creación de módulos</h1>
-            <p class="subtitle">Registro y administración de módulos</p>
-          </div>
-          <div class="admin-connection">
-            <span class="admin-connection-dot"></span>
-            Conectado
-          </div>
-        </header>
-
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <div class="admin-alerts" aria-live="polite">
@@ -52,7 +40,18 @@
           {% endif %}
         {% endwith %}
 
-        <div class="admin-content-grid">
+        <div class="admin-module-header admin-routes-page-header route-tab-active admin-registry-page-header admin-modules-page-header">
+          <div class="admin-local-tabs route-page-tabs" role="tablist" aria-label="Sección de módulos">
+            <button class="admin-registry-tab active" type="button" role="tab" aria-selected="true">
+              <span class="admin-page-tab-label">Módulos</span>
+              <span class="admin-route-tab-meta">
+                <span class="admin-module-header-strong"><strong id="modules-page-count">{{ modules|length }}</strong></span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-content-grid admin-registry-page-grid admin-modules-page-grid">
           {% if not is_read_only_account %}
           <div class="admin-controller-modal admin-module-modal" id="module-form-modal" role="dialog" aria-modal="true" aria-labelledby="module-form-title" hidden>
             <div class="admin-controller-modal-dialog">
@@ -100,9 +99,8 @@
             <div class="admin-module-group admin-module-group-tabbed">
               <div class="admin-module-header">
                 <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">Módulos registrados</span>
-                <strong>{{ modules|length }}</strong>
               </div>
-              <div class="admin-controller-toolbar" data-admin-toolbar role="search">
+              <div class="admin-controller-toolbar" data-admin-toolbar data-admin-visible-count-target="modules-page-count" role="search">
                 <label class="controller-filter admin-controller-search">
                   <span class="controller-filter-label">Buscar</span>
                   <span class="controller-filter-field">

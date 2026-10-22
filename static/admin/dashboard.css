@@ -602,7 +602,7 @@ h2 {
 
 .route-page-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 720px;
   margin-right: 25px;
   border-radius: 12px;
@@ -637,13 +637,11 @@ h2 {
 
 .admin-routes-page-header {
   position: relative;
-  z-index: 1;
   margin: 18px 25px 0;
   min-height: 76px;
   border-bottom: 0;
   border-radius: 14px 14px 0 0;
   background: rgba(24, 59, 89, 0.35) transparent;
-  backdrop-filter: blur(8px);
 }
 
 .admin-routes-page-header .route-page-tabs {
@@ -654,10 +652,12 @@ h2 {
 }
 
 .admin-routes-page-header .route-page-tabs .admin-registry-tab {
-  min-height: 48px;
-  padding: 12px 22px;
-  font-size: .92rem;
-  letter-spacing: .01em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;    
+  gap: 10px;
+  width: 100%;
+  text-align: left;
 }
 
 .admin-header {
@@ -785,10 +785,7 @@ h2 {
   display: none;
 }
 
-#catalog-sections .admin-catalog-columns:not([hidden]),
-#services-section:not([hidden]) {
-  animation: adminFadeTab 0.35s ease both;
-}
+
 
 
 
@@ -1810,9 +1807,8 @@ h2 {
 }
 
 .admin-module-group {
-  margin-left: 25px;
-  margin-right: 25px;
-  margin-top: 15px;
+  animation: adminFadeTab 0.35s ease both;
+  
   padding: 18px;
   border: 1px solid var(--admin-line);
   border-radius: 18px;
@@ -5571,7 +5567,6 @@ h2 {
   z-index: 2;
   color: var(--admin-ink);
   border-color: rgba(24, 59, 89, 0.168);
-  background: #fff; 
   box-shadow: 0 -2px 12px rgba(24, 59, 89, .04);
 }
 
@@ -5609,7 +5604,7 @@ h2 {
   z-index: 1;
   margin: 0 25px 22px;
   padding: 18px;
-  border: 1px solid rgba(24, 59, 89, .08);
+  border: 1px solid rgba(24, 59, 89, 0.168);
   border-radius: 0 0 14px 14px;
   background: #fff;
   
@@ -5745,10 +5740,10 @@ h2 {
   min-width: 0;
   margin: 0 25px 22px;
   padding: 18px;
-  border: 1px solid rgba(24, 59, 89, .08);
+  border: 1px solid rgba(24, 59, 89, 0.168);
   border-radius: 0 0 14px 14px;
   background: #fff;
-  box-shadow: 0 10px 24px rgba(24, 59, 89, .08);
+  
 }
 
 #routes-section.admin-route-content-grid:not([hidden]) .admin-route-panel {
@@ -6285,5 +6280,254 @@ h2 {
   .admin-modules-page .admin-modules-table-head,
   .admin-modules-page .admin-user-item {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.admin-controller-page-content {
+  flex: 1 1 auto;
+}
+
+.admin-controller-page-header {
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 18px 25px 0;
+  margin-bottom: 0;
+  padding: 0;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background: transparent;
+}
+
+.admin-controller-page-header .controller-page-tabs {
+  display: grid;
+  width: 100%;
+  max-width: none;
+  min-height: 58px;
+  margin: 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-radius: 14px 14px 0 0;
+  background: transparent;
+  gap: 10px;
+  box-shadow: none;
+}
+
+.admin-controller-page-header .admin-route-tab-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.admin-controller-page-header .admin-route-tab-meta .admin-module-header-strong {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--admin-teal-soft, rgba(15, 159, 145, 0.12));
+  color: var(--admin-teal, #0f9f91);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-controller-page-header .admin-route-tab-meta .admin-module-header-strong strong {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.admin-controller-page-grid {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  position: relative;
+  margin: 0 25px 22px;
+  padding: 18px;
+  border: 1px solid rgba(24, 59, 89, 0.168);
+  border-radius: 0 0 14px 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(24, 59, 89, .08);
+  overflow: visible;
+}
+
+.admin-controller-page-panel {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.admin-controller-page-panel > .admin-registry-contents,
+.admin-controller-page-panel .admin-registry-content {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+.admin-controller-page-panel .admin-module-group-tabbed {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.admin-controller-page-panel .admin-controller-module-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0 0 18px;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid rgba(24, 59, 89, .1);
+  color: var(--admin-ink);
+  font-weight: 700;
+}
+
+.admin-controller-page-panel .admin-controller-module-header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 150px) minmax(140px, 200px);
+}
+
+@media (max-width: 760px) {
+  .admin-controller-page-header {
+    margin: 12px 12px 0;
+  }
+
+  .admin-controller-page-grid {
+    margin: 0 12px 14px;
+    padding: 10px;
+  }
+
+  .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 150px);
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-search {
+    grid-column: 1 / -1;
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-filter,
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-create-controller-button {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 460px) {
+  .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-search,
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-filter,
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-create-controller-button {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+.admin-registry-page-header {
+  display: block;
+  margin: 18px 25px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px 14px 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-registry-page-header .route-page-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  max-width: none;
+  min-height: 58px;
+  margin: 18px 0 0;
+  padding: 0;
+  gap: 10px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.admin-registry-page-header .route-page-tabs .admin-registry-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+}
+
+.admin-registry-page-header .admin-route-tab-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.admin-registry-page-header .admin-route-tab-meta .admin-module-header-strong {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(114, 173, 58, .14);
+  color: #72ad3a;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-registry-page-header .admin-route-tab-meta .admin-module-header-strong strong {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.admin-registry-page-grid {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0 25px 22px;
+  padding: 18px;
+  border: 1px solid rgba(24, 59, 89, 0.168);
+  border-radius: 0 0 14px 14px;
+  background: #fff;
+  
+  overflow: visible;
+}
+
+.admin-turnos-page .admin-main-content > .admin-turnos-page-grid {
+  display: block;
+  flex: 0 0 auto;
+  align-items: initial;
+  padding: 18px;
+}
+
+@media (max-width: 760px) {
+  .admin-registry-page-header {
+    margin: 12px 12px 0;
+  }
+
+  .admin-registry-page-grid,
+  .admin-turnos-page .admin-main-content > .admin-turnos-page-grid {
+    margin: 0 12px 14px;
+    padding: 10px;
   }
 }

@@ -98,6 +98,14 @@
                 <label>Descripción <span class="required-label-note">* Campo Obligatorio</span>
                   <input name="descripcion" value="{{ editing_estado_especial.descripcion if editing_estado_especial else '' }}" required placeholder="Vacaciones">
                 </label>
+                <label>Categoría <span class="required-label-note">* Campo Obligatorio</span>
+                  <select name="categoria" required>
+                    <option value="descanso" {% if editing_estado_especial and editing_estado_especial.categoria == 'descanso' %}selected{% endif %}>Descanso</option>
+                    <option value="falta" {% if not editing_estado_especial or editing_estado_especial.categoria == 'falta' %}selected{% endif %}>Falta</option>
+                    <option value="vacaciones" {% if editing_estado_especial and editing_estado_especial.categoria == 'vacaciones' %}selected{% endif %}>Vacaciones</option>
+                    <option value="incapacidad" {% if editing_estado_especial and editing_estado_especial.categoria == 'incapacidad' %}selected{% endif %}>Incapacidad</option>
+                  </select>
+                </label>
                 <label class="admin-turno-active-field">
                   <input type="checkbox" name="activo" {% if not editing_estado_especial or editing_estado_especial.activo %}checked{% endif %}>
                   <span>Estado activo</span>
@@ -134,12 +142,13 @@
             {% if estados_especiales %}
               <div class="admin-route-table-wrap">
                 <table class="admin-route-table">
-                  <thead><tr><th>Código</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <thead><tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Estado</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for estado in estados_especiales %}
                       <tr data-admin-filter-row data-filter-status="{{ 'Activo' if estado.activo else 'Inactivo' }}">
                         <td>{{ estado.codigo }}</td>
                         <td>{{ estado.descripcion }}</td>
+                        <td>{{ estado.categoria|title }}</td>
                         <td>{{ 'Activo' if estado.activo else 'Inactivo' }}</td>
                         <td class="admin-controller-actions">
                           <a class="admin-edit-button" href="{{ url_for('admin_monthly_role_page', edit_estado_id=estado.id) }}">Editar</a>

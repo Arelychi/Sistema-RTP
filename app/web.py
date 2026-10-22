@@ -53,6 +53,7 @@ from app.db import (
     get_connection,
     initialize_schema,
     normalize_display_text,
+    refresh_analysis_tables,
     update_admin_route,
     update_catalog_item,
     update_catalog_status,
@@ -1109,18 +1110,38 @@ def admin_create_tipo_ruta():
         estado_id = request.form.get("estado_id")
         codigo = str(request.form.get("codigo", "")).strip().upper()
         descripcion = str(request.form.get("descripcion", "")).strip()
+        categoria = str(request.form.get("categoria", "")).strip().lower()
         activo = request.form.get("activo") == "on"
-        if not codigo or not descripcion:
-            flash("El código y la descripción del estado especial son obligatorios.", "error")
+        if not codigo or not descripcion or categoria not in {
+            "descanso",
+            "falta",
+            "vacaciones",
+            "incapacidad",
+        }:
+            flash("Completa el código, la descripción y una categoría válida para el estado especial.", "error")
             return redirect(url_for("admin_monthly_role_page"))
-        payload = {"codigo": codigo, "descripcion": descripcion, "activo": activo}
+        payload = {"codigo": codigo, "descripcion": descripcion, "categoria": categoria, "activo": activo}
         try:
             initialize_schema()
             if estado_id:
                 update_catalog_item("estados_especiales", int(estado_id), payload)
-                flash("Estado especial actualizado correctamente.", "success")
             else:
                 create_catalog_item("estados_especiales", payload)
+            try:
+                refresh_analysis_tables()
+            except Exception:
+                app.logger.exception(
+                    "No se pudieron actualizar las tablas analíticas después de guardar el estado %s",
+                    codigo,
+                )
+                flash(
+                    "El estado especial se guardó, pero no se actualizaron las tablas analíticas.",
+                    "error",
+                )
+                return redirect(url_for("admin_monthly_role_page"))
+            if estado_id:
+                flash("Estado especial actualizado correctamente.", "success")
+            else:
                 flash("Estado especial registrado correctamente.", "success")
         except Exception:
             flash("No se pudo guardar el estado especial. Verifica que el código no esté repetido.", "error")
@@ -1225,6 +1246,18 @@ def admin_delete_estado_especial(estado_id: int):
     try:
         initialize_schema()
         if delete_catalog_item("estados_especiales", estado_id):
+            try:
+                refresh_analysis_tables()
+            except Exception:
+                app.logger.exception(
+                    "No se pudieron actualizar las tablas analíticas después de eliminar el estado %s",
+                    estado_id,
+                )
+                flash(
+                    "El estado especial se eliminó, pero no se actualizaron las tablas analíticas.",
+                    "error",
+                )
+                return redirect(url_for("admin_monthly_role_page"))
             flash("Estado especial eliminado correctamente.", "success")
         else:
             flash("No se encontró el estado especial para eliminar.", "error")
@@ -1982,8 +2015,6 @@ def create_record():
         normalized_assignments[str(day)] = "V"
     for day in [day for day in work_days if day not in deleted_days]:
         normalized_assignments.setdefault(str(day), f"{str(payload['nomenclature']).strip().upper()}{str(payload['shift']).strip()}")
-    for day in rest_days:
-        normalized_assignments.pop(str(day), None)
     final_work_days = [day for day in work_days if day not in vacation_days and day not in deleted_days]
     final_rest_days = [day for day in rest_days if day not in vacation_days and day not in deleted_days]
     record = {
@@ -2018,7 +2049,9 @@ def create_record():
     try:
         initialize_schema()
         saved = upsert_record(record)
+        saved_to_database = True
     except Exception:
+        saved_to_database = False
         if existing_record:
             existing_record.update({
                 "name": record["name"],
@@ -2036,8 +2069,6 @@ def create_record():
             for day in deleted_days:
                 existing_record["daily_assignments"].pop(str(day), None)
                 existing_record["daily_details"].pop(str(day), None)
-            for day in rest_days:
-                existing_record["daily_assignments"].pop(str(day), None)
             for day in vacation_days:
                 existing_record["daily_assignments"][str(day)] = "V"
             for day in [item for item in work_days if item not in deleted_days]:
@@ -2071,8 +2102,6 @@ def create_record():
                     merged_details.pop(str(day), None)
                 for day in [item for item in work_days if item not in deleted_set]:
                     merged_assignments.setdefault(str(day), f"{record['nomenclature']}{record['shift']}")
-                for day in rest_days:
-                    merged_assignments.pop(str(day), None)
                 for day in vacation_days:
                     merged_assignments[str(day)] = "V"
                 saved.update({
@@ -2100,6 +2129,17 @@ def create_record():
                 saved["daily_details"] = json.loads(record.get("daily_details") or "{}")
                 saved["module_number"] = record["module_number"]
                 memory_records.insert(0, saved)
+    if saved_to_database:
+        try:
+            refresh_analysis_tables()
+        except Exception:
+            app.logger.exception(
+                "El registro %s se guardó, pero no se pudieron actualizar las tablas analíticas",
+                record["credential"],
+            )
+            return jsonify(
+                error="El registro se guardó, pero no se pudieron actualizar las tablas analíticas."
+            ), 500
     saved["updated_existing"] = previous_record is not None
     history_action = "edicion" if saved["updated_existing"] else "registro"
     record_history(
@@ -2133,6 +2173,7 @@ def delete_record_by_credential():
         None,
     )
     deleted = False
+    deleted_from_database = False
     try:
         initialize_schema()
         with get_connection() as connection:
@@ -2143,11 +2184,23 @@ def delete_record_by_credential():
                 )
                 deleted = cursor.rowcount > 0
             connection.commit()
+            deleted_from_database = deleted
     except Exception:
         for item in list(memory_records):
             if item.get("credential") == credential and item.get("month") == month and item.get("year") == year and item.get("module_number") == module_number:
                 memory_records.remove(item)
                 deleted = True
+    if deleted_from_database:
+        try:
+            refresh_analysis_tables()
+        except Exception:
+            app.logger.exception(
+                "El registro %s se eliminó, pero no se pudieron actualizar las tablas analíticas",
+                credential,
+            )
+            return jsonify(
+                error="El registro se eliminó, pero no se pudieron actualizar las tablas analíticas."
+            ), 500
     if deleted:
         record_history(
             account,

@@ -42,7 +42,18 @@
         {% endif %}
       {% endwith %}
 
-      <div class="admin-content-grid">
+      <div class="admin-module-header admin-routes-page-header route-tab-active admin-registry-page-header admin-users-page-header">
+        <div class="admin-local-tabs route-page-tabs" role="tablist" aria-label="Sección de usuarios">
+          <button class="admin-registry-tab active" type="button" role="tab" aria-selected="true">
+            <span class="admin-page-tab-label">Usuarios</span>
+            <span class="admin-route-tab-meta">
+              <span class="admin-module-header-strong"><strong data-users-page-count>{{ (grouped_users[0].users|length + admin_users|length + consultant_users|length) if grouped_users else (admin_users|length + consultant_users|length) }}</strong></span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-content-grid admin-registry-page-grid admin-users-page-grid">
         {% if not is_read_only_account %}
         <div class="admin-controller-modal admin-user-form-modal" id="user-form-modal" role="dialog" aria-modal="true" aria-labelledby="user-form-title" {% if not editing_user %}hidden{% endif %}>
           <div class="admin-controller-modal-dialog">
@@ -133,6 +144,7 @@
                       <small id="user-module-help">Estatus de usuario en módulo</small>
                     </span>
                     <input id="user-status-value" type="hidden" name="activo" value="{{ 'on' if not editing_user or editing_user.active else 'off' }}">
+                    <input id="user-module-value" type="hidden" name="module_number" value="{{ editing_user.module_number if editing_user and editing_user.module_number else (modules[0].id if modules else '') }}">
                     <span class="route-switch route-status-switch" title="Cambiar estado del usuario">
                       <input id="user-status-toggle" type="checkbox" {% if not editing_user or editing_user.active %}checked{% endif %}>
                       <span class="route-status-badge">
@@ -177,7 +189,7 @@
           <div class="admin-user-view active" id="regular-users" role="tabpanel">
           <div class="admin-registry-contents">
             {% for group in grouped_users %}
-              <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" id="user-module-{{ group.module_number }}" role="tabpanel">
+              <div class="admin-registry-content" data-admin-module-panel="{{ group.module_number }}" data-user-module-count="{{ group.users|length + admin_users|length + consultant_users|length }}" id="user-module-{{ group.module_number }}" role="tabpanel">
                 <div class="admin-module-group admin-module-group-tabbed">
                   <div class="admin-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
@@ -192,9 +204,6 @@
                         <h2>Usuarios registrados</h2>
                       </div>
                 
-                      <div class="admin-module-header-strong">
-                         <strong>{{ group.users|length + admin_users|length + consultant_users|length }}</strong>
-                      </div>
                   </div>
 
                       
@@ -448,6 +457,9 @@
       const userPasswordStrength = userForm?.querySelector('[data-user-password-strength]');
       const userPasswordStrengthBar = userForm?.querySelector('[data-user-password-strength-bar]');
       const userPasswordStrengthLabel = userForm?.querySelector('[data-user-password-strength-label]');
+      const userModuleValue = userForm?.querySelector('#user-module-value');
+      const usersPageCount = document.querySelector('[data-users-page-count]');
+      const userModulePanels = document.querySelectorAll('[data-admin-module-panel][data-user-module-count]');
 
       function resetPasswordInput() {
         if (userPasswordInput) {
@@ -504,9 +516,8 @@
         if (userSubmitButton) {
           userSubmitButton.textContent = 'Guardar usuario';
         }
-        if (userModuleSelect) {
-          userModuleSelect.value = userModuleSelect.options[0]?.value || '';
-        }
+        if (userModuleValue) userModuleValue.value = activeUserModuleId;
+        updateUserModuleDisplay(activeUserModuleId);
       }
 
       userModalOpenButtons.forEach(function (button) {
@@ -552,14 +563,39 @@
         });
       });
 
-      const userTypeSelect = document.getElementById('user-type-select');
-      const userModuleSelect = document.getElementById('user-module-select');
-      const moduleRequiredNote = document.getElementById('module-required-note');
       const userModuleName = userModal?.querySelector('[data-user-module-name]');
+      const userModuleOptions = userModal?.querySelectorAll('.admin-controller-module-options [data-module-id]');
       const userStatusToggle = document.getElementById('user-status-toggle');
       const userStatusValue = document.getElementById('user-status-value');
       const userModuleDisplay = document.getElementById('user-module-display');
-      let activeUserModuleId = userModuleSelect?.value || '';
+      let activeUserModuleId = userModuleValue?.value || userModuleOptions?.[0]?.dataset.moduleId || '';
+
+      function updateUsersPageCount(moduleId) {
+        const modulePanel = Array.from(userModulePanels).find(function (panel) {
+          return panel.dataset.adminModulePanel === String(moduleId);
+        });
+        if (usersPageCount) {
+          usersPageCount.textContent = modulePanel?.dataset.userModuleCount || '0';
+        }
+      }
+
+      const availableUserModuleIds = Array.from(userModulePanels, function (panel) {
+        return panel.dataset.adminModulePanel;
+      });
+      const requestedUserModule = new URLSearchParams(window.location.search).get('module_number');
+      const storedUserModule = localStorage.getItem('adminSelectedModule');
+      const initialUserModule = [requestedUserModule, storedUserModule, availableUserModuleIds[0]]
+        .find(function (moduleId) {
+          return availableUserModuleIds.includes(String(moduleId));
+        });
+      updateUsersPageCount(initialUserModule);
+      document.addEventListener('admin-module-changed', function (event) {
+        updateUsersPageCount(event.detail?.moduleId || '');
+      });
+
+      function isEditingUser() {
+        return Boolean(userForm?.querySelector('input[name="user_id"]'));
+      }
 
       function updateUserPasswordStrength() {
         if (!userPasswordInput || !userPasswordStrength || !userPasswordStrengthBar || !userPasswordStrengthLabel) return;
@@ -609,37 +645,21 @@
       });
       userPasswordInput?.addEventListener('input', updateUserPasswordStrength);
 
-      function syncDefaultUserModule() {
-        if (!userModuleSelect || !userModuleSelect.options.length) return;
-        const fallbackValue = userModuleSelect.options[0].value;
-        if (!userModuleSelect.value) {
-          userModuleSelect.value = fallbackValue;
-        }
-        activeUserModuleId = userModuleSelect.value;
-        updateUserModuleDisplay(activeUserModuleId);
-      }
-
       function updateUserModuleDisplay(moduleId) {
-        const moduleOption = Array.from(userModuleSelect?.options || []).find(function (option) {
-          return option.value === String(moduleId);
+        const moduleOption = Array.from(userModuleOptions || []).find(function (option) {
+          return option.dataset.moduleId === String(moduleId);
         });
         if (!moduleOption) return;
-        activeUserModuleId = moduleOption.value;
-        if (userModuleName) userModuleName.textContent = moduleOption.textContent.trim();
+        activeUserModuleId = moduleOption.dataset.moduleId;
+        if (userModuleName) userModuleName.textContent = moduleOption.dataset.moduleName;
+        if (userModuleValue && !isEditingUser()) userModuleValue.value = activeUserModuleId;
       }
 
-      syncDefaultUserModule();
       document.addEventListener('admin-module-changed', function (event) {
         const moduleId = String(event.detail?.moduleId || '');
         updateUserModuleDisplay(moduleId);
-        if (userModuleSelect && userTypeSelect?.value === 'usuario') {
-          userModuleSelect.value = moduleId;
-        }
       });
-
-      userModuleSelect?.addEventListener('change', function () {
-        if (this.value) updateUserModuleDisplay(this.value);
-      });
+      updateUserModuleDisplay(activeUserModuleId);
 
       function updateUserStatus() {
         if (userStatusValue && userStatusToggle) {
@@ -651,21 +671,6 @@
       userStatusToggle?.addEventListener('change', updateUserStatus);
       updateUserStatus();
 
-      function updateUserTypeFields() {
-        const needsNoModule = userTypeSelect?.value === 'admin' || userTypeSelect?.value === 'consultor';
-        if (!userModuleSelect) return;
-        userModuleSelect.disabled = needsNoModule;
-        userModuleSelect.required = !needsNoModule;
-        if (needsNoModule) {
-          userModuleSelect.value = '';
-        } else if (activeUserModuleId) {
-          userModuleSelect.value = activeUserModuleId;
-        }
-        if (moduleRequiredNote) moduleRequiredNote.hidden = needsNoModule;
-      }
-      userTypeSelect?.addEventListener('change', updateUserTypeFields);
-      updateUserTypeFields();
-      syncDefaultUserModule();
       document.querySelectorAll('[data-password-toggle]').forEach(function (toggle) {
         toggle.addEventListener('click', function () {
           const input = document.getElementById(this.dataset.passwordToggle);
