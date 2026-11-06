@@ -30,6 +30,9 @@ from app.db import (
     delete_catalog_item,
     delete_user,
     delete_module,
+    delete_routes_from_module,
+    delete_controllers_from_module,
+    delete_users_by_ids,
     fetch_catalog_items,
     fetch_controllers,
     fetch_controller_by_credential,
@@ -48,7 +51,7 @@ from app.db import (
     fetch_users,
     fetch_modules,
     fetch_history_entries,
-    fetch_analysis_metrics,
+    fetch_controller_analysis_dashboard,
     fetch_password_reset_token,
     get_connection,
     initialize_schema,
@@ -67,6 +70,7 @@ from app.db import (
     update_user_status,
     update_module,
     link_route_to_module,
+    link_routes_to_module,
     update_module_route_status,
     unlink_route_from_module,
     upsert_record,
@@ -82,6 +86,32 @@ app.config["SECRET_KEY"] = settings.secret_key
 app.config["ENVIRONMENT"] = settings.environment
 memory_records: list[dict] = []
 memory_controllers: list[dict] = []
+
+
+@app.errorhandler(500)
+def handle_internal_server_error(error):
+    if request.path.startswith("/api/"):
+        original_error = getattr(error, "original_exception", None)
+        if original_error is not None:
+            app.logger.error(
+                "Error interno no controlado en %s",
+                request.path,
+                exc_info=(
+                    type(original_error),
+                    original_error,
+                    original_error.__traceback__,
+                ),
+            )
+        return (
+            jsonify(
+                error=(
+                    "Error interno del servidor al procesar la solicitud. "
+                    "Revisa el registro de la aplicación."
+                )
+            ),
+            500,
+        )
+    return error
 
 
 def valid_controller_name(value: str) -> bool:
@@ -393,6 +423,7 @@ def admin_monthly_role_page():
     account = session.get("account")
     if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    today = date.today()
     edit_estado_id = request.args.get("edit_estado_id", type=int)
     try:
         initialize_schema()
@@ -405,10 +436,18 @@ def admin_monthly_role_page():
         (item for item in estados_especiales if item.get("id") == edit_estado_id),
         None,
     ) if edit_estado_id else None
+    requested_module = request.args.get("module_number", type=int)
+    module_numbers = {int(module["id"]) for module in modules if module.get("id") is not None}
+    module_number = requested_module if requested_module in module_numbers else (
+        int(modules[0]["id"]) if modules else None
+    )
     return render_template(
         "admin/rol_mensual.html",
         account=account,
         modules=modules,
+        module_number=module_number,
+        today={"year": today.year, "month": today.month, "day": today.day},
+        admin_embed=True,
         estados_especiales=estados_especiales,
         editing_estado_especial=editing_estado_especial,
     )
@@ -706,28 +745,160 @@ def admin_analysis_page():
     account = session.get("account")
     if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    today = date.today()
+    month = request.args.get("month", today.month, type=int)
+    year = request.args.get("year", today.year, type=int)
+    if month not in range(1, 13) or year not in range(1, 10000):
+        month, year = today.month, today.year
+    selected_credential = request.args.get("credential", "")
+    selected_module = request.args.get("module", type=int)
+    months_es = (
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+    )
+    previous_period = (year - 1, 12) if month == 1 else (year, month - 1)
+    next_period = (year + 1, 1) if month == 12 else (year, month + 1)
+    if previous_period[0] < 1:
+        previous_period = None
+    if next_period[0] > 9999:
+        next_period = None
+    dashboard = {
+        "registered_controllers": 0,
+        "active_controllers": 0,
+        "inactive_controllers": 0,
+        "assigned_controllers": 0,
+        "workers": [],
+        "selected_worker": None,
+        "route_days": [],
+        "calendar_days": [],
+    }
+    modules = []
+    analysis_error = None
     try:
         initialize_schema()
         modules = request_modules()
-        metrics = fetch_analysis_metrics()
+        dashboard = fetch_controller_analysis_dashboard(
+            month,
+            year,
+            selected_credential or None,
+            selected_module,
+        )
     except Exception:
         app.logger.exception("No fue posible cargar las métricas de análisis")
-        metrics = {
-            "users": 0,
-            "admins": 0,
-            "controllers": 0,
-            "active_controllers": 0,
-            "routes": 0,
-            "active_routes": 0,
-            "inactive_routes": 0,
-            "gender_distribution": [],
-            "route_usage": [],
-            "shared_routes": [],
-            "controller_days": [],
-            "shift_usage": [],
-            "most_controllers": None,
+        analysis_error = "No fue posible cargar los datos del análisis. Intenta actualizar la página."
+
+    selected_worker = dashboard["selected_worker"]
+    route_days = dashboard["route_days"]
+    route_max = max((item["days"] for item in route_days), default=1)
+    chart_width = 680
+    chart_bottom = 190
+    chart_top = 30
+    route_points = []
+    for index, item in enumerate(route_days):
+        x = (
+            42 + (chart_width - 84) * index / (len(route_days) - 1)
+            if len(route_days) > 1
+            else chart_width / 2
+        )
+        y = chart_bottom - (chart_bottom - chart_top) * item["days"] / route_max
+        route_points.append(
+            {
+                "x": round(x, 1),
+                "y": round(y, 1),
+                "label_x": round(x, 1),
+                "label": item["route"][:14],
+                "days": item["days"],
+            }
+        )
+    route_line = " ".join(f'{point["x"]},{point["y"]}' for point in route_points)
+
+    calendar_entries = {
+        item["day"]: item for item in dashboard["calendar_days"]
+    }
+    first_weekday, days_in_month = monthrange(year, month)
+    month_cells = [None] * first_weekday + list(range(1, days_in_month + 1))
+    month_cells.extend([None] * ((7 - len(month_cells) % 7) % 7))
+    calendar_weeks = [
+        month_cells[index:index + 7]
+        for index in range(0, len(month_cells), 7)
+    ]
+    status_labels = {
+        "TRABAJADO": ("Trabajó", "is-work"),
+        "DESCANSO": ("Descanso", "is-rest"),
+        "VACACIONES": ("Vacaciones", "is-vacation"),
+        "FALTA": ("Falta", "is-absence"),
+        "INCAPACIDAD": ("Incapacidad", "is-incapacity"),
+        "FESTIVO": ("Festivo", "is-holiday"),
+        "PERMISO": ("Permiso", "is-permission"),
+        "NO_PROGRAMADO": ("", ""),
+    }
+    calendar_grid = []
+    for week in calendar_weeks:
+        calendar_row = []
+        for day in week:
+            if day is None:
+                calendar_row.append(None)
+                continue
+            entry = calendar_entries.get(day, {})
+            code = str(entry.get("code") or "").strip().upper()
+            status = str(entry.get("status") or "NO_PROGRAMADO").upper()
+            if code in {"C/D", "CD"}:
+                label, class_name = "C/D", "is-rest-change"
+            elif code in {"D/F", "DF"}:
+                label, class_name = "D/F", "is-holiday"
+            elif code == "SEFI":
+                label, class_name = "SEFI", "is-special"
+            else:
+                label, class_name = status_labels.get(status, ("", ""))
+                if label == "Trabajó":
+                    label = code[:8] or label
+            calendar_row.append(
+                {
+                    "day": day,
+                    "label": label,
+                    "class_name": class_name,
+                    "title": f'{status.replace("_", " ").title()} · {code}' if code else status.replace("_", " ").title(),
+                }
+            )
+        calendar_grid.append(calendar_row)
+
+    status_chart = []
+    if selected_worker:
+        status_chart = [
+            ("Trabajo", selected_worker["worked"], "is-work"),
+            ("Vacaciones", selected_worker["vacation"], "is-vacation"),
+            ("Descanso", selected_worker["rest"], "is-rest"),
+            ("Falta", selected_worker["absence"], "is-absence"),
+        ]
+    status_chart_max = max((item[1] for item in status_chart), default=1) or 1
+    status_chart = [
+        {
+            "label": label,
+            "value": value,
+            "class_name": class_name,
+            "width": round(value / status_chart_max * 100, 1),
         }
-    return render_template("admin/analisis.html", account=account, modules=modules, metrics=metrics)
+        for label, value, class_name in status_chart
+    ]
+
+    return render_template(
+        "admin/analisis.html",
+        account=account,
+        modules=modules,
+        dashboard=dashboard,
+        analysis_error=analysis_error,
+        month=month,
+        year=year,
+        month_label=months_es[month - 1],
+        previous_period=previous_period,
+        next_period=next_period,
+        selected_worker=selected_worker,
+        route_points=route_points,
+        route_line=route_line,
+        route_max=route_max,
+        calendar_grid=calendar_grid,
+        status_chart=status_chart,
+    )
 
 
 @app.post("/administrador/rutas")
@@ -810,6 +981,39 @@ def admin_create_route():
     return redirect(url_for("admin_routes_page"))
 
 
+@app.post("/administrador/rutas/vincular")
+def admin_link_routes():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+
+    try:
+        target_module = int(request.form.get("target_module", ""))
+        route_ids = list(dict.fromkeys(int(value) for value in request.form.getlist("route_ids")))
+    except (TypeError, ValueError):
+        flash("Selecciona un módulo y rutas válidas.", "error")
+        return redirect(url_for("admin_routes_page"))
+
+    if target_module not in range(1, MAX_MODULES + 1) or not route_ids:
+        flash("Selecciona un módulo y al menos una ruta.", "error")
+        return redirect(url_for("admin_routes_page", module_number=target_module))
+
+    try:
+        initialize_schema()
+        available_modules = {int(module["id"]) for module in request_modules()}
+        if target_module not in available_modules:
+            flash("El módulo de destino no está disponible.", "error")
+            return redirect(url_for("admin_routes_page"))
+        linked_count = link_routes_to_module(route_ids, target_module)
+        flash(f"{linked_count} ruta(s) vinculada(s) correctamente.", "success")
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("No fue posible vincular las rutas seleccionadas")
+        flash("No se pudieron vincular las rutas seleccionadas.", "error")
+    return redirect(url_for("admin_routes_page", module_number=target_module))
+
+
 @app.post("/administrador/rutas/<int:route_id>/eliminar")
 def admin_delete_route(route_id: int):
     account = session.get("account")
@@ -821,6 +1025,40 @@ def admin_delete_route(route_id: int):
     except Exception:
         flash("No se pudo eliminar la ruta.", "error")
     return redirect(url_for("admin_routes_page"))
+
+
+@app.post("/administrador/rutas/eliminar-seleccionadas")
+def admin_delete_selected_routes():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+
+    try:
+        module_number = int(request.form.get("module_number", ""))
+        route_ids = list(dict.fromkeys(int(value) for value in request.form.getlist("route_ids")))
+    except (TypeError, ValueError):
+        flash("Selecciona un módulo y rutas válidas.", "error")
+        return redirect(url_for("admin_routes_page"))
+
+    if module_number not in range(1, MAX_MODULES + 1) or not route_ids:
+        flash("Selecciona un módulo y al menos una ruta.", "error")
+        return redirect(url_for("admin_routes_page"))
+
+    try:
+        initialize_schema()
+        result = delete_routes_from_module(route_ids, module_number)
+        messages = []
+        if result["deleted_originals"]:
+            messages.append(f'{result["deleted_originals"]} ruta(s) original(es) eliminada(s)')
+        if result["unlinked_shared"]:
+            messages.append(f'{result["unlinked_shared"]} ruta(s) compartida(s) desvinculada(s)')
+        flash("; ".join(messages) + ".", "success")
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("No fue posible eliminar las rutas seleccionadas")
+        flash("No se pudieron eliminar las rutas seleccionadas.", "error")
+    return redirect(url_for("admin_routes_page", module_number=module_number))
 
 
 @app.post("/administrador/rutas/<int:route_id>/estado")
@@ -1113,6 +1351,7 @@ def admin_create_tipo_ruta():
         categoria = str(request.form.get("categoria", "")).strip().lower()
         activo = request.form.get("activo") == "on"
         if not codigo or not descripcion or categoria not in {
+            "trabajo",
             "descanso",
             "falta",
             "vacaciones",
@@ -1387,6 +1626,43 @@ def admin_delete_controller(controller_id: int):
     return redirect(url_for("admin_controllers_page"))
 
 
+@app.post("/administrador/controladores/eliminar-seleccionados")
+def admin_delete_selected_controllers():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+
+    try:
+        module_number = int(request.form.get("module_number", ""))
+        controller_ids = list(dict.fromkeys(int(value) for value in request.form.getlist("controller_ids")))
+    except (TypeError, ValueError):
+        flash("Selecciona un módulo y controladores válidos.", "error")
+        return redirect(url_for("admin_controllers_page"))
+
+    if module_number not in range(1, MAX_MODULES + 1) or not controller_ids:
+        flash("Selecciona un módulo y al menos un controlador.", "error")
+        return redirect(url_for("admin_controllers_page"))
+
+    try:
+        initialize_schema()
+        controllers = delete_controllers_from_module(controller_ids, module_number)
+        for controller in controllers:
+            record_history(
+                account,
+                f"Eliminó controlador {controller['credencial']} (de Controladores)",
+                controller["mod1"],
+                "eliminacion",
+                f"Nombre: {controller['nombre']}; Credencial: {controller['credencial']}; Sexo: {controller['sexo']}",
+            )
+        flash(f"{len(controllers)} controlador(es) eliminado(s) correctamente.", "success")
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("No fue posible eliminar los controladores seleccionados")
+        flash("No se pudieron eliminar los controladores seleccionados.", "error")
+    return redirect(url_for("admin_controllers_page", module_number=module_number))
+
+
 @app.post("/administrador/controladores/<int:controller_id>/estado")
 def admin_toggle_controller_status(controller_id: int):
     account = session.get("account")
@@ -1507,6 +1783,47 @@ def admin_delete_user(user_id: int):
             flash("No se encontró el usuario para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el usuario.", "error")
+    return redirect(url_for("admin_users_page"))
+
+
+@app.post("/administrador/usuarios/eliminar-seleccionados")
+def admin_delete_selected_users():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+
+    try:
+        user_ids = list(dict.fromkeys(int(value) for value in request.form.getlist("user_ids")))
+    except (TypeError, ValueError):
+        flash("Selecciona usuarios válidos.", "error")
+        return redirect(url_for("admin_users_page"))
+
+    if not user_ids:
+        flash("Selecciona al menos un usuario.", "error")
+        return redirect(url_for("admin_users_page"))
+
+    try:
+        initialize_schema()
+        users = delete_users_by_ids(user_ids)
+        for user in users:
+            user_type = {
+                "usuario": "Supervisor",
+                "admin": "Administrador",
+                "consultor": "Consultor",
+            }.get(user["tipo_usuario"], user["tipo_usuario"])
+            record_history(
+                account,
+                f"Eliminó usuario {user['username']} (de Usuarios)",
+                user["module_number"],
+                "eliminacion",
+                f"Tipo: {user_type}",
+            )
+        flash(f"{len(users)} usuario(s) eliminado(s) correctamente.", "success")
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("No fue posible eliminar los usuarios seleccionados")
+        flash("No se pudieron eliminar los usuarios seleccionados.", "error")
     return redirect(url_for("admin_users_page"))
 
 
@@ -1764,12 +2081,19 @@ def add_controller(module_number: int):
         return jsonify(error="No autorizado."), 403
     payload = {key: str(request.form.get(key, "")).strip() for key in ("nombre", "credencial", "sexo")}
     if any(not payload[key] for key in payload):
-        return redirect(url_for("module_dashboard", module_number=module_number))
+        return redirect(url_for(
+            "module_dashboard",
+            module_number=module_number,
+            controller_action="invalid",
+        ))
     if not valid_controller_name(payload["nombre"]) or not valid_controller_credential(payload["credencial"]):
-        return redirect(url_for("module_dashboard", module_number=module_number))
+        return redirect(url_for(
+            "module_dashboard",
+            module_number=module_number,
+            controller_action="invalid",
+        ))
     payload["mod1"] = module_number
-    created_controller = None
-    existing_controller = None
+    payload["active"] = True
     try:
         initialize_schema()
         existing_controller = fetch_controller_by_credential(payload["credencial"])
@@ -1788,16 +2112,25 @@ def add_controller(module_number: int):
             "registro",
             f"Nombre: {created_controller['nombre']}; Credencial: {created_controller['credencial']}; Sexo: {created_controller['sexo']}",
         )
-    except Exception:
-        pass
-    if created_controller:
+    except Exception as error:
+        app.logger.exception(
+            "No se pudo guardar el controlador con credencial %s en el módulo %s",
+            payload["credencial"],
+            module_number,
+        )
+        error_code = getattr(error, "sqlstate", None) or type(error).__name__
         return redirect(url_for(
             "module_dashboard",
             module_number=module_number,
-            controller_action="created",
-            controller_id=created_controller["id"],
+            controller_action="error",
+            controller_error=error_code,
         ))
-    return redirect(url_for("module_dashboard", module_number=module_number))
+    return redirect(url_for(
+        "module_dashboard",
+        module_number=module_number,
+        controller_action="created",
+        controller_id=created_controller["id"],
+    ))
 
 
 @app.route("/api/controladores/<int:controller_id>", methods=["PUT", "DELETE"])
@@ -1945,8 +2278,7 @@ def save_all_records():
         return jsonify(error=f"No se pudieron guardar los registros: {error}"), 400
 
 
-@app.post("/api/records")
-def create_record():
+def _create_record():
     account = session.get("account")
     if not account:
         return jsonify(error="No autorizado."), 403
@@ -1954,7 +2286,7 @@ def create_record():
     module_number = requested_module_number(account, payload)
     if not module_number:
         return jsonify(error="Falta el módulo del rol mensual."), 400
-    required = ("name", "credential", "shift", "route", "nomenclature")
+    required = ("name", "credential")
     if any(not str(payload.get(field, "")).strip() for field in required):
         return jsonify(error="Completa todos los datos del registro."), 400
 
@@ -2002,6 +2334,25 @@ def create_record():
             "nomenclature": nomenclature,
             "code": code,
         }
+    requires_route_assignment = any(
+        normalized_assignments.get(str(day), "").upper() != "MD"
+        for day in work_days
+    ) and any(
+        not str(payload.get(field, "")).strip()
+        for field in ("shift", "route", "nomenclature")
+    )
+    if requires_route_assignment:
+        work_special_codes = {
+            str(item.get("codigo", "")).strip().upper()
+            for item in fetch_catalog_items("estados_especiales")
+            if item.get("categoria") == "trabajo"
+        }
+        if any(
+            normalized_assignments.get(str(day), "").upper() != "MD"
+            and normalized_assignments.get(str(day), "").upper() not in work_special_codes
+            for day in work_days
+        ):
+            return jsonify(error="Completa ruta, turno y nomenclatura para los días de trabajo."), 400
     try:
         deleted_days = sorted({int(day) for day in payload.get("deleted_days", [])})
     except (TypeError, ValueError):
@@ -2014,15 +2365,18 @@ def create_record():
     for day in vacation_days:
         normalized_assignments[str(day)] = "V"
     for day in [day for day in work_days if day not in deleted_days]:
-        normalized_assignments.setdefault(str(day), f"{str(payload['nomenclature']).strip().upper()}{str(payload['shift']).strip()}")
+        normalized_assignments.setdefault(
+            str(day),
+            f"{str(payload.get('nomenclature', '')).strip().upper()}{str(payload.get('shift', '')).strip()}",
+        )
     final_work_days = [day for day in work_days if day not in vacation_days and day not in deleted_days]
     final_rest_days = [day for day in rest_days if day not in vacation_days and day not in deleted_days]
     record = {
         "name": normalize_display_text(payload["name"]),
         "credential": str(payload["credential"]).strip(),
-        "shift": str(payload["shift"]).strip(),
-        "route": normalize_display_text(payload["route"]),
-        "nomenclature": str(payload["nomenclature"]).strip().upper(),
+        "shift": str(payload.get("shift", "")).strip(),
+        "route": normalize_display_text(payload.get("route")),
+        "nomenclature": str(payload.get("nomenclature", "")).strip().upper(),
         "month": month,
         "year": year,
         "module_number": module_number,
@@ -2150,6 +2504,23 @@ def create_record():
         format_code_changes(previous_record, saved),
     )
     return jsonify(saved), 201
+
+
+@app.post("/api/records")
+def create_record():
+    try:
+        return _create_record()
+    except Exception:
+        app.logger.exception("Error no controlado al guardar una asignación del rol mensual")
+        return (
+            jsonify(
+                error=(
+                    "No se pudo guardar la asignación por un error interno. "
+                    "Consulta el traceback del servidor."
+                )
+            ),
+            500,
+        )
 
 
 @app.post("/api/records/delete")

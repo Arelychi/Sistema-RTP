@@ -25,8 +25,7 @@
       {% include 'admin/_sidebar_nav.html' %}
 
       <div class="admin-sidebar-module">
-        <span>Usuario</span>
-        <strong>{{ account.username }}</strong>
+        
         <form method="post" action="{{ url_for('logout') }}">
           <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
         </form>
@@ -54,7 +53,7 @@
       <div class="admin-controller-page-header admin-routes-page-header route-tab-active">
         <div class="admin-local-tabs route-page-tabs controller-page-tabs" role="tablist" aria-label="Sección de controladores">
           <button class="admin-registry-tab controller-page-tab active" type="button" role="tab" aria-selected="true">
-            <span class="admin-page-tab-label">Controladores</span>
+            <span class="admin-page-tab-label">Controladores registrados</span>
             <span class="admin-route-tab-meta">
               <span class="admin-module-header-strong"><strong data-controller-page-count aria-live="polite">0</strong></span>
             </span>
@@ -75,55 +74,90 @@
                   <div class="admin-module-header admin-controller-module-header">
                     <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ group.module_name or 'Módulo ' ~ group.module_number }}</span>
                   </div>
-                  <div class="admin-card-heading">
-                    
-                      <div class="admin-card-title">
-                        <h2>Controladores registrados</h2>
-                      </div>
-                  </div>
-                  <div class="admin-controller-toolbar" role="search">
-                          <label class="controller-filter admin-controller-search" for="controller-search">
+                  
+                  <div class="admin-controller-toolbar" data-controller-toolbar role="search">
+                          <label class="controller-filter admin-controller-search" for="controller-search-{{ group.module_number }}">
                             <span class="controller-filter-label">Buscar</span>
                             <span class="controller-filter-field">
-                              <input id="controller-search" type="search" placeholder="Nombre o credencial" autocomplete="off">
-                              <button id="clear-controller-filter" class="controller-filter-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
+                              <input id="controller-search-{{ group.module_number }}" type="search" data-controller-search placeholder="Nombre o credencial" autocomplete="off">
+                              <button class="controller-filter-clear" data-controller-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
                             </span>
                           </label>
-                          <label class="admin-controller-filter">
-                            <span class="sr-only">Filtrar por estatus</span>
-                            <select id="controller-status-filter">
-                              <option value="Todos">Todos</option>
-                              <option value="Activo">Activos</option>
-                              <option value="Inactivo">Inactivos</option>
-                            </select>
-                          </label>
+                          <div class="admin-route-filter" data-controller-filter>
+                            <button id="{% if loop.first %}controller-status-filter{% else %}controller-status-filter-{{ group.module_number }}{% endif %}" class="admin-route-filter-button" type="button" aria-expanded="false" aria-controls="controller-filters-{{ group.module_number }}" data-controller-filter-toggle>
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6.2 7.1v5.1l-3.6 1.8v-6.9L4 5Z"></path></svg>
+                              <span>Filtros</span>
+                              <span class="admin-route-filter-count" data-controller-filter-count hidden>0</span>
+                            </button>
+                            <div class="admin-route-filter-panel" id="controller-filters-{{ group.module_number }}" data-controller-filter-panel hidden>
+                              <div class="admin-route-filter-heading">
+                                <strong>Filtros</strong>
+                                <button type="button" data-controller-filter-clear>Limpiar</button>
+                              </div>
+                              <details class="admin-route-filter-category" open>
+                                <summary>Género</summary>
+                                <div class="admin-route-filter-options">
+                                  <label><input type="checkbox" data-controller-filter-option="gender" value="Femenino"><span>Femenino</span></label>
+                                  <label><input type="checkbox" data-controller-filter-option="gender" value="Masculino"><span>Masculino</span></label>
+                                  <label><input type="checkbox" data-controller-filter-option="gender" value="Otro"><span>Otro</span></label>
+                                </div>
+                              </details>
+                              <details class="admin-route-filter-category" open>
+                                <summary>Estatus</summary>
+                                <div class="admin-route-filter-options">
+                                  <label><input type="checkbox" data-controller-filter-option="status" value="Activo"><span>Activos</span></label>
+                                  <label><input type="checkbox" data-controller-filter-option="status" value="Inactivo"><span>Inactivos</span></label>
+                                </div>
+                              </details>
+                            </div>
+                          </div>
                           {% if not is_read_only_account %}
-                          <button class="admin-primary-button admin-create-controller-button" type="button" data-controller-modal-open>Crear controlador</button>
+                          <button class="admin-route-cancel-selection" type="button" data-controller-cancel-selection hidden>Cancelar selección</button>
+                          <button class="admin-primary-button admin-create-controller-button" type="button" data-controller-create-or-delete data-controller-modal-open>Crear controlador</button>
                           {% endif %}
                   </div>
+                  {% if not is_read_only_account %}
+                  <form class="admin-controller-bulk-delete-form" method="post" action="{{ url_for('admin_delete_selected_controllers') }}" data-controller-bulk-delete-form data-delete-confirm-form data-delete-kind="controladores seleccionados" data-delete-name="controladores seleccionados" data-delete-message="Se eliminarán los controladores seleccionados. Esta acción no se puede deshacer." hidden>
+                    <input type="hidden" name="module_number" value="{{ group.module_number }}">
+                    <div data-controller-bulk-delete-inputs></div>
+                  </form>
+                  {% endif %}
                   {% if group.controllers %}
-                    <div class="admin-controller-table-head" aria-hidden="true">
-                      <span>Nombre</span>
-                      <span>Credencial</span>
-                      <span>Genero</span>
-                      <span>Estatus</span>
-                      <span>Acciones</span>
+                    <div class="admin-controller-table {% if not is_read_only_account %}admin-controller-selectable{% endif %}" role="table" aria-label="Controladores del {{ group.module_name or 'Módulo ' ~ group.module_number }}">
+                    <div class="admin-controller-table-head" role="row">
+                      {% if not is_read_only_account %}
+                      <span class="admin-route-select-column" role="columnheader">
+                        <input type="checkbox" data-controller-select-all aria-label="Seleccionar todos los controladores visibles">
+                      </span>
+                      {% endif %}
+                      <span role="columnheader">Nombre del controlador</span>
+                      <span role="columnheader">Credencial</span>
+                      <span role="columnheader">Género</span>
+                      <span role="columnheader">Estatus</span>
+                      <span role="columnheader">Acciones</span>
                     </div>
-                    <ul class="admin-controller-list">
+                    <ul class="admin-controller-list" role="rowgroup">
                       {% for controller in group.controllers %}
-                        <li class="admin-controller-item" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}">
-                          <div class="admin-controller-name">
+                        <li class="admin-controller-item" role="row" data-admin-save-row="{{ controller.credencial }}" data-controller-id="{{ controller.id }}" data-controller-name="{{ controller.nombre }}" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}" data-controller-gender="{{ controller.sexo }}">
+                          {% if not is_read_only_account %}
+                          <span class="admin-route-select-column" role="cell">
+                            <label class="admin-route-select-control" title="Seleccionar controlador para eliminar">
+                              <input type="checkbox" data-controller-bulk-select value="{{ controller.id }}" aria-label="Seleccionar {{ controller.nombre }} para eliminar">
+                            </label>
+                          </span>
+                          {% endif %}
+                          <div class="admin-controller-name" role="cell">
                             <strong>{{ controller.nombre }}</strong>
                           </div>
-                          <div class="admin-controller-credential">
+                          <div class="admin-controller-credential" role="cell">
                             <span>{{ controller.credencial }}</span>
                           </div>
-                          <div class="admin-controller-gender">
+                          <div class="admin-controller-gender" role="cell">
                             <span>{{ controller.sexo }}</span>
                           </div>
 
 
-                          <div class="admin-controller-status">
+                          <div class="admin-controller-status" role="cell">
 
                                 {% if not is_read_only_account %}
 
@@ -141,6 +175,7 @@
                                     <label
                                         class="route-switch"
                                         title="Cambiar estado del controlador"
+                                        data-controller-status-action
                                     >
 
                                         <input
@@ -169,7 +204,7 @@
 
                                 {% else %}
 
-                                    <span class="route-status-readonly">
+                                    <span class="route-status-readonly {{ 'is-active' if controller.active else 'is-inactive' }}">
                                         <span class="route-status-dot"></span>
                                         {{ 'Activo' if controller.active else 'Inactivo' }}
                                     </span>
@@ -180,16 +215,28 @@
 
 
                           {% if not is_read_only_account %}
-                          <div class="admin-controller-actions">
-                            <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}">Editar</a>
-                            <form method="post" action="{{ url_for('admin_delete_controller', controller_id=controller.id) }}" onsubmit="return confirm('¿Deseas eliminar este controlador?');">
-                              <button class="admin-delete-button" type="submit">Eliminar</button>
+                          <div class="admin-controller-actions" role="cell">
+                            <div class="admin-controller-individual-actions" data-controller-individual-actions>
+                            <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}" aria-label="Editar {{ controller.nombre }}" title="Editar controlador">
+                              <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
+                              <span class="sr-only">Editar</span>
+                            </a>
+                            <form method="post" action="{{ url_for('admin_delete_controller', controller_id=controller.id) }}" data-controller-delete-form data-delete-confirm-form data-delete-kind="controlador" data-delete-name="{{ controller.nombre }}">
+                              <button class="admin-delete-button" type="submit" aria-label="Eliminar {{ controller.nombre }}" title="Eliminar controlador">
+                                <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
+                                <span class="sr-only">Eliminar</span>
+                              </button>
                             </form>
+                            </div>
                           </div>
+                          {% else %}
+                          <div class="admin-controller-actions" role="cell" aria-hidden="true"></div>
                           {% endif %}
                         </li>
                       {% endfor %}
                     </ul>
+                    </div>
+                    {% include 'admin/_pagination.html' %}
                   {% else %}
                     <p class="empty-state">Sin controladores en este módulo.</p>
                   {% endif %}
@@ -201,6 +248,8 @@
       </div>
 
       {% if not is_read_only_account %}
+      {% include 'admin/_delete_confirmation_modal.html' %}
+      {% include 'admin/_save_feedback.html' %}
       <div class="admin-controller-modal" id="controller-form-modal" role="dialog" aria-modal="true" aria-labelledby="controller-form-title" {% if not editing_controller %}hidden{% endif %}>
         <div class="admin-controller-modal-dialog">
           <section class="admin-panel-card admin-form-panel">
@@ -216,7 +265,7 @@
             </div>
 
             <div class="admin-form-shell">
-              <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form">
+              <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="credencial" data-admin-save-scope-field="mod1" data-admin-save-selector=".admin-controller-item[data-admin-save-row]" data-admin-save-label="{{ 'Actualizando controlador...' if editing_controller else 'Guardando controlador...' }}">
                 {% if editing_controller %}
                   <input type="hidden" name="controller_id" value="{{ editing_controller.id }}">
                 {% endif %}
@@ -235,7 +284,6 @@
                   <label class="admin-route-field admin-controller-field controller-field-full-row">
                     Género <span class="required-label-note">* Campo Obligatorio</span>
                     <select name="sexo" required>
-                      <option value="">Selecciona</option>
                       <option value="Masculino" {% if editing_controller and editing_controller.sexo == 'Masculino' %}selected{% endif %}>Masculino</option>
                       <option value="Femenino" {% if editing_controller and editing_controller.sexo == 'Femenino' %}selected{% endif %}>Femenino</option>
                       <option value="Otro" {% if editing_controller and editing_controller.sexo == 'Otro' %}selected{% endif %}>Otro</option>
@@ -298,10 +346,7 @@
     document.addEventListener('DOMContentLoaded', function () {
       const tabs = document.querySelectorAll('.admin-registry-tab:not(.controller-page-tab)');
       const contents = document.querySelectorAll('.admin-registry-content');
-      const controllerSearch = document.querySelector('#controller-search');
-      const clearControllerFilter = document.querySelector('#clear-controller-filter');
-      const controllerStatusFilter = document.querySelector('#controller-status-filter');
-      const controllerRows = document.querySelectorAll('.admin-controller-item');
+      const controllerToolbars = document.querySelectorAll('[data-controller-toolbar]');
       const controllerModal = document.querySelector('#controller-form-modal');
       const controllerModalOpenButtons = document.querySelectorAll('[data-controller-modal-open]');
       const controllerModalCloseButtons = document.querySelectorAll('[data-controller-modal-close]');
@@ -366,26 +411,182 @@
         setControllerPageCount(moduleId);
       });
 
-      function filterControllers() {
-        const query = controllerSearch?.value.trim().toLowerCase() || '';
-        const status = controllerStatusFilter?.value || 'Todos';
+      controllerToolbars.forEach(function (toolbar) {
+        const group = toolbar.closest('.admin-module-group');
+        const search = toolbar.querySelector('[data-controller-search]');
+        const clearSearch = toolbar.querySelector('[data-controller-search-clear]');
+        const filter = toolbar.querySelector('[data-controller-filter]');
+        const filterToggle = filter?.querySelector('[data-controller-filter-toggle]');
+        const filterPanel = filter?.querySelector('[data-controller-filter-panel]');
+        const filterCount = filter?.querySelector('[data-controller-filter-count]');
+        const filterOptions = filterPanel?.querySelectorAll('[data-controller-filter-option]') || [];
+        const clearFilters = filterPanel?.querySelector('[data-controller-filter-clear]');
+        const rows = group?.querySelectorAll('.admin-controller-item') || [];
+        const checkboxes = Array.from(group?.querySelectorAll('[data-controller-bulk-select]') || []);
+        const selectAll = group?.querySelector('[data-controller-select-all]');
+        const cancelSelectionButton = toolbar.querySelector('[data-controller-cancel-selection]');
+        const createOrDeleteButton = toolbar.querySelector('[data-controller-create-or-delete]');
+        const bulkDeleteForm = group?.querySelector('[data-controller-bulk-delete-form]');
+        const bulkDeleteInputs = bulkDeleteForm?.querySelector('[data-controller-bulk-delete-inputs]');
+        const pagination = group?.querySelector('[data-admin-pagination]');
+        const pageSummary = pagination?.querySelector('[data-admin-pagination-summary]');
+        const pageStatus = pagination?.querySelector('[data-admin-page-status]');
+        const previousPageButton = pagination?.querySelector('[data-admin-page-prev]');
+        const nextPageButton = pagination?.querySelector('[data-admin-page-next]');
+        const pageSize = 10;
+        let currentPage = 1;
 
-        if (clearControllerFilter) clearControllerFilter.hidden = !query;
+        function updatePagination(resetPage) {
+          if (!pagination) return;
+          if (resetPage) currentPage = 1;
+          const matchingRows = Array.from(rows).filter((row) => row.dataset.controllerFilterMatch !== 'false');
+          const pageCount = Math.max(1, Math.ceil(matchingRows.length / pageSize));
+          currentPage = Math.min(currentPage, pageCount);
+          const startIndex = (currentPage - 1) * pageSize;
+          const visibleRows = new Set(matchingRows.slice(startIndex, startIndex + pageSize));
 
-        controllerRows.forEach(function (row) {
-          const matchesQuery = row.textContent.toLowerCase().includes(query);
-          const matchesStatus = status === 'Todos' || row.dataset.controllerStatus === status;
-          row.hidden = !matchesQuery || !matchesStatus;
+          rows.forEach((row) => { row.hidden = !visibleRows.has(row); });
+          if (pageSummary) {
+            const firstVisible = matchingRows.length ? startIndex + 1 : 0;
+            const lastVisible = Math.min(startIndex + pageSize, matchingRows.length);
+            pageSummary.textContent = `Mostrando ${firstVisible}-${lastVisible} de ${matchingRows.length}`;
+          }
+          if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${pageCount}`;
+          if (previousPageButton) previousPageButton.disabled = currentPage <= 1;
+          if (nextPageButton) nextPageButton.disabled = currentPage >= pageCount;
+        }
+
+        function updateBulkSelection() {
+          const selected = checkboxes.filter((checkbox) => checkbox.checked);
+          const selectionMode = selected.length > 0;
+          group?.classList.toggle('is-controller-selection-mode', selectionMode);
+          toolbar.classList.toggle('is-controller-selection-mode', selectionMode);
+          checkboxes.forEach(function (checkbox) {
+            const row = checkbox.closest('.admin-controller-item');
+            const individualActions = row?.querySelector('[data-controller-individual-actions]');
+            const statusInput = row?.querySelector('.admin-controller-status .route-switch input[type="checkbox"]');
+            if (individualActions) individualActions.hidden = selectionMode;
+            if (statusInput) statusInput.disabled = selectionMode;
+            row?.classList.toggle('is-bulk-selected', checkbox.checked);
+          });
+          if (selectAll) {
+            const visible = checkboxes.filter((checkbox) => !checkbox.closest('.admin-controller-item')?.hidden);
+            const visibleSelected = visible.filter((checkbox) => checkbox.checked);
+            selectAll.checked = visible.length > 0 && visibleSelected.length === visible.length;
+            selectAll.indeterminate = visibleSelected.length > 0 && visibleSelected.length < visible.length;
+            selectAll.disabled = visible.length === 0;
+          }
+          if (cancelSelectionButton) cancelSelectionButton.hidden = !selectionMode;
+          if (createOrDeleteButton) {
+            createOrDeleteButton.textContent = selectionMode ? 'Eliminar registros' : 'Crear controlador';
+            createOrDeleteButton.classList.toggle('is-bulk-delete', selectionMode);
+            createOrDeleteButton.setAttribute('aria-label', selectionMode ? 'Eliminar registros seleccionados' : 'Crear controlador');
+          }
+        }
+
+        function submitBulkDelete() {
+          if (!bulkDeleteForm || !bulkDeleteInputs) return;
+          const selected = checkboxes.filter((checkbox) => checkbox.checked);
+          if (!selected.length) return;
+          bulkDeleteInputs.replaceChildren();
+          selected.forEach(function (checkbox) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'controller_ids';
+            input.value = checkbox.value;
+            bulkDeleteInputs.appendChild(input);
+          });
+          const names = selected.map((checkbox) => checkbox.closest('.admin-controller-item')?.dataset.controllerName).filter(Boolean);
+          bulkDeleteForm.dataset.deleteMessage = `Se eliminarán ${names.length} controlador(es) seleccionado(s). Esta acción no se puede deshacer.`;
+          bulkDeleteForm.requestSubmit();
+        }
+
+        function filterControllers() {
+          const query = search?.value.trim().toLowerCase() || '';
+          const selected = { gender: [], status: [] };
+          filterOptions.forEach(function (option) {
+            if (option.checked) selected[option.dataset.controllerFilterOption].push(option.value);
+          });
+
+          if (clearSearch) clearSearch.hidden = !query;
+          rows.forEach(function (row) {
+            const matchesQuery = row.textContent.toLowerCase().includes(query);
+            const gender = row.dataset.controllerGender?.trim().toLocaleLowerCase();
+            const matchesGender = !selected.gender.length
+              || selected.gender.some((value) => value.toLocaleLowerCase() === gender);
+            const matchesStatus = !selected.status.length || selected.status.includes(row.dataset.controllerStatus);
+            row.dataset.controllerFilterMatch = String(matchesQuery && matchesGender && matchesStatus);
+          });
+          updatePagination(true);
+          updateBulkSelection();
+
+          const selectedCount = selected.gender.length + selected.status.length;
+          if (filterCount) {
+            filterCount.textContent = String(selectedCount);
+            filterCount.hidden = selectedCount === 0;
+          }
+          filterToggle?.classList.toggle('is-active', selectedCount > 0);
+        }
+
+        search?.addEventListener('input', filterControllers);
+        filterOptions.forEach((option) => option.addEventListener('change', filterControllers));
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkSelection));
+        selectAll?.addEventListener('change', function () {
+          checkboxes.forEach(function (checkbox) {
+            if (!checkbox.closest('.admin-controller-item')?.hidden) checkbox.checked = selectAll.checked;
+          });
+          updateBulkSelection();
         });
-      }
-
-      controllerSearch?.addEventListener('input', filterControllers);
-      controllerStatusFilter?.addEventListener('change', filterControllers);
-      clearControllerFilter?.addEventListener('click', function () {
-        if (!controllerSearch) return;
-        controllerSearch.value = '';
+        cancelSelectionButton?.addEventListener('click', function () {
+          checkboxes.forEach((checkbox) => { checkbox.checked = false; });
+          updateBulkSelection();
+        });
+        createOrDeleteButton?.addEventListener('click', function (event) {
+          if (!checkboxes.some((checkbox) => checkbox.checked)) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          submitBulkDelete();
+        });
+        previousPageButton?.addEventListener('click', function () {
+          if (currentPage <= 1) return;
+          currentPage -= 1;
+          updatePagination(false);
+          updateBulkSelection();
+        });
+        nextPageButton?.addEventListener('click', function () {
+          currentPage += 1;
+          updatePagination(false);
+          updateBulkSelection();
+        });
+        filterToggle?.addEventListener('click', function () {
+          const isExpanded = filterToggle.getAttribute('aria-expanded') === 'true';
+          filterToggle.setAttribute('aria-expanded', String(!isExpanded));
+          if (filterPanel) filterPanel.hidden = isExpanded;
+        });
+        clearFilters?.addEventListener('click', function () {
+          filterOptions.forEach((option) => { option.checked = false; });
+          filterControllers();
+        });
+        clearSearch?.addEventListener('click', function () {
+          if (!search) return;
+          search.value = '';
+          filterControllers();
+          search.focus();
+        });
+        document.addEventListener('click', function (event) {
+          if (filter && !filter.contains(event.target)) {
+            if (filterPanel) filterPanel.hidden = true;
+            filterToggle?.setAttribute('aria-expanded', 'false');
+          }
+        });
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && filterPanel && !filterPanel.hidden) {
+            filterPanel.hidden = true;
+            filterToggle?.setAttribute('aria-expanded', 'false');
+            filterToggle?.focus();
+          }
+        });
         filterControllers();
-        controllerSearch.focus();
       });
 
       controllerFormName?.addEventListener('input', function () {
@@ -468,6 +669,9 @@
 
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
+  {% include 'admin/_notification_toast.html' %}
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

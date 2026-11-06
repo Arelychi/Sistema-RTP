@@ -1,10 +1,12 @@
 <nav aria-label="Navegación administrativa">
+  <div class="menu-principal">Menú Principal</div>
   <a class="admin-nav-section {% if request.endpoint in ['admin_dashboard', 'admin_controllers_page'] %}active{% endif %}" href="{{ url_for('admin_controllers_page') }}">Controladores</a>
-  <a class="admin-nav-section {% if request.endpoint == 'admin_routes_page' %}active{% endif %}" href="{{ url_for('admin_routes_page') }}">Creación de Rutas</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_routes_page' %}active{% endif %}" href="{{ url_for('admin_routes_page') }}">Rutas</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_users_page' %}active{% endif %}" href="{{ url_for('admin_users_page') }}">Usuarios</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_turnos_page' %}active{% endif %}" href="{{ url_for('admin_turnos_page') }}">Turnos</a>
-  <a class="admin-nav-section {% if request.endpoint == 'admin_modules_page' %}active{% endif %}" href="{{ url_for('admin_modules_page') }}">Creación de modulos</a>
+  <a class="admin-nav-section {% if request.endpoint == 'admin_modules_page' %}active{% endif %}" href="{{ url_for('admin_modules_page') }}">Modulos</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_monthly_role_page' %}active{% endif %}" href="{{ url_for('admin_monthly_role_page') }}">Rol Mensual</a>
+  <div class="menu-principal">Reportes & sistema</div> 
   <a class="admin-nav-section {% if request.endpoint == 'admin_analysis_page' %}active{% endif %}" href="{{ url_for('admin_analysis_page') }}">Análisis</a>
   <a class="admin-nav-section {% if request.endpoint == 'admin_history_page' %}active{% endif %}" href="{{ url_for('admin_history_page') }}">Historial</a>
 </nav>

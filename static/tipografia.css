@@ -192,12 +192,13 @@ body[data-module] .sidebar-module button {
 body[data-module] .sidebar-module button,
 body.admin-page-body .admin-sidebar-module button {
   color: #fff !important;
-  background: #346532 !important;
+  background: #42783f !important
 }
 
 body[data-module] .sidebar-module button:hover,
 body.admin-page-body .admin-sidebar-module button:hover {
-  background: #588d29 !important;
+  background: #346532 !important;
+  transform: translateY(-1px);
 }
 
 
@@ -211,29 +212,14 @@ body[data-module] .export-button,
 body.admin-page-body .primary-button,
 body.admin-page-body .secondary-button,
 body.admin-page-body .admin-primary-button,
-body.admin-page-body .admin-edit-button,
+
 body.admin-page-body .admin-submit-button,
 body.admin-page-body .admin-action-button {
   border-radius: 5px;
   background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
 }
 
-body[data-module] .primary-button:hover,
-body[data-module] .secondary-button:hover,
-body[data-module] .create-button:hover,
-body[data-module] .save-button:hover,
-body[data-module] .download-button:hover,
-body[data-module] .export-button:hover,
-body.admin-page-body .primary-button:hover,
-body.admin-page-body .secondary-button:hover,
-body.admin-page-body .admin-primary-button:hover,
-body.admin-page-body .admin-edit-button:hover,
-body.admin-page-body .admin-submit-button:hover,
-body.admin-page-body .admin-action-button:hover {
-  border-radius: 5px;
-  background: url("imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
-  border-color: #346532 !important;
-}
+
 
 body.admin-page-body .admin-secondary-button {
   color: #588d29 !important;
@@ -375,7 +361,7 @@ body.sidebar-collapsed .admin-sidebar-brand {
 body.sidebar-collapsed .sidebar-toggle,
 body.sidebar-collapsed .admin-sidebar .sidebar-toggle {
   position: fixed !important;
-  top: 70px !important;
+  
   left: 12px !important;
   right: auto !important;
   z-index: 1000 !important;
@@ -483,7 +469,7 @@ body[data-module] .sidebar nav a i {
 body[data-module] .sidebar nav a::before {
   display: inline-grid;
   width: 30px;
-  height: 30px;
+  
   flex: 0 0 30px;
   place-items: center;
   color: currentColor;

@@ -18,6 +18,14 @@ document.addEventListener('DOMContentLoaded', function () {
     '6': '#266cb4',
     '7': '#e5074c'
   };
+
+  function updateSharedRouteBadgeColors() {
+    document.querySelectorAll('.admin-route-shared-module-badge[data-route-source-module]').forEach(function (badge) {
+      const sourceModule = badge.dataset.routeSourceModule;
+      badge.style.setProperty('--route-shared-module-color', moduleColors[sourceModule] || '#183b59');
+    });
+  }
+
   let selectedModule = availableModules.includes(queryModule)
     ? queryModule
     : availableModules.includes(storedModule) ? storedModule : availableModules[0];
@@ -42,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function updateModuleView() {
+  function updateModuleView(previousModuleId = selectedModule) {
     localStorage.setItem(storageKey, selectedModule);
     document.querySelectorAll('[data-admin-module]').forEach(function (tab) {
       const active = tab.dataset.adminModule === selectedModule;
@@ -69,15 +77,21 @@ document.addEventListener('DOMContentLoaded', function () {
       link.href = url.toString();
     });
     document.dispatchEvent(new CustomEvent('admin-module-changed', {
-      detail: { moduleId: selectedModule }
+      detail: {
+        moduleId: selectedModule,
+        previousModuleId,
+        changed: previousModuleId !== selectedModule
+      }
     }));
     updateHeaderModuleIndicator();
+    updateSharedRouteBadgeColors();
   }
 
   function selectModule(moduleNumber, navigate) {
     if (!availableModules.includes(moduleNumber)) return;
+    const previousModuleId = selectedModule;
     selectedModule = moduleNumber;
-    updateModuleView();
+    updateModuleView(previousModuleId);
     if (navigate) {
       const url = new URL(window.location.href);
       url.searchParams.set('module_number', selectedModule);

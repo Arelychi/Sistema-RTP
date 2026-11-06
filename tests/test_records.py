@@ -60,6 +60,178 @@ def test_daily_details_are_updated_without_changing_other_days(monkeypatch):
         assert saved["daily_assignments"]["2"] == "A1"
 
 
+def test_md_assignment_is_saved_as_a_work_day(monkeypatch):
+    force_memory_mode(monkeypatch)
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            work_days=[3],
+            rest_days=[],
+            daily_assignments={"3": "MD"},
+            daily_details={},
+        )
+
+        assert response.status_code == 201
+        saved = response.get_json()
+        assert 3 in saved["work_days"]
+        assert saved["daily_assignments"]["3"] == "MD"
+
+        fetched = client.get(f"/api/records?month={TEST_MONTH}&year={TEST_YEAR}")
+        assert fetched.status_code == 200
+        assert fetched.get_json()[0]["work_days"] == [3]
+        assert fetched.get_json()[0]["daily_assignments"]["3"] == "MD"
+
+
+def test_md_assignment_without_route_uses_database_save_path(monkeypatch):
+    persisted = {}
+    saved = {
+        "id": 12,
+        "name": "Arely",
+        "credential": "AR-01",
+        "shift": "",
+        "route": "",
+        "nomenclature": "",
+        "month": TEST_MONTH,
+        "year": TEST_YEAR,
+        "work_days": [3],
+        "rest_days": [],
+        "daily_assignments": {"3": "MD"},
+        "daily_details": {},
+        "module_number": 1,
+    }
+
+    def fake_upsert_record(record):
+        persisted.update(record)
+        return dict(saved)
+
+    monkeypatch.setattr(web, "initialize_schema", lambda: None)
+    monkeypatch.setattr(web, "records_for", lambda *args: [])
+    monkeypatch.setattr(web, "upsert_record", fake_upsert_record)
+    monkeypatch.setattr(web, "refresh_analysis_tables", lambda: None)
+    monkeypatch.setattr(web, "record_history", lambda *args, **kwargs: None)
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            route="",
+            shift="",
+            nomenclature="",
+            work_days=[3],
+            rest_days=[],
+            daily_assignments={"3": "MD"},
+            daily_details={},
+        )
+
+    assert response.status_code == 201
+    assert persisted["route"] == ""
+    assert persisted["shift"] == ""
+    assert json.loads(persisted["daily_assignments"]) == {"3": "MD"}
+    assert response.get_json()["work_days"] == [3]
+
+
+def test_work_category_special_assignment_is_saved_as_work_without_route(monkeypatch):
+    force_memory_mode(monkeypatch)
+    monkeypatch.setattr(
+        web,
+        "fetch_catalog_items",
+        lambda catalog: [{"codigo": "TR", "categoria": "trabajo"}],
+    )
+    monkeypatch.setattr(web, "record_history", lambda *args, **kwargs: None)
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            route="",
+            shift="",
+            nomenclature="",
+            work_days=[3],
+            rest_days=[],
+            daily_assignments={"3": "TR"},
+            daily_details={},
+        )
+
+    assert response.status_code == 201
+    saved = response.get_json()
+    assert saved["work_days"] == [3]
+    assert saved["daily_assignments"]["3"] == "TR"
+
+
+def test_unhandled_record_save_error_returns_json_with_http_500(monkeypatch):
+    def fail_before_save(*args):
+        raise RuntimeError("unexpected failure")
+
+    monkeypatch.setattr(web, "monthly_role_is_closed", fail_before_save)
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            work_days=[3],
+            daily_assignments={"3": "MD"},
+            daily_details={},
+        )
+
+    assert response.status_code == 500
+    assert response.is_json
+    assert "traceback del servidor" in response.get_json()["error"]
+
+
+def test_non_work_assignments_can_be_saved_without_route(monkeypatch):
+    force_memory_mode(monkeypatch)
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            route="",
+            shift="",
+            nomenclature="",
+            work_days=[],
+            rest_days=[1],
+            daily_assignments={"1": "D", "2": "F"},
+            daily_details={},
+        )
+
+    assert response.status_code == 201
+    saved = response.get_json()
+    assert saved["route"] == ""
+    assert saved["shift"] == ""
+    assert saved["rest_days"] == [1]
+    assert saved["daily_assignments"] == {"1": "D", "2": "F"}
+
+
+def test_regular_work_assignment_still_requires_route_details(monkeypatch):
+    force_memory_mode(monkeypatch)
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            route="",
+            shift="",
+            nomenclature="",
+            work_days=[1],
+            daily_assignments={"1": "A1"},
+            daily_details={},
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Completa ruta, turno y nomenclatura para los días de trabajo."
+
+
 def test_single_record_save_refreshes_analysis_tables(monkeypatch):
     refreshed = []
     saved_record = {
@@ -178,6 +350,46 @@ def test_special_rest_code_is_preserved_and_counted_as_rest_in_memory(monkeypatc
         assert fetched.status_code == 200
         assert fetched.get_json()[0]["daily_assignments"]["1"] == "D/F"
         assert fetched.get_json()[0]["rest_days"] == [1]
+
+
+def test_role_status_codes_keep_their_own_assignments_in_memory(monkeypatch):
+    force_memory_mode(monkeypatch)
+    assignments = {
+        "1": "MD",
+        "3": "V",
+        "4": "C/D",
+        "5": "D/F",
+        "6": "F",
+        "7": "I",
+        "8": "SE",
+    }
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["account"] = {"username": "user1", "module_number": 1, "is_admin": False}
+
+        response = post_record(
+            client,
+            work_days=[1],
+            rest_days=[2, 4, 5],
+            vacation_days=[3],
+            daily_assignments=assignments,
+            daily_details={},
+        )
+
+        assert response.status_code == 201
+        saved = response.get_json()
+        assert saved["daily_assignments"] == assignments
+        assert saved["work_days"] == [1]
+        assert saved["rest_days"] == [2, 4, 5]
+        assert saved["daily_assignments"]["3"] == "V"
+
+        fetched = client.get(f"/api/records?month={TEST_MONTH}&year={TEST_YEAR}")
+        assert fetched.status_code == 200
+        fetched_record = fetched.get_json()[0]
+        assert fetched_record["daily_assignments"] == assignments
+        assert fetched_record["work_days"] == [1]
+        assert fetched_record["rest_days"] == [2, 4, 5]
 
 
 def test_delete_record_by_credential(monkeypatch):

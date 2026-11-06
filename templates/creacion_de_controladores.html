@@ -22,7 +22,7 @@
 
 </head>
 
-<body class="module-page" data-module="{{ module_number }}" data-controller-action="{{ request.args.get('controller_action', '') }}" data-controller-id="{{ request.args.get('controller_id', '') }}">
+<body class="module-page" data-module="{{ module_number }}" data-controller-action="{{ request.args.get('controller_action', '') }}" data-controller-id="{{ request.args.get('controller_id', '') }}" data-controller-error="{{ request.args.get('controller_error', '') }}">
 
 <main class="app-layout">
 
@@ -512,6 +512,8 @@
             duplicate: 'Controlador ya registrado',
             updated: 'Controlador actualizado',
             deleted: 'Controlador eliminado',
+            invalid: 'Revisa el nombre, credencial y sexo del controlador',
+            error: 'No se pudo guardar el controlador. Revisa la conexión con la base de datos.',
         };
         const row = controllerId
             ? document.querySelector(`tr[data-id="${CSS.escape(String(controllerId))}"]`)
@@ -526,7 +528,17 @@
         }
 
         if (feedback) {
-            feedback.textContent = labels[action] || 'Operación completada';
+            const errorCode = document.body.dataset.controllerError;
+            const errorMessages = {
+                '23502': 'Falta un dato obligatorio en la base de datos.',
+                '23503': 'El módulo seleccionado no existe en la base de datos.',
+                '23505': 'La credencial ya está registrada.',
+                '23514': 'Un dato no cumple las reglas de la base de datos.',
+                '22001': 'Uno de los datos excede la longitud permitida.',
+            };
+            feedback.textContent = action === 'error'
+                ? `${errorMessages[errorCode] || 'No se pudo guardar el controlador.'} Diagnóstico: ${errorCode || 'sin código'}.`
+                : labels[action] || 'Operación completada';
             feedback.classList.add('is-visible');
             window.setTimeout(() => feedback.classList.remove('is-visible'), 3200);
         }

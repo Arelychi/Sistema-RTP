@@ -17,8 +17,7 @@
       </div>
       {% include 'admin/_sidebar_nav.html' %}
       <div class="admin-sidebar-module">
-        <span>Usuario</span>
-        <strong>{{ account.username }}</strong>
+        
         <form method="post" action="{{ url_for('logout') }}">
           <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
         </form>
@@ -110,5 +109,6 @@
   </main>
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  {% include 'admin/_notification_toast.html' %}
 </body>
 </html>

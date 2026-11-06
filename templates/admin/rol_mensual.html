@@ -5,9 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
   <title>Rol mensual | Administrador</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='rol_de_controladores.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
 </head>
-<body class="admin-page-body">
+<body
+  class="admin-page-body module-page admin-embedded-role admin-role-standalone"
+  data-module="{{ module_number or '' }}"
+  data-year="{{ today.year }}"
+  data-month="{{ today.month }}"
+  data-day="{{ today.day }}"
+  data-table-only="false"
+  data-today-year="{{ today.year }}"
+  data-today-month="{{ today.month }}"
+>
   <main class="admin-dashboard-layout">
     <aside class="admin-sidebar">
       <div class="admin-sidebar-brand">
@@ -17,8 +27,7 @@
       </div>
       {% include 'admin/_sidebar_nav.html' %}
       <div class="admin-sidebar-module">
-        <span>Usuario</span>
-        <strong>{{ account.username }}</strong>
+        
         <form method="post" action="{{ url_for('logout') }}">
           <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
         </form>
@@ -27,16 +36,7 @@
 
     <div class="admin-workspace">
       {% include 'admin/_module_tabs.html' %}
-      <section class="admin-main-content">
-      <header class="admin-header">
-        <div>
-          <p class="eyebrow">Sistema</p>
-          <h1>Rol mensual</h1>
-          <p class="subtitle">Selecciona un módulo para consultar su programación mensual</p>
-        </div>
-        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
-      </header>
-
+      <section class="admin-main-content admin-role-page-content">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="admin-alerts" aria-live="polite">
@@ -47,48 +47,40 @@
         {% endif %}
       {% endwith %}
 
-      <div class="admin-local-tabs route-page-tabs" role="tablist" aria-label="Secciones de rol mensual">
-        <button class="admin-registry-tab {% if not editing_estado_especial %}active{% endif %}" type="button" data-role-page-tab="monthly-role-section" aria-selected="{{ 'true' if not editing_estado_especial else 'false' }}">Rol mensual</button>
-        <button class="admin-registry-tab {% if editing_estado_especial %}active{% endif %}" type="button" data-role-page-tab="special-status-section" aria-selected="{{ 'true' if editing_estado_especial else 'false' }}">Estados especiales</button>
-      </div>
-
-      <section id="monthly-role-section" class="admin-role-page-section" {% if editing_estado_especial %}hidden{% endif %}>
-        <section class="admin-panel-card admin-registry-panel admin-route-panel">
-        <div class="admin-card-heading">
-          <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Módulos disponibles</h2></div>
-        </div>
-        {% if modules %}
-          <div class="admin-registry-contents">
-            {% for module in modules %}
-              <div class="admin-registry-content" data-admin-module-panel="{{ module.id }}" id="role-module-{{ module.id }}" role="tabpanel">
-                <div class="admin-module-group admin-module-group-tabbed admin-monthly-role-frame">
-                  <div class="admin-module-header">
-                    <span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">{{ module.nombre }}</span>
-                    <strong>Rol mensual</strong>
-                  </div>
-                  <iframe
-                    class="admin-monthly-role-iframe"
-                    src="{{ url_for('schedule_dashboard', module_number=module.id, admin_embed=1) }}"
-                    title="Rol mensual de {{ module.nombre }}"
-                    loading="lazy"
-                  ></iframe>
-                </div>
-              </div>
-            {% endfor %}
+      <div class="admin-module-header admin-routes-page-header admin-role-page-header {% if editing_estado_especial %}catalog-tab-active{% else %}route-tab-active{% endif %}">
+          <div class="admin-local-tabs route-page-tabs admin-role-page-tabs" role="tablist" aria-label="Secciones de rol mensual">
+            <button class="admin-registry-tab {% if not editing_estado_especial %}active{% endif %}" type="button" data-role-page-tab="monthly-role-section" aria-selected="{{ 'true' if not editing_estado_especial else 'false' }}">
+              <span class="admin-page-tab-label">Rol mensual</span>
+              <span class="admin-route-tab-meta">
+                <span class="admin-module-header-strong"><strong>{{ modules|length }}</strong></span>
+              </span>
+            </button>
+            <button class="admin-registry-tab {% if editing_estado_especial %}active{% endif %}" type="button" data-role-page-tab="special-status-section" aria-selected="{{ 'true' if not editing_estado_especial else 'false' }}">
+              <span class="admin-page-tab-label">Estados especiales</span>
+              <span class="admin-route-tab-meta">
+                <span class="admin-module-header-strong"><strong>{{ estados_especiales|length }}</strong></span>
+              </span>
+            </button>
           </div>
+      </div>
+      <section id="monthly-role-section" class="admin-role-page-section admin-monthly-role-section" {% if editing_estado_especial %}hidden{% endif %}>
+        <div class="admin-content-grid admin-route-content-grid admin-role-content-grid">
+        {% if modules %}
+          {% include '_schedule_role_content.html' %}
         {% else %}
           <p class="empty-state">No hay módulos disponibles.</p>
         {% endif %}
-        </section>
+        </div>
       </section>
 
-      <section id="special-status-section" class="admin-role-page-section" {% if not editing_estado_especial %}hidden{% endif %}>
-        <section class="admin-panel-card admin-registry-panel admin-route-panel">
+      <section id="special-status-section" class="admin-role-page-section admin-special-status-section" {% if not editing_estado_especial %}hidden{% endif %}>
+        <div class="admin-content-grid admin-route-content-grid admin-special-status-content">
+          <section class="admin-panel-card admin-registry-panel admin-route-panel">
           <div class="admin-card-heading">
             <div class="admin-card-title"><span class="admin-step-number">01</span><h2>{{ 'Editar estado especial' if editing_estado_especial else 'Crear estado especial' }}</h2></div>
           </div>
           <div class="admin-form-shell">
-            <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+            <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="codigo" data-admin-save-selector="[data-admin-save-codigo]" data-admin-save-label="{{ 'Actualizando estado especial...' if editing_estado_especial else 'Guardando estado especial...' }}">
               <input type="hidden" name="catalog" value="estados_especiales">
               {% if editing_estado_especial %}<input type="hidden" name="estado_id" value="{{ editing_estado_especial.id }}">{% endif %}
               <div class="admin-form-grid">
@@ -100,6 +92,7 @@
                 </label>
                 <label>Categoría <span class="required-label-note">* Campo Obligatorio</span>
                   <select name="categoria" required>
+                    <option value="trabajo" {% if editing_estado_especial and editing_estado_especial.categoria == 'trabajo' %}selected{% endif %}>Trabajo</option>
                     <option value="descanso" {% if editing_estado_especial and editing_estado_especial.categoria == 'descanso' %}selected{% endif %}>Descanso</option>
                     <option value="falta" {% if not editing_estado_especial or editing_estado_especial.categoria == 'falta' %}selected{% endif %}>Falta</option>
                     <option value="vacaciones" {% if editing_estado_especial and editing_estado_especial.categoria == 'vacaciones' %}selected{% endif %}>Vacaciones</option>
@@ -117,9 +110,9 @@
               </div>
             </form>
           </div>
-        </section>
+          </section>
 
-        <section class="admin-panel-card admin-registry-panel admin-route-panel">
+          <section class="admin-panel-card admin-registry-panel admin-route-panel">
           <div class="admin-module-group admin-module-group-tabbed">
             <div class="admin-module-header"><span><img class="admin-module-logo" src="{{ url_for('static', filename='imagenes/logo verde.png') }}" alt="">Estados especiales registrados</span><strong>{{ estados_especiales|length }}</strong></div>
             <div class="admin-controller-toolbar" data-admin-toolbar role="search">
@@ -145,14 +138,14 @@
                   <thead><tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Estado</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for estado in estados_especiales %}
-                      <tr data-admin-filter-row data-filter-status="{{ 'Activo' if estado.activo else 'Inactivo' }}">
+                      <tr data-admin-filter-row data-admin-save-row="{{ estado.codigo }}" data-admin-save-codigo="{{ estado.codigo }}" data-filter-status="{{ 'Activo' if estado.activo else 'Inactivo' }}">
                         <td>{{ estado.codigo }}</td>
                         <td>{{ estado.descripcion }}</td>
                         <td>{{ estado.categoria|title }}</td>
                         <td>{{ 'Activo' if estado.activo else 'Inactivo' }}</td>
                         <td class="admin-controller-actions">
                           <a class="admin-edit-button" href="{{ url_for('admin_monthly_role_page', edit_estado_id=estado.id) }}">Editar</a>
-                          <form method="post" action="{{ url_for('admin_delete_estado_especial', estado_id=estado.id) }}" onsubmit="return confirm('¿Deseas eliminar este estado especial?');">
+                          <form method="post" action="{{ url_for('admin_delete_estado_especial', estado_id=estado.id) }}" data-delete-confirm-form data-delete-kind="estado especial" data-delete-name="{{ estado.codigo }} — {{ estado.descripcion }}">
                             <button class="admin-delete-button" type="submit">Eliminar</button>
                           </form>
                         </td>
@@ -161,6 +154,7 @@
                   </tbody>
                 </table>
               </div>
+              {% include 'admin/_pagination.html' %}
             {% else %}
               <p class="empty-state">Sin estados especiales registrados.</p>
             {% endif %}
@@ -170,26 +164,57 @@
       </section>
     </div>
   </main>
+  {% include 'admin/_delete_confirmation_modal.html' %}
+  {% include 'admin/_save_feedback.html' %}
+  <div id="schedule-feedback" class="schedule-feedback" role="status" aria-live="polite"></div>
+  <div id="code-conflict-dialog" class="code-conflict-dialog" hidden>
+    <div class="code-conflict-backdrop" data-conflict-cancel></div>
+    <section class="code-conflict-modal" role="alertdialog" aria-modal="true" aria-labelledby="code-conflict-title" aria-describedby="code-conflict-message">
+      <p class="code-conflict-eyebrow">Asignación repetida</p>
+      <h2 id="code-conflict-title">Código ya utilizado</h2>
+      <p id="code-conflict-message">Estas ingresando un controlador al mismo turno y ruta.</p>
+      <div class="code-conflict-actions">
+        <button class="secondary-button-cancel" type="button" data-conflict-cancel>Cancelar</button>
+        <button class="primary-button-accept" type="button" data-conflict-accept>Aceptar</button>
+      </div>
+    </section>
+  </div>
+  <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-busy="false">
+    <div class="loader" aria-hidden="true"></div>
+    <p id="loadingText">Procesando...</p>
+  </div>
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
+  {% if modules %}<script src="{{ url_for('static', filename='rol_de_controladores.js') }}"></script>{% endif %}
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const pageTabs = document.querySelectorAll('[data-role-page-tab]');
       const pageSections = document.querySelectorAll('.admin-role-page-section');
+      const tabsHeader = document.querySelector('.admin-role-page-header');
       pageTabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
           const targetId = this.dataset.rolePageTab;
+          const isSpecialStatus = targetId === 'special-status-section';
           pageTabs.forEach(function (item) {
-            const active = item === tab;
+            const active = item.dataset.rolePageTab === targetId;
             item.classList.toggle('active', active);
             item.setAttribute('aria-selected', String(active));
           });
+          tabsHeader?.classList.toggle('route-tab-active', !isSpecialStatus);
+          tabsHeader?.classList.toggle('catalog-tab-active', isSpecialStatus);
           pageSections.forEach(function (section) {
             section.hidden = section.id !== targetId;
           });
+          document.dispatchEvent(new CustomEvent('admin-role-section-changed', {
+            detail: { section: targetId }
+          }));
         });
       });
     });
   </script>
-  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  {% include 'admin/_notification_toast.html' %}
 </body>
 </html>

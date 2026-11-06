@@ -34,10 +34,30 @@ body {
 }
 
 h1,
-h2 {
+h2, .menu-principal {
   margin: 0;
   font-family: var(--project-font), sans-serif;
   letter-spacing: 0;
+}
+
+.menu-principal {
+  padding: 7px 30px 3px;
+  color: rgba(255, 255, 255, .66);
+  
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.admin-sidebar nav .menu-principal {
+  margin-top: 5px;
+   margin-bottom: 10px;
+}
+
+.admin-sidebar nav .menu-principal:first-child {
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 
 .admin-page-body {
@@ -74,7 +94,7 @@ h2 {
 }
 
 .admin-sidebar .sidebar-toggle {
-  top: 60px;
+  top: 55px;
   right: -34px;
   z-index: 5;
 }
@@ -96,7 +116,6 @@ h2 {
 .admin-brand-logo {
      width: 40px;
     max-width: 44%;
-    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .12));
     
 }
 
@@ -137,7 +156,7 @@ h2 {
     justify-content: flex-start; /* Mantiene icono y texto alineados a la izquierda */
     gap: 14px;
     padding: 14px 20px 14px 50px !important; /* Puedes probar cambiando 30% por px (ej: 45px) */
-    color: #fff !important;
+
     font-size: .98rem;
     line-height: 1.18;
     transition: transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease;
@@ -409,20 +428,13 @@ h2 {
 }
 
 .admin-sidebar-module {
-  margin-top: auto;
-  padding: 18px 14px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  
 }
 
 .admin-sidebar-module span {
-  margin-top: auto;
-  display: block;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: none;
+  color: rgba(255, 255, 255, .9) !important;
+  font-size: .82rem;
+  letter-spacing: .02em;
 }
 
 .admin-sidebar-module strong {
@@ -436,18 +448,27 @@ h2 {
 }
 
 .admin-sidebar-module form {
-  margin-top: 14px;
+  margin-top: 20px;
+  padding-left: 18px;
+  padding-right: 18px;
 }
 
 .admin-sidebar-module button {
-  width: 100%;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 14px;
-  background: rgba(15, 159, 145, 0.18);
-  color: white;
-  font-weight: 700;
-  cursor: pointer;
+    cursor: pointer;
+    font-weight: 700;
+    width: 100%;
+    display: flex;
+    min-height: 50px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 11px 14px;
+    border: 1px solid #5c9a58 !important;
+    border-radius: 12px;
+    color: #fff !important;
+    background: #42783f !important;
+    box-shadow: 0 6px 14px rgba(19, 61, 23, .18);
+    transition: background .2s ease, transform .2s ease;
 }
 
 .admin-main-content {
@@ -493,10 +514,20 @@ h2 {
 }
 
 .admin-routes-content {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(242, 248, 249, 0.86));
+  
   height: calc(100vh - 58px);
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-color: rgba(24, 59, 89, 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+.admin-role-page-content {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-color: rgba(24, 59, 89, 0.35) transparent;
   scrollbar-width: thin;
 }
@@ -519,18 +550,21 @@ h2 {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  min-height: 58px;
-  padding: 6px;
-  border-radius: 0;
-  background: url("../imagenes/fondo_panel_1.jpeg") center / cover no-repeat;
+  min-height: 55px;
+  padding: 1px 20px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(226, 232, 240, .85);
+  background: #ffff;
+  backdrop-filter: blur(12px);
 }
 
 .admin-module-tabs-viewport {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   scroll-behavior: smooth;
@@ -541,50 +575,85 @@ h2 {
   gap: 10px;
   width: max-content;
   min-width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .admin-module-tab {
   flex: 0 0 var(--admin-module-tab-width, 140px);
   min-width: 0;
+  min-height: 40px;
   overflow: hidden;
-  padding: 13px 16px;
-  border: 0;
-  border-radius: 10px;
-  background: none;
-  color: #fff;
-  font-size: 0.82rem;
-  font-weight: 700;
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  color: #475569;
+  font-size: .75rem;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  transition: 0.25s ease;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
 }
 
 .admin-module-tab:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.125);
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #334155;
 }
 
 .admin-module-tab.active {
-  color: #1f5927;
-  background: #ffff;
-  box-shadow: 0 10px 25px rgba(31, 89, 39, 0.2);
+  background: url(../imagenes/fondo_panel_1.jpeg) center / cover no-repeat;
+  color: #fff;
 }
 
 .admin-module-arrow {
   display: inline-flex;
-  width: 36px;
-  height: 36px;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--admin-line);
-  border-radius: 50%;
-  background: #ffffff;
-  color: var(--admin-ink);
-  font-size: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
+  transition: background-color .18s ease, color .18s ease;
+}
+
+.admin-module-arrow:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.admin-module-arrow:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .admin-module-tabs {
+    gap: 8px;
+    min-height: 68px;
+    padding: 12px;
+  }
+
+  .admin-module-arrow {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .admin-module-tab {
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 12px;
+  }
 }
 
 [data-admin-module-panel][hidden] {
@@ -608,6 +677,10 @@ h2 {
   border-radius: 12px;
   background: transparent;
   box-shadow: 0 4px 14px rgba(24, 59, 89, 0.06);
+}
+
+.admin-routes-page-header .admin-role-page-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .route-page-tabs .admin-registry-tab {
@@ -776,6 +849,10 @@ h2 {
   grid-template-columns: 1fr;
   gap: 28px;
 
+}
+
+.admin-role-page-section[hidden] {
+  display: none;
 }
 
 #catalog-sections[hidden],
@@ -1093,6 +1170,7 @@ h2 {
 }
 
 #controller-form-modal .admin-controller-module-display {
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1102,9 +1180,9 @@ h2 {
   margin-top: 11px;
   padding: 8px 14px;
   border: 1px solid rgba(126, 87, 194, .28);
-  border-color: #c7ebe5;
+  border-color: #059669;
   border-radius: 10px;
-  background: #e8f6f3;
+  background: #ecfdf5;
   transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
 }
 
@@ -1137,8 +1215,8 @@ h2 {
 }
 
 #controller-form-modal .admin-controller-module-copy strong {
-  color: rgb(15, 159, 145);
-  font-size: .82rem;
+  color: #059669;
+  font-size: .80rem;
 }
 
 #controller-form-modal .admin-controller-module-copy small {
@@ -1519,16 +1597,8 @@ h2 {
   display: block;
 }
 
-.admin-monthly-role-frame {
-  overflow: hidden;
-}
-
-.admin-monthly-role-iframe {
-  display: block;
-  width: 100%;
-  height: 1180px;
-  border: 0;
-  background: #f4f7f8;
+.admin-monthly-role-section:not([hidden]) {
+  padding: 0;
 }
 
 .admin-module-group-tabbed {
@@ -1948,9 +2018,9 @@ h2 {
   cursor: pointer;
   padding-left: 36px;
   background-image: url("../imagenes/icons/filtro-de-barras.png");
-  background-position: 11px center;
+  background-position: 15px center;
   background-repeat: no-repeat;
-  background-size: 12px 12px;
+  background-size: 13px 13px;
 }
 
 .admin-controller-search input:focus,
@@ -2109,6 +2179,13 @@ h2 {
   padding: 10px 14px;
   border: 0;
   background: rgba(255, 255, 255, 0.95);
+}
+
+.admin-user-list .admin-user-item[hidden],
+.admin-user-table tbody tr[hidden],
+.admin-route-table tbody tr[hidden],
+.admin-controller-list .admin-controller-item[hidden] {
+  display: none !important;
 }
 
 .admin-user-main {
@@ -2682,11 +2759,11 @@ h2 {
 
     padding: 0 10px;
 
-    border: 1px solid #dce5e9;
+    
     border-radius: 999px;
 
-    background: #f1f4f5;
-    color: #6f7c84;
+   
+
 
     transition:
         background-color 0.2s ease,
@@ -2701,10 +2778,10 @@ h2 {
    ========================================================= */
 
 .route-status-dot {
-    width: 7px;
-    height: 7px;
+    width: 4px;
+    height: 5px;
 
-    flex: 0 0 7px;
+    flex: 0 0 5px;
 
     border-radius: 50%;
 
@@ -2746,11 +2823,7 @@ h2 {
    ESTADO ACTIVO
    ========================================================= */
 
-.route-switch input:checked + .route-status-badge {
-    background: #e8f6f3;
-    border-color: #c7ebe5;
-    color: #183b59;
-}
+
 
 .route-switch input:checked
 + .route-status-badge
@@ -2776,7 +2849,9 @@ h2 {
    HOVER
    ========================================================= */
 
-.route-switch:hover .route-status-badge {
+
+
+.admin-controller-module-display:hover {
     transform: translateY(-1px);
     box-shadow: 0 3px 10px rgba(24, 59, 89, 0.08);
 }
@@ -2801,6 +2876,7 @@ h2 {
    ========================================================= */
 
 .admin-controller-status .route-switch {
+    
     width: 76px;
     height: 28px;
     transform: none;
@@ -2993,7 +3069,6 @@ h2 {
   padding: 5px 9px;
   border-radius: 999px;
   font-size: 0.7rem;
-  box-shadow: 0 2px 5px rgba(24, 59, 89, 0.06);
 }
 
 .admin-form-panel.admin-panel-card .admin-route-module-chip button {
@@ -3114,6 +3189,463 @@ h2 {
 
   .admin-form-panel.admin-panel-card .admin-route-form .admin-form-actions {
     flex-wrap: wrap;
+  }
+}
+
+.admin-controller-page-panel .admin-controller-table-head,
+.admin-controller-page-panel .admin-controller-item {
+  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, .8fr) minmax(100px, .7fr) minmax(110px, .8fr) minmax(104px, .6fr);
+  gap: 14px;
+}
+
+.admin-controller-page-panel .admin-controller-selectable .admin-controller-table-head,
+.admin-controller-page-panel .admin-controller-selectable .admin-controller-item {
+  grid-template-columns: 22px minmax(180px, 1.4fr) minmax(110px, .8fr) minmax(100px, .7fr) minmax(110px, .8fr) minmax(104px, .6fr);
+}
+
+.admin-controller-page-panel .admin-controller-select-column {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-controller-page-panel .admin-controller-select-column input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #3159dc;
+  cursor: pointer;
+}
+
+.admin-controller-page-panel .admin-controller-selectable .admin-controller-item.is-bulk-selected {
+  background: #eaf1ff;
+  box-shadow: inset 0 1px 0 #cbdcff, inset 0 -1px 0 #cbdcff;
+}
+
+.admin-controller-page-panel .admin-controller-selectable .admin-controller-item.is-bulk-selected:hover {
+  background: #dce8ff;
+}
+
+.admin-controller-page-panel .admin-controller-individual-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.admin-controller-page-panel [data-controller-individual-actions][hidden] {
+  display: inline-flex !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.admin-controller-page-panel .is-controller-selection-mode .admin-controller-status .route-switch {
+  cursor: default;
+  pointer-events: none;
+}
+
+.admin-controller-page-panel .is-controller-selection-mode .admin-controller-status .route-switch input:disabled + .route-status-badge {
+  opacity: 1;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar .admin-route-cancel-selection[hidden] {
+  display: none !important;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar .admin-route-cancel-selection {
+  min-height: 44px;
+  width: 100%;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar .admin-create-controller-button.is-bulk-delete {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar .admin-create-controller-button.is-bulk-delete:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+.admin-controller-bulk-delete-form[hidden] {
+  display: none !important;
+}
+
+.admin-controller-page-panel .admin-controller-table-head {
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 1px solid #e2e8f0;
+  border-bottom-color: #e2e8f0;
+  border-radius: 14px 14px 0 0;
+  background: rgba(241, 245, 249, .82);
+  color: #64748b;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.admin-controller-page-panel .admin-controller-list {
+  gap: 0;
+  border: 1px solid #e2e8f0;
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background: #fff;
+}
+
+.admin-controller-page-panel .admin-controller-item {
+  min-height: 62px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  transition: background-color .16s ease;
+}
+
+.admin-controller-page-panel .admin-controller-item[hidden] {
+  display: none !important;
+}
+
+.admin-controller-page-panel .admin-controller-item:last-child {
+  border-bottom: 0;
+}
+
+.admin-controller-page-panel .admin-controller-item:hover {
+  background: #f8fafc;
+}
+
+.admin-controller-page-panel .admin-controller-name strong {
+  color: #1e293b;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.admin-controller-page-panel .admin-controller-credential span,
+.admin-controller-page-panel .admin-controller-gender span {
+  color: #64748b;
+  font-size: .74rem;
+  font-weight: 500;
+}
+
+.admin-controller-page-panel .admin-controller-status {
+  display: flex;
+  align-items: center;
+}
+
+.admin-controller-page-panel .admin-controller-status .route-switch {
+  width: auto;
+  height: 27px;
+}
+.route-switch input:checked + .route-status-badge,
+.admin-controller-page-panel .admin-controller-status .route-status-badge,
+.admin-controller-page-panel .admin-controller-status .route-status-readonly {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  height: 26px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: .65rem;
+  font-weight: 700;
+}
+
+.admin-controller-page-panel .admin-controller-status .route-status-readonly {
+  cursor: default;
+}
+
+.admin-controller-page-panel .admin-controller-status .route-status-badge .route-status-dot,
+.admin-controller-page-panel .admin-controller-status .route-status-readonly .route-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: none;
+}
+.route-status-badge,
+.admin-controller-page-panel .admin-controller-status .route-switch input:not(:checked) + .route-status-badge,
+.admin-controller-page-panel .admin-controller-status .route-status-readonly.is-inactive {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.admin-controller-page-panel .admin-controller-status .route-switch input:not(:checked) + .route-status-badge .route-status-dot,
+.admin-controller-page-panel .admin-controller-status .route-status-readonly.is-inactive .route-status-dot {
+  background: #94a3b8;
+}
+
+.admin-controller-page-panel .admin-controller-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.admin-controller-page-panel .admin-controller-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button,
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button {
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button::before,
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button::before {
+  display: none;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-controller-action-icon {
+  display: block;
+  width: 1px;
+  height: 12px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button {
+  color: #64748b;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button:hover {
+  
+  
+  background: #dc2626;
+  color: #fff;
+}
+
+
+
+.admin-alerts[hidden] {
+  display: none;
+}
+
+.admin-toast[hidden] {
+  display: none;
+}
+
+.admin-toast {
+  position: fixed;
+  top: 85px;
+  right: 24px;
+  z-index: 1200;
+  display: flex;
+  width: min(280px, calc(100vw - 32px));
+  min-height: 84px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  border-radius: 20px;
+  background: #FFFFFF;
+  color: #4A9B35;
+  box-shadow: 0 18px 36px rgba(2, 6, 23, .24);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(100% + 32px));
+  transition: opacity .3s ease, transform .3s ease;
+}
+
+.admin-toast.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.admin-toast-icon {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #EAF5E5;
+  border-radius: 14px;
+  background: #EAF5E5;
+  color: #4A9B35;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.admin-toast[data-type="success"] .admin-toast-icon {
+  background: #EAF5E5;
+  color: #4A9B35;
+}
+
+.admin-toast[data-type="error"] .admin-toast-icon {
+  border-color: rgba(251, 113, 133, .2);
+  background: rgba(244, 63, 94, .16);
+  color: #fb7185;
+}
+
+.admin-toast-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.admin-toast-copy strong {
+  color: #4A9B35;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1.2;
+}
+
+.admin-toast-copy > span {
+  color: #193F56;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-controller-delete-modal[hidden] {
+  display: none;
+}
+
+.admin-controller-delete-modal {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, .6);
+  backdrop-filter: blur(8px);
+}
+
+.admin-controller-delete-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.admin-controller-delete-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(2, 6, 23, .24);
+  text-align: center;
+  animation: controllerDeleteModalIn .18s ease-out;
+}
+
+.admin-controller-delete-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  margin: 0 auto 16px;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.admin-controller-delete-icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.admin-controller-delete-dialog h2 {
+  color: #0f172a;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.admin-controller-delete-dialog p {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: .82rem;
+  line-height: 1.6;
+}
+
+.admin-controller-delete-dialog p strong {
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+
+.admin-controller-delete-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.admin-controller-delete-actions .admin-secondary-button,
+.admin-controller-delete-actions .admin-delete-button {
+  min-width: 120px;
+  height: 42px;
+  border-radius: 12px;
+  font-size: .78rem !important;
+}
+
+.admin-controller-delete-actions .admin-delete-button {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.admin-controller-delete-actions .admin-delete-button:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+@keyframes controllerDeleteModalIn {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 760px) {
+  .admin-controller-page-panel .admin-controller-table-head,
+  .admin-controller-page-panel .admin-controller-item {
+    grid-template-columns: minmax(150px, 1.3fr) minmax(82px, .7fr) minmax(88px, .8fr) minmax(98px, .8fr) 82px;
+    gap: 8px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .admin-controller-page-panel .admin-controller-actions {
+    gap: 5px;
+  }
+
+  
+
+  .admin-toast {
+    top: 16px;
+    right: 16px;
+    min-height: 76px;
+    padding: 15px 18px;
   }
 }
 
@@ -3721,8 +4253,7 @@ h2 {
   background: linear-gradient(135deg, #72ad3a, #4d8f2a);
 }
 
-.admin-route-modal .admin-form-panel.admin-panel-card .admin-route-settings-fields {
-}
+
 
 .admin-route-modal .admin-form-panel.admin-panel-card .admin-route-settings-fields .admin-route-field-status {
   position: static;
@@ -3798,10 +4329,7 @@ h2 {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 10px 6px 12px;
-  border: 1px solid rgba(24, 59, 89, .12);
   border-radius: 10px;
-  background: #fff;
-  color: var(--admin-ink);
   font-size: .75rem;
   font-weight: 700;
 }
@@ -5042,6 +5570,18 @@ h2 {
   grid-template-columns: minmax(0, 1fr) 150px 150px 200px;
 }
 
+.admin-module-group-tabbed > .admin-users-toolbar {
+  position: relative;
+  z-index: 4;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: end;
+  overflow: visible;
+}
+
+.admin-module-group-tabbed > .admin-users-toolbar-with-create {
+  grid-template-columns: minmax(0, 1fr) 150px 200px;
+}
+
 .admin-module-group-tabbed > .admin-controller-toolbar .admin-controller-search {
   min-width: 0;
   width: 100%;
@@ -5097,10 +5637,10 @@ h2 {
   height: 28px;
   min-width: 0;
   padding: 0 8px;
-  border: 1px solid #d4d8dc;
+  
   border-radius: 5px;
   background: #fff;
-  color: #707780;
+  
   font-size: .75rem;
   font-weight: 700;
   white-space: nowrap;
@@ -5116,7 +5656,6 @@ h2 {
 }
 
 .admin-registry-panel .admin-controller-actions .admin-edit-button:hover {
-  border-color: #d59b12;
   color: #fff;
   background: #e7ad22;
 }
@@ -5174,6 +5713,23 @@ h2 {
   border-color: #c93642;
   color: #fff;
   background: #dc3545;
+}
+
+#catalog-sections .admin-catalog-columns .admin-controller-actions .admin-edit-button::before,
+#catalog-sections .admin-catalog-columns .admin-controller-actions .admin-delete-button::before,
+#services-section .admin-controller-actions .admin-edit-button::before,
+#services-section .admin-controller-actions .admin-delete-button::before {
+  display: none;
+}
+
+#catalog-sections .admin-catalog-columns .admin-controller-actions .admin-controller-action-icon,
+#services-section .admin-controller-actions .admin-controller-action-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .admin-catalog-columns .admin-route-table,
@@ -5388,6 +5944,23 @@ h2 {
 
   .admin-route-toolbar .admin-controller-search {
     grid-column: 1 / -1;
+  }
+
+  .admin-users-toolbar .admin-controller-search {
+    grid-column: 1 / -1;
+  }
+
+  .admin-users-toolbar .admin-route-filter,
+  .admin-users-toolbar .admin-create-controller-button {
+    grid-row: 2;
+  }
+
+  .admin-users-toolbar .admin-route-filter {
+    grid-column: 1;
+  }
+
+  .admin-users-toolbar .admin-create-controller-button {
+    grid-column: 2;
   }
 
   .admin-module-group-tabbed > .admin-controller-toolbar .admin-controller-filter,
@@ -5917,7 +6490,7 @@ h2 {
   flex: 0 0 16px;
   margin-right: 7px;
   background: url("../imagenes/icons/desconectar.png") center / contain no-repeat;
-  filter: grayscale(1) brightness(.72);
+  filter: brightness(0) saturate(100%) invert(26%) sepia(89%) saturate(3170%) hue-rotate(339deg) brightness(91%) contrast(95%);
   transition: filter .15s ease;
 }
 
@@ -6226,7 +6799,7 @@ h2 {
 }
 
 .admin-modules-page .admin-modules-table-head {
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(220px, 1.5fr) minmax(120px, .8fr) minmax(120px, .8fr) 100px;
 }
 
 .admin-modules-page .admin-modules-table-head .admin-controller-actions {
@@ -6235,11 +6808,46 @@ h2 {
 
 .admin-modules-page .admin-user-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(220px, 1.5fr) minmax(120px, .8fr) minmax(120px, .8fr) 100px;
 }
 
 .admin-modules-page .admin-user-item > .admin-controller-actions {
   justify-content: flex-end;
+}
+
+.admin-modules-page .admin-modules-table-head,
+.admin-modules-page .admin-user-list {
+  min-width: 860px;
+}
+
+.admin-modules-page .admin-modules-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-modules-page .admin-user-item > .admin-module-name,
+.admin-modules-page .admin-user-item > .admin-module-address,
+.admin-modules-page .admin-user-item > .admin-module-coordinate {
+  min-width: 0;
+  align-self: center;
+}
+
+.admin-modules-page .admin-user-item > .admin-module-name {
+  color: #1e293b;
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+.admin-modules-page .admin-user-item > .admin-module-address {
+  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: .78rem;
+  white-space: normal;
+}
+
+.admin-modules-page .admin-user-item > .admin-module-coordinate {
+  color: #475569;
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-modules-page .admin-module-modal .admin-controller-modal-dialog {
@@ -6279,7 +6887,7 @@ h2 {
 
   .admin-modules-page .admin-modules-table-head,
   .admin-modules-page .admin-user-item {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(180px, 1.25fr) minmax(220px, 1.5fr) minmax(120px, .8fr) minmax(120px, .8fr) 100px;
   }
 }
 
@@ -6291,7 +6899,7 @@ h2 {
   display: block;
   flex: 0 0 auto;
   min-height: 0;
-  margin: 18px 25px 0;
+  margin: 0 25px 0;
   margin-bottom: 0;
   padding: 0;
   border-bottom: 0;
@@ -6399,7 +7007,26 @@ h2 {
 }
 
 .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar {
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 150px) minmax(140px, 200px);
+  position: relative;
+  z-index: 4;
+  overflow: visible;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px) minmax(180px, 200px);
+}
+
+.admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar.is-controller-selection-mode {
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 160px) minmax(170px, 190px) minmax(180px, 200px);
+}
+
+.admin-controller-page-panel .admin-controller-toolbar > .admin-controller-search {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar > .admin-route-filter,
+.admin-controller-page-panel .admin-controller-toolbar > .admin-route-cancel-selection,
+.admin-controller-page-panel .admin-controller-toolbar > .admin-create-controller-button {
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 760px) {
@@ -6413,16 +7040,40 @@ h2 {
   }
 
   .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(120px, 150px);
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 190px);
+  }
+
+  .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar.is-controller-selection-mode {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 190px);
   }
 
   .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-search {
     grid-column: 1 / -1;
   }
 
-  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-filter,
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-route-filter {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
   .admin-controller-page-panel .admin-controller-toolbar > .admin-create-controller-button {
     grid-row: 2;
+    grid-column: 2;
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar.is-controller-selection-mode > .admin-route-cancel-selection {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar.is-controller-selection-mode > .admin-create-controller-button {
+    grid-row: 3;
+    grid-column: 2;
+  }
+
+  .admin-controller-page-panel .admin-controller-selectable .admin-controller-table-head,
+  .admin-controller-page-panel .admin-controller-selectable .admin-controller-item {
+    grid-template-columns: 20px minmax(150px, 1.3fr) minmax(82px, .7fr) minmax(88px, .8fr) minmax(98px, .8fr) 82px;
   }
 }
 
@@ -6431,11 +7082,25 @@ h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .admin-controller-page-panel .admin-module-group-tabbed > .admin-controller-toolbar.is-controller-selection-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-search,
-  .admin-controller-page-panel .admin-controller-toolbar > .admin-controller-filter,
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-route-filter,
   .admin-controller-page-panel .admin-controller-toolbar > .admin-create-controller-button {
     grid-column: 1;
     grid-row: auto;
+  }
+
+  .admin-controller-page-panel .admin-controller-toolbar > .admin-route-cancel-selection {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .admin-controller-page-panel .admin-controller-selectable .admin-controller-table-head,
+  .admin-controller-page-panel .admin-controller-selectable .admin-controller-item {
+    grid-template-columns: 20px minmax(140px, 1.3fr) minmax(82px, .7fr) minmax(88px, .8fr) minmax(98px, .8fr) 82px;
   }
 }
 
@@ -6529,5 +7194,2291 @@ h2 {
   .admin-turnos-page .admin-main-content > .admin-turnos-page-grid {
     margin: 0 12px 14px;
     padding: 10px;
+  }
+}
+
+.admin-role-content-grid:not([hidden]) {
+  display: block;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.admin-role-page-header .route-page-tabs {
+  gap: 0;
+}
+
+.admin-role-content-grid > .schedule-toolbar {
+  margin: 0;
+  padding: 0 0 18px;
+  border-bottom: 1px solid rgba(24, 59, 89, .1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-role-content-grid > .schedule-table-card {
+  margin-top: 18px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (max-width: 760px) {
+  .admin-role-page-header {
+    margin: 12px 12px 0;
+  }
+}
+
+/* Align admin page spacing and hierarchy with the reference layout. */
+
+
+
+
+.admin-controller-page-header,
+.admin-modules-page .admin-registry-page-header,
+.admin-turnos-page .admin-registry-page-header,
+body.admin-routes-page .admin-routes-page-header {
+  margin-top: 8px;
+}
+
+.admin-controller-page-grid,
+.admin-modules-page .admin-modules-page-grid,
+.admin-turnos-page .admin-turnos-page-grid {
+  padding: 24px;
+}
+
+.admin-controller-page-panel .admin-module-group-tabbed,
+.admin-modules-page .admin-modules-registry .admin-module-group-tabbed,
+.admin-turnos-page .admin-turnos-page-grid > .admin-registry-panel > .admin-module-group-tabbed {
+  padding: 26px;
+  border-radius: 20px;
+}
+
+.admin-controller-page-panel .admin-controller-module-header,
+.admin-modules-page .admin-modules-registry .admin-module-header,
+.admin-turnos-page .admin-turnos-page-grid .admin-module-header {
+  min-height: 42px;
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  font-size: 1rem;
+}
+
+.admin-controller-page-panel .admin-card-title h2,
+.admin-modules-page .admin-modules-registry .admin-module-header,
+.admin-turnos-page .admin-card-title h2 {
+  font-size: clamp(1.45rem, 1.8vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.admin-controller-page-panel .admin-controller-toolbar,
+.admin-modules-page .admin-modules-registry .admin-controller-toolbar,
+.admin-turnos-page .admin-turnos-page-grid .admin-controller-toolbar,
+body.admin-routes-page .admin-route-panel .admin-route-toolbar {
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.admin-controller-page-panel .admin-controller-search input,
+.admin-controller-page-panel .admin-controller-filter select,
+.admin-modules-page .admin-modules-registry .admin-controller-search input,
+.admin-modules-page .admin-modules-registry .admin-controller-filter select,
+.admin-turnos-page .admin-turnos-page-grid .admin-controller-search input,
+.admin-turnos-page .admin-turnos-page-grid .admin-controller-filter select,
+body.admin-routes-page .admin-route-panel .admin-controller-search input,
+body.admin-routes-page .admin-route-panel .admin-controller-filter select {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: .82rem;
+}
+
+.admin-controller-page-panel .admin-create-controller-button,
+.admin-modules-page .admin-modules-registry .admin-create-controller-button,
+.admin-turnos-page .admin-turnos-page-grid .admin-create-controller-button,
+body.admin-routes-page .admin-route-panel .admin-create-controller-button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: .82rem;
+}
+
+.admin-controller-page-panel .admin-controller-table-head,
+.admin-controller-page-panel .admin-controller-item,
+.admin-modules-page .admin-modules-registry .admin-controller-table-head,
+.admin-modules-page .admin-modules-registry .admin-user-item {
+  min-height: 58px;
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.admin-controller-page-panel .admin-controller-table-head,
+body.admin-routes-page .admin-route-table th,
+.admin-turnos-page .admin-route-table th {
+  font-size: .7rem;
+  letter-spacing: .06em;
+}
+
+body.admin-routes-page .admin-route-table th,
+body.admin-routes-page .admin-route-table td,
+.admin-turnos-page .admin-route-table th,
+.admin-turnos-page .admin-route-table td {
+  padding: 15px 16px;
+}
+
+@media (max-width: 760px) {
+  .admin-controller-page-header,
+  .admin-controller-page-grid,
+  .admin-modules-page .admin-registry-page-header,
+  .admin-modules-page .admin-modules-page-grid,
+  .admin-turnos-page .admin-registry-page-header,
+  .admin-turnos-page .admin-turnos-page-grid,
+  body.admin-routes-page .admin-routes-page-header,
+  body.admin-routes-page #catalog-sections,
+  body.admin-routes-page #routes-section {
+    width: calc(100% - 24px);
+  }
+
+  .admin-controller-page-grid,
+  .admin-modules-page .admin-modules-page-grid,
+  .admin-turnos-page .admin-turnos-page-grid {
+    padding: 14px;
+  }
+
+  .admin-controller-page-panel .admin-module-group-tabbed,
+  .admin-modules-page .admin-modules-registry .admin-module-group-tabbed,
+  .admin-turnos-page .admin-turnos-page-grid > .admin-registry-panel > .admin-module-group-tabbed {
+    padding: 16px;
+  }
+
+  body.admin-routes-page .admin-route-table th,
+  body.admin-routes-page .admin-route-table td,
+  .admin-turnos-page .admin-route-table th,
+  .admin-turnos-page .admin-route-table td {
+    padding: 12px;
+  }
+}
+
+.admin-controller-page-panel .admin-controller-table {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.admin-controller-page-panel .admin-controller-table-head {
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: rgba(241, 245, 249, .82);
+  color: #64748b;
+}
+
+.admin-controller-page-panel .admin-controller-list {
+  border: 0;
+  border-radius: 0;
+}
+
+.admin-controller-page-panel .admin-controller-item {
+  background: #fff;
+}
+
+.admin-controller-page-panel .admin-controller-item:hover {
+  background: #f8fafc;
+}
+
+.admin-controller-page-panel .admin-controller-status .route-switch input:checked + .route-status-badge {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button,
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #475569;
+  outline: none;
+}
+
+
+
+.admin-controller-page-panel .admin-controller-actions .admin-controller-action-icon {
+  display: block;
+  width: 1px;
+  height: 12px;
+  object-fit: contain;
+  pointer-events: none;
+  transition: filter .15s ease;
+}
+
+
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button .admin-controller-action-icon {
+  filter: grayscale(1) brightness(.55);
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button:hover {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button:hover {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #f43f5e;
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button:hover .admin-controller-action-icon {
+  filter: brightness(0) saturate(100%) invert(54%) sepia(93%) saturate(1576%) hue-rotate(2deg) brightness(94%) contrast(91%);
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button:hover .admin-controller-action-icon {
+  filter: brightness(0) saturate(100%) invert(39%) sepia(83%) saturate(2399%) hue-rotate(319deg) brightness(100%) contrast(93%);
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-edit-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, .25);
+}
+
+.admin-controller-page-panel .admin-controller-actions .admin-delete-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, .22);
+}
+
+
+
+.admin-analysis-main-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #f7f9fc;
+  scrollbar-color: rgba(24, 59, 89, .35) transparent;
+  scrollbar-width: thin;
+}
+
+.admin-analysis-main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-analysis-main-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(24, 59, 89, .28);
+}
+
+.analysis-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  gap: 22px;
+  padding: 10px 24px;
+  border-bottom: 1px solid rgba(226, 232, 240, .9);
+  background: rgba(255, 255, 255, .9);
+  backdrop-filter: blur(14px);
+}
+
+.analysis-brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  color: #172033;
+  text-decoration: none;
+}
+
+.analysis-brand-mark {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.analysis-brand strong,
+.analysis-brand small {
+  display: block;
+}
+
+.analysis-brand strong {
+  font-size: .82rem;
+  line-height: 1.15;
+}
+
+.analysis-brand small {
+  margin-top: 2px;
+  color: #8491a5;
+  font-size: .62rem;
+}
+
+.analysis-local-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: auto;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #f1f5f9;
+}
+
+.analysis-local-tabs a,
+.analysis-local-tabs button {
+  min-height: 31px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.analysis-local-tabs a.is-active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+
+.analysis-local-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+.analysis-period-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 35px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.analysis-period-control a,
+.analysis-period-control > span {
+  display: inline-flex;
+  width: 32px;
+  height: 33px;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1.1rem;
+  text-decoration: none;
+}
+
+.analysis-period-control a:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.analysis-period-control > span {
+  opacity: .35;
+}
+
+.analysis-period-control strong {
+  min-width: 112px;
+  padding: 0 8px;
+  color: #334155;
+  font-size: .66rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.analysis-period-control strong span {
+  margin-right: 4px;
+  color: #059669;
+}
+
+.analysis-dashboard-content {
+  display: grid;
+  gap: 16px;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px 24px 30px;
+}
+
+.analysis-error {
+  padding: 12px 15px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: .8rem;
+}
+
+.analysis-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.analysis-overview-card,
+.analysis-dashboard-card {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, .035);
+}
+
+.analysis-overview-card {
+  min-height: 100px;
+  padding: 13px 15px;
+}
+
+.analysis-overview-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.analysis-overview-card > div > span:first-child {
+  color: #64748b;
+  font-size: .61rem;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.analysis-stat-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: .75rem;
+  font-weight: 800;
+}
+
+.analysis-stat-icon.is-neutral { background: #f1f5f9; color: #64748b; }
+.analysis-stat-icon.is-green { background: #ecfdf5; color: #059669; }
+.analysis-stat-icon.is-amber { background: #fffbeb; color: #d97706; }
+.analysis-stat-icon.is-blue { background: #eff6ff; color: #4f46e5; }
+
+.analysis-overview-card > strong {
+  display: block;
+  margin-top: 7px;
+  color: #334155;
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.analysis-overview-card > strong.is-green-text { color: #059669; }
+.analysis-overview-card > strong.is-blue-text { color: #4f46e5; }
+
+.analysis-overview-card > small {
+  display: block;
+  margin-top: 3px;
+  color: #8491a5;
+  font-size: .64rem;
+}
+
+.analysis-primary-grid,
+.analysis-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+  gap: 14px;
+  
+}
+
+.analysis-dashboard-card {
+  padding: 15px;
+}
+
+.analysis-card-heading {
+  display: flex;
+  min-height: 39px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.analysis-card-heading h1,
+.analysis-card-heading h2 {
+  margin: 0;
+  color: #1e293b;
+  font-size: .84rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.analysis-card-heading p {
+  margin: 3px 0 0;
+  color: #8a97aa;
+  font-size: .64rem;
+}
+
+.analysis-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: .58rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.analysis-badge.is-green { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.analysis-badge.is-blue { border-color: #bfdbfe; background: #eff6ff; color: #2563eb; }
+.analysis-badge.is-neutral { border-color: #e2e8f0; background: #f8fafc; color: #64748b; }
+
+.analysis-route-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+  padding-top: 7px;
+}
+
+.analysis-route-chart {
+  display: block;
+  width: 100%;
+  min-width: 350px;
+  height: auto;
+}
+
+.analysis-chart-grid-line {
+  stroke: #edf2f7;
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
+}
+
+.analysis-chart-axis-label,
+.analysis-chart-route-label {
+  fill: #94a3b8;
+  font-family: var(--project-font), sans-serif;
+  font-size: 9px;
+}
+
+.analysis-chart-route-label {
+  font-size: 8px;
+}
+
+.analysis-route-chart-line {
+  fill: none;
+  stroke: #0891b2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+.analysis-route-chart-dot {
+  fill: #0891b2;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.analysis-card-footer {
+  display: flex;
+  min-height: 25px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf1f5;
+  color: #8794a7;
+  font-size: .62rem;
+}
+
+.analysis-card-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.analysis-card-footer strong {
+  color: #334155;
+}
+
+.analysis-legend-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.analysis-legend-dot.is-blue { background: #0891b2; }
+.analysis-legend-dot.is-green { background: #10b981; }
+
+.analysis-calendar {
+  display: grid;
+  gap: 5px;
+  padding: 10px 0 5px;
+}
+
+.analysis-calendar-weekdays,
+.analysis-calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.analysis-calendar-weekdays {
+  padding-bottom: 2px;
+  color: #94a3b8;
+  font-size: .58rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.analysis-calendar-day {
+  display: flex;
+  min-height: 34px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .62rem;
+  line-height: 1.1;
+}
+
+.analysis-calendar-day small {
+  margin-top: 2px;
+  font-size: .47rem;
+  font-weight: 750;
+}
+
+.analysis-calendar-day.is-empty {
+  min-height: 34px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.analysis-calendar-day.is-work { border-color: #86c96b; background: #f0f9eb; color: #27713a; }
+.analysis-calendar-day.is-rest { border-color: #d5dee8; background: #f1f5f9; color: #64748b; }
+.analysis-calendar-day.is-vacation,
+.analysis-calendar-day.is-special { border-color: #d8b4fe; background: #faf5ff; color: #7e22ce; }
+.analysis-calendar-day.is-absence { border-color: #fda4af; background: #fff1f2; color: #be123c; }
+.analysis-calendar-day.is-incapacity { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.analysis-calendar-day.is-holiday { border-color: #fcd34d; background: #fffbeb; color: #b45309; }
+.analysis-calendar-day.is-permission { border-color: #cbd5e1; background: #f8fafc; color: #475569; }
+.analysis-calendar-day.is-rest-change { border-color: #c4b5fd; background: #f5f3ff; color: #6d28d9; }
+
+.analysis-workers-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.analysis-workers-table {
+  width: 100%;
+  min-width: 470px;
+  border-collapse: collapse;
+}
+
+.analysis-workers-table th {
+  padding: 10px 5px 8px;
+  border-bottom: 1px solid #edf1f5;
+  color: #94a3b8;
+  font-size: .56rem;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.analysis-workers-table td {
+  padding: 7px 5px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #64748b;
+  font-size: .61rem;
+  white-space: nowrap;
+}
+
+.analysis-workers-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.analysis-workers-table tbody tr:hover,
+.analysis-workers-table tbody tr.is-selected {
+  background: #effaf5;
+}
+
+.analysis-workers-table td:first-child a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #334155;
+  text-decoration: none;
+}
+
+.analysis-worker-avatar {
+  display: inline-flex;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: .55rem;
+  font-weight: 800;
+}
+
+.analysis-workers-table tr.is-selected .analysis-worker-avatar {
+  background: #059669;
+  color: #fff;
+}
+
+.analysis-worker-name {
+  display: block;
+  font-weight: 700;
+}
+
+.analysis-worker-name small {
+  display: block;
+  margin-top: 1px;
+  color: #94a3b8;
+  font-size: .49rem;
+  font-weight: 500;
+}
+
+.analysis-workers-table td strong {
+  color: #334155;
+}
+
+.analysis-balance-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 10px 0 12px;
+}
+
+.analysis-balance-summary > div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+
+.analysis-balance-summary span {
+  display: block;
+  overflow: hidden;
+  font-size: .54rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-balance-summary strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
+.analysis-balance-summary .is-work { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+.analysis-balance-summary .is-rest { border-color: #cbd5e1; background: #f1f5f9; color: #334155; }
+.analysis-balance-summary .is-absence { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
+.analysis-balance-summary .is-vacation { border-color: #e9d5ff; background: #faf5ff; color: #9333ea; }
+
+.analysis-status-chart {
+  display: grid;
+  gap: 7px;
+}
+
+.analysis-status-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.1fr) minmax(50px, 3fr) 24px;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: .59rem;
+}
+
+.analysis-status-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-status-row > strong {
+  color: #334155;
+  text-align: right;
+}
+
+.analysis-status-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f1f5f9;
+}
+
+.analysis-status-track i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+}
+
+.analysis-status-track i.is-work { background: #22c55e; }
+.analysis-status-track i.is-rest { background: #1e3a8a; }
+.analysis-status-track i.is-vacation { background: #9333ea; }
+.analysis-status-track i.is-rest-change { background: #7c3aed; }
+.analysis-status-track i.is-holiday { background: #f59e0b; }
+.analysis-status-track i.is-absence { background: #e11d48; }
+.analysis-status-track i.is-incapacity { background: #3b82f6; }
+.analysis-status-track i.is-special { background: #06b6d4; }
+
+.analysis-empty-state {
+  display: flex;
+  min-height: 145px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 18px;
+  color: #94a3b8;
+  font-size: .75rem;
+  text-align: center;
+}
+
+.analysis-sync-status {
+  color: #059669;
+}
+
+.analysis-sync-status i {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+@media (max-width: 1100px) {
+  .analysis-topbar {
+    gap: 12px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .analysis-dashboard-content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .analysis-primary-grid,
+  .analysis-secondary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .analysis-topbar {
+    flex-wrap: wrap;
+    gap: 9px 12px;
+    padding: 9px 12px;
+  }
+
+  .analysis-local-tabs {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
+
+  .analysis-local-tabs a,
+  .analysis-local-tabs button {
+    flex: 1 1 0;
+    text-align: center;
+  }
+
+  .analysis-period-control {
+    margin-left: auto;
+  }
+
+  .analysis-dashboard-content {
+    gap: 11px;
+    padding: 12px;
+  }
+
+  .analysis-overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .analysis-overview-card {
+    min-height: 91px;
+    padding: 11px;
+  }
+
+  .analysis-overview-card > div > span:first-child {
+    font-size: .55rem;
+  }
+
+  .analysis-dashboard-card {
+    padding: 12px;
+  }
+
+  .analysis-balance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .analysis-brand small {
+    display: none;
+  }
+
+  .analysis-period-control strong {
+    min-width: 98px;
+    font-size: .6rem;
+  }
+
+  .analysis-overview-card > div > span:first-child {
+    max-width: 110px;
+  }
+}
+
+body.admin-routes-page .admin-route-table-wrap,
+body.admin-users-page .admin-route-table-wrap,
+body.admin-turnos-page .admin-route-table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+body.admin-routes-page .admin-route-table,
+body.admin-users-page .admin-route-table,
+body.admin-turnos-page .admin-route-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #64748b;
+  font-family: var(--project-font), sans-serif;
+  font-size: .75rem;
+}
+
+body.admin-routes-page .admin-route-table th,
+body.admin-users-page .admin-route-table th,
+body.admin-turnos-page .admin-route-table th {
+  padding: 14px 12px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+body.admin-routes-page .admin-route-table td,
+body.admin-users-page .admin-route-table td,
+body.admin-turnos-page .admin-route-table td {
+  padding: 13px 12px;
+  border: 0;
+  border-bottom: 1px solid #edf2f7;
+  background: #fff;
+  color: #64748b;
+  font-family: var(--project-font), sans-serif;
+  font-size: .75rem;
+}
+
+body.admin-routes-page .admin-route-table tbody tr:last-child td,
+body.admin-users-page .admin-route-table tbody tr:last-child td,
+body.admin-turnos-page .admin-route-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+body.admin-routes-page .admin-route-table tbody tr:hover td,
+body.admin-users-page .admin-route-table tbody tr:hover td,
+body.admin-turnos-page .admin-route-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+body.admin-routes-page .admin-route-table tbody td:first-child,
+body.admin-users-page .admin-route-table tbody td:first-child,
+body.admin-turnos-page .admin-route-table tbody td:first-child {
+  color: #1e293b;
+  font-weight: 700;
+}
+
+body.admin-users-page .admin-user-table td:first-child strong {
+  color: #1e293b;
+}
+
+body.admin-users-page .admin-user-table {
+  min-width: 1040px;
+  table-layout: fixed;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(1),
+body.admin-users-page .admin-user-table td:nth-child(1) {
+  width: 18%;
+  min-width: 160px;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(2),
+body.admin-users-page .admin-user-table td:nth-child(2) {
+  width: 26%;
+  min-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(3),
+body.admin-users-page .admin-user-table td:nth-child(3) {
+  width: 14%;
+  min-width: 130px;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(4),
+body.admin-users-page .admin-user-table td:nth-child(4) {
+  width: 15%;
+  min-width: 140px;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(5),
+body.admin-users-page .admin-user-table td:nth-child(5) {
+  width: 15%;
+  min-width: 125px;
+}
+
+body.admin-users-page .admin-user-table th:nth-child(6) {
+  width: 12%;
+  min-width: 116px;
+}
+
+body.admin-users-page .admin-user-table .admin-user-contact {
+  color: #64748b;
+  font-size: .68rem;
+  font-weight: 400;
+}
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions,
+body.admin-users-page .admin-route-table td.admin-controller-actions,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions {
+  width: 116px;
+  min-width: 116px;
+  padding-right: 12px;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions form,
+body.admin-users-page .admin-route-table td.admin-controller-actions form,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions form {
+  display: inline-flex;
+  margin: 0 0 0 5px;
+  vertical-align: middle;
+}
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-edit-button,
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-delete-button,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-edit-button,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-delete-button,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-edit-button,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-delete-button,
+body.admin-modules-page .admin-controller-actions .admin-edit-button,
+body.admin-modules-page .admin-controller-actions .admin-delete-button,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-edit-button,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-delete-button {
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: #fff;
+  color: #1e293b;
+  cursor: pointer;
+  line-height: 1;
+  text-decoration: none;
+  vertical-align: middle;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-edit-button::before,
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-delete-button::before,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-edit-button::before,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-delete-button::before,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-edit-button::before,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-delete-button::before,
+body.admin-modules-page .admin-controller-actions .admin-edit-button::before,
+body.admin-modules-page .admin-controller-actions .admin-delete-button::before,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-edit-button::before,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-delete-button::before {
+  display: none;
+}
+
+
+body.admin-users-page .admin-route-table .admin-controller-action-icon,
+
+body.admin-modules-page .admin-controller-action-icon,
+body.admin-users-page .admin-user-item .admin-controller-action-icon {
+  display: block;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  object-fit: contain;
+  filter: grayscale(1) brightness(.15);
+  pointer-events: none;
+  transition: filter .15s ease;
+}
+
+
+body.admin-modules-page .admin-controller-action-icon:hover{
+  color: black;
+
+}
+
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-edit-button:hover,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-edit-button:hover,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-edit-button:hover,
+body.admin-modules-page .admin-controller-actions .admin-edit-button:hover,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-edit-button:hover {
+  transform: translateY(-1px);
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+body.admin-routes-page .admin-route-table td.admin-controller-actions .admin-delete-button:hover,
+body.admin-users-page .admin-route-table td.admin-controller-actions .admin-delete-button:hover,
+body.admin-turnos-page .admin-route-table td.admin-controller-actions .admin-delete-button:hover,
+body.admin-modules-page .admin-controller-actions .admin-delete-button:hover,
+body.admin-users-page .admin-user-item .admin-controller-actions .admin-delete-button:hover {
+  transform: translateY(-1px);
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+body.admin-routes-page .admin-route-table .admin-edit-button:hover .admin-controller-action-icon,
+body.admin-users-page .admin-route-table .admin-edit-button:hover .admin-controller-action-icon,
+body.admin-turnos-page .admin-route-table .admin-edit-button:hover .admin-controller-action-icon,
+body.admin-modules-page .admin-edit-button:hover .admin-controller-action-icon,
+body.admin-users-page .admin-user-item .admin-edit-button:hover .admin-controller-action-icon {
+  filter: brightness(0) saturate(100%) invert(54%) sepia(93%) saturate(1576%) hue-rotate(2deg) brightness(94%) contrast(91%);
+}
+
+body.admin-routes-page .admin-route-table .admin-delete-button:hover .admin-controller-action-icon,
+body.admin-users-page .admin-route-table .admin-delete-button:hover .admin-controller-action-icon,
+body.admin-turnos-page .admin-route-table .admin-delete-button:hover .admin-controller-action-icon,
+body.admin-modules-page .admin-delete-button:hover .admin-controller-action-icon,
+body.admin-users-page .admin-user-item .admin-delete-button:hover .admin-controller-action-icon {
+  filter: brightness(0) saturate(100%) invert(39%) sepia(83%) saturate(2399%) hue-rotate(319deg) brightness(100%) contrast(93%);
+}
+
+body.admin-routes-page .admin-route-table .admin-edit-button:focus-visible,
+body.admin-users-page .admin-route-table .admin-edit-button:focus-visible,
+body.admin-turnos-page .admin-route-table .admin-edit-button:focus-visible,
+body.admin-modules-page .admin-edit-button:focus-visible,
+body.admin-users-page .admin-user-item .admin-edit-button:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, .25);
+}
+
+body.admin-routes-page .admin-route-table .admin-delete-button:focus-visible,
+body.admin-users-page .admin-route-table .admin-delete-button:focus-visible,
+body.admin-turnos-page .admin-route-table .admin-delete-button:focus-visible,
+body.admin-modules-page .admin-delete-button:focus-visible,
+body.admin-users-page .admin-user-item .admin-delete-button:focus-visible {
+  outline: 3px solid rgba(244, 63, 94, .22);
+}
+
+body.admin-modules-page .admin-modules-registry .admin-module-group-tabbed {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+body.admin-modules-page .admin-modules-table-head {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: #f1f5f9;
+  color: #64748b;
+  font-family: var(--project-font), sans-serif;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-list {
+  gap: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-item {
+  min-height: 66px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf2f7;
+  background: #fff;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-item:last-child {
+  border-bottom: 0;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-item:hover {
+  background: #f8fafc;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-main strong,
+body.admin-users-page .admin-user-list .admin-user-main strong {
+  color: #1e293b;
+  font-family: var(--project-font), sans-serif;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+body.admin-modules-page .admin-modules-registry .admin-user-main span,
+body.admin-modules-page .admin-modules-registry .admin-user-main small,
+body.admin-users-page .admin-user-list .admin-user-main span {
+  color: #64748b;
+  font-family: var(--project-font), sans-serif;
+  font-size: .68rem;
+}
+
+body.admin-users-page .admin-user-list {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+body.admin-users-page .admin-user-list .admin-user-item {
+  min-height: 62px;
+  padding: 11px 14px;
+  border-bottom: 1px solid #edf2f7;
+  background: #fff;
+}
+
+body.admin-users-page .admin-user-list .admin-user-item:last-child {
+  border-bottom: 0;
+}
+
+body.admin-users-page .admin-user-list .admin-user-item:hover {
+  background: #f8fafc;
+}
+
+body.admin-users-page .admin-user-selection-header {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 650;
+}
+
+body.admin-users-page .admin-user-selection-header label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+body.admin-users-page .admin-user-select-column {
+  display: inline-flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+}
+
+body.admin-users-page .admin-user-select-column input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #3159dc;
+  cursor: pointer;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable {
+  min-width: 1084px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:first-child,
+body.admin-users-page .admin-user-table.admin-user-selectable td:first-child {
+  width: 44px;
+  min-width: 44px;
+  padding-right: 8px;
+  padding-left: 8px;
+  text-align: center;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(2),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(2) {
+  width: 18%;
+  min-width: 160px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(3),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(3) {
+  width: 26%;
+  min-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(4),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(4) {
+  width: 14%;
+  min-width: 130px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(5),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(5) {
+  width: 15%;
+  min-width: 140px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(6),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(6) {
+  width: 15%;
+  min-width: 125px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable th:nth-child(7),
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(7) {
+  width: 12%;
+  min-width: 116px;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable td:nth-child(2) strong {
+  color: #1e293b;
+}
+
+body.admin-users-page [data-user-individual-actions][hidden] {
+  display: inline-flex !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.admin-users-page .admin-user-individual-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+body.admin-users-page .admin-users-selection-mode .admin-controller-status .route-switch,
+body.admin-users-page .admin-users-selection-mode .admin-controller-status .route-switch input {
+  cursor: default;
+  pointer-events: none;
+}
+
+body.admin-users-page .admin-users-selection-mode .admin-controller-status .route-switch input:disabled + .route-status-badge {
+  opacity: 1;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable tbody tr.is-bulk-selected td,
+body.admin-users-page .admin-user-list .admin-user-item.is-bulk-selected {
+  background: #eaf1ff;
+  box-shadow: inset 0 1px 0 #cbdcff, inset 0 -1px 0 #cbdcff;
+}
+
+body.admin-users-page .admin-user-table.admin-user-selectable tbody tr.is-bulk-selected:hover td,
+body.admin-users-page .admin-user-list .admin-user-item.is-bulk-selected:hover {
+  background: #dce8ff;
+}
+
+body.admin-users-page .admin-module-group-tabbed > .admin-users-toolbar.is-users-selection-mode {
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 160px) minmax(170px, 190px) minmax(180px, 200px);
+}
+
+body.admin-users-page .admin-users-toolbar > .admin-route-cancel-selection,
+body.admin-users-page .admin-users-toolbar > .admin-create-controller-button {
+  width: 100%;
+  min-width: 0;
+}
+
+body.admin-users-page .admin-users-toolbar > .admin-route-cancel-selection[hidden],
+body.admin-users-page .admin-users-toolbar > [data-users-bulk-delete-button][hidden] {
+  display: none !important;
+}
+
+body.admin-users-page .admin-users-toolbar .admin-create-controller-button.is-bulk-delete {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+body.admin-users-page .admin-users-toolbar .admin-create-controller-button.is-bulk-delete:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+@media (max-width: 760px) {
+  body.admin-users-page .admin-module-group-tabbed > .admin-users-toolbar.is-users-selection-mode {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 190px);
+  }
+
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-controller-search {
+    grid-column: 1 / -1;
+  }
+
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-route-filter {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-route-cancel-selection {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-create-controller-button {
+    grid-row: 3;
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 460px) {
+  body.admin-users-page .admin-module-group-tabbed > .admin-users-toolbar.is-users-selection-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-controller-search,
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-route-filter,
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-route-cancel-selection,
+  body.admin-users-page .admin-users-toolbar.is-users-selection-mode > .admin-create-controller-button {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table tbody td {
+  color: #64748b;
+  font-family: var(--project-font), sans-serif;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table tbody td:first-child {
+  color: #1e293b;
+  font-weight: 700;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions {
+  width: 116px;
+  min-width: 116px;
+  white-space: nowrap;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions > a,
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions form {
+  display: inline-flex;
+  width: auto;
+  margin: 0;
+  vertical-align: middle;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-edit-button,
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-delete-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 0;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-edit-button::before,
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-delete-button::before {
+  display: none;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-edit-button:hover {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #d97706;
+}
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table td.admin-controller-actions .admin-delete-button:hover {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #f43f5e;
+}
+
+
+
+body.admin-routes-page .admin-routes-content .admin-route-panel .admin-route-table .admin-edit-button:hover .admin-controller-action-icon {
+  filter: brightness(0) saturate(100%) invert(54%) sepia(93%) saturate(1576%) hue-rotate(2deg) brightness(94%) contrast(91%);
+}
+
+
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-module-group-tabbed > .admin-route-toolbar[data-admin-route-filters] {
+  position: relative;
+  z-index: 4;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px) minmax(125px, 150px) minmax(140px, 190px);
+  overflow: visible;
+}
+
+.admin-route-filter {
+  position: relative;
+  min-width: 0;
+  align-self: end;
+}
+
+.admin-route-filter-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 14px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.admin-route-filter-button:hover,
+.admin-route-filter-button[aria-expanded="true"],
+.admin-route-filter-button.is-active {
+  border: 1px solid #a7f3d0;
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.admin-route-filter-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.admin-route-filter-count {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+ 
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.admin-route-filter-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, .18);
+  color: #1e293b;
+}
+
+.admin-route-filter-panel[hidden] {
+  display: none !important;
+}
+
+.admin-route-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.admin-route-filter-heading strong {
+  font-size: 1rem;
+}
+
+.admin-route-filter-heading button {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #059669;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-route-filter-category {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.admin-route-filter-category:last-child {
+  border-bottom: 0;
+}
+
+.admin-route-filter-category summary {
+  position: relative;
+  padding: 12px 4px;
+  color: #1e293b;
+  font-size: .83rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.admin-route-filter-category summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-route-filter-category summary::before {
+  display: inline-block;
+  width: 18px;
+  color: #64748b;
+  content: "›";
+  font-size: 1.1rem;
+  transition: transform .15s ease;
+}
+
+.admin-route-filter-category[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.admin-route-filter-options {
+  display: grid;
+  gap: 3px;
+  padding: 0 0 10px 6px;
+}
+
+.admin-route-filter-options label {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: #334155;
+  font-size: .78rem;
+  cursor: pointer;
+}
+
+.admin-route-filter-options label:hover {
+  background: #f1f5f9;
+}
+
+.admin-route-filter-options input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #059669;
+}
+
+.admin-route-filter-empty {
+  padding: 5px 4px;
+  color: #64748b;
+  font-size: .75rem;
+}
+
+.admin-route-link-open {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.admin-route-link-open:hover {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.admin-route-link-open img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  transition: filter .15s ease;
+}
+
+.admin-route-link-open:hover img {
+  filter: brightness(0) saturate(100%) invert(25%) sepia(97%) saturate(1707%) hue-rotate(213deg) brightness(94%) contrast(96%);
+}
+
+.admin-route-link-modal .admin-route-link-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(790px, calc(100vh - 32px));
+  overflow: auto;
+}
+
+.admin-route-link-panel {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.admin-route-link-panel > .admin-card-heading {
+  margin: 0;
+}
+
+.admin-route-link-panel .admin-card-title h2 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 1.2rem;
+}
+
+.admin-route-link-panel .admin-step-number {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #3159dc;
+  font-size: .9rem;
+}
+
+.admin-route-link-panel form {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-route-link-module-tabs.admin-module-tabs {
+  position: static;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  backdrop-filter: none;
+}
+
+.admin-route-link-module-tabs .admin-module-arrow {
+  flex-basis: 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.admin-route-link-module-tabs .admin-module-tab {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.admin-route-link-search input {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 9px;
+  color: #1e293b;
+  font: inherit;
+  font-size: .83rem;
+}
+
+.admin-route-link-search input:focus {
+  border-color: #3159dc;
+  outline: 3px solid rgba(49, 89, 220, .12);
+}
+
+.admin-route-link-list-wrap {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.admin-route-link-list-heading,
+.admin-route-link-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.admin-route-link-list-heading {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .7rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.admin-route-link-list-heading span:last-child {
+  text-align: center;
+}
+
+.admin-route-link-list {
+  max-height: 230px;
+  overflow: auto;
+}
+
+.admin-route-link-option {
+  min-height: 42px;
+  border-top: 1px solid #eef2f7;
+  color: #334155;
+  font-size: .82rem;
+  cursor: pointer;
+}
+
+.admin-route-link-option:hover {
+  background: #f8fafc;
+}
+
+.admin-route-link-option input {
+  width: 17px;
+  height: 17px;
+  justify-self: center;
+  margin: 0;
+  accent-color: #3159dc;
+  cursor: pointer;
+}
+
+.admin-route-link-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: #64748b;
+  font-size: .82rem;
+  text-align: center;
+}
+
+.admin-route-link-selection h3 {
+  margin: 0 0 8px;
+  color: #1e293b;
+  font-size: .86rem;
+}
+
+.admin-route-link-selected {
+  display: flex;
+  min-height: 34px;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.admin-route-link-selected-item {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 5px 3px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: .75rem;
+}
+
+.admin-route-link-selected-item button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1e40af;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.admin-route-link-selected-item button:hover {
+  background: #dbeafe;
+}
+
+.admin-route-link-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: .8rem;
+}
+
+.admin-route-link-actions {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+.admin-route-link-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table td.admin-controller-actions {
+  width: 154px;
+  min-width: 154px;
+  text-align: center;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:first-child,
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:first-child {
+  width: 38px;
+  min-width: 38px;
+  padding-right: 4px;
+  padding-left: 4px;
+  text-align: center;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable tbody tr {
+  height: 60px;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(2),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(2) {
+  width: 8%;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(3),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(3),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(4),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(4),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(5),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(5),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(6),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(6),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(7),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(7) {
+  width: 12%;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(8),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(8) {
+  width: 12%;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th:nth-child(9),
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable td:nth-child(9) {
+  width: 14%;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table.admin-route-selectable th.admin-route-select-column {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table tbody tr.is-bulk-selected td {
+  background: #eaf1ff;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table tbody tr.is-bulk-selected:hover td {
+  background: #dce8ff;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-table tbody tr.is-bulk-selected td {
+  box-shadow: inset 0 1px 0 #cbdcff, inset 0 -1px 0 #cbdcff;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-shared-module-badge {
+  display: inline-flex;
+  min-width: 28px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--route-shared-module-color, #183b59) 35%, white);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--route-shared-module-color, #183b59) 10%, white);
+  color: var(--route-shared-module-color, #183b59);
+  font-size: .68rem;
+  font-weight: 750;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-registry-content.is-route-selection-mode .admin-route-table [data-route-individual-actions] {
+  display: none !important;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-registry-content.is-route-selection-mode .admin-route-table [data-route-status-action] .route-switch {
+  cursor: default;
+  pointer-events: none;
+}
+
+.admin-route-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 4px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  color: #64748b;
+  font-size: .76rem;
+}
+
+.admin-route-pagination-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-route-pagination-controls button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-route-pagination-controls button:hover:not(:disabled) {
+  border-color: #3159dc;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.admin-route-pagination-controls button:disabled {
+  cursor: default;
+  opacity: .48;
+}
+
+.admin-route-pagination-controls [data-route-page-status] {
+  min-width: 90px;
+  color: #475569;
+  text-align: center;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-select-column > input,
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-select-control input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #3159dc;
+  cursor: pointer;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-toolbar-link-control {
+  display: block;
+  min-width: 0;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-toolbar-link-control > button {
+  width: 100%;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-toolbar-link-control > [hidden] {
+  display: none !important;
+}
+
+.admin-route-cancel-selection {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .79rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-route-cancel-selection:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-create-control .admin-create-controller-button.is-bulk-delete {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-create-control .admin-create-controller-button.is-bulk-delete:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-actions-layout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-actions-layout > .admin-route-select-control {
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.admin-route-select-control input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #3159dc;
+  cursor: pointer;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-individual-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-individual-actions[hidden] {
+  display: none !important;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-individual-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+#routes-section.admin-route-content-grid:not([hidden]) .admin-route-individual-actions .admin-unlink-button {
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.admin-route-bulk-delete-form[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  #routes-section.admin-route-content-grid:not([hidden]) .admin-module-group-tabbed > .admin-route-toolbar[data-admin-route-filters] {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 160px) minmax(110px, 140px);
+  }
+
+  #routes-section.admin-route-content-grid:not([hidden]) .admin-route-toolbar[data-admin-route-filters] .admin-controller-search {
+    grid-column: 1 / -1;
+  }
+
+  #routes-section.admin-route-content-grid:not([hidden]) .admin-route-toolbar[data-admin-route-filters] .admin-route-create-control {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .admin-route-filter-panel {
+    right: 0;
+    left: auto;
+  }
+
+  .admin-route-link-panel {
+    padding: 16px;
+  }
+
+  body.admin-routes-page .admin-route-table th,
+  body.admin-routes-page .admin-route-table td,
+  body.admin-users-page .admin-route-table th,
+  body.admin-users-page .admin-route-table td,
+  body.admin-turnos-page .admin-route-table th,
+  body.admin-turnos-page .admin-route-table td {
+    padding: 11px 9px;
+  }
+
+  body.admin-routes-page .admin-route-table td.admin-controller-actions,
+  body.admin-users-page .admin-route-table td.admin-controller-actions,
+  body.admin-turnos-page .admin-route-table td.admin-controller-actions {
+    width: 92px;
+    min-width: 92px;
+  }
+}
+@keyframes admin-save-row-flash {
+  0%, 100% { background-color: transparent; }
+  15%, 75% { background-color: rgba(114, 173, 58, 0.22); }
+}
+
+.admin-save-loader[hidden] {
+  display: none;
+}
+
+.admin-save-loader {
+  position: fixed;
+  z-index: 3000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 1.5rem;
+  color: var(--admin-ink);
+  background: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+  backdrop-filter: blur(3px);
+}
+
+.admin-save-spinner {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border: 3px solid rgba(114, 173, 58, 0.22);
+  border-top-color: var(--admin-teal);
+  border-radius: 50%;
+  animation: admin-save-spin 0.75s linear infinite;
+}
+
+@keyframes admin-save-spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-save-row-highlight {
+  animation: admin-save-row-flash 3.2s ease-out;
+  outline: 2px solid rgba(114, 173, 58, 0.65);
+  outline-offset: -2px;
+}
+
+tr.admin-save-row-highlight > td {
+  animation: admin-save-row-flash 3.2s ease-out;
+}
+
+.admin-user-item.admin-save-row-highlight {
+  border-radius: 0.65rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-save-spinner,
+  .admin-save-row-highlight,
+  tr.admin-save-row-highlight > td {
+    animation-duration: 0.01ms;
   }
 }

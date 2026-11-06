@@ -73,7 +73,7 @@
     }
   </style>
 </head>
-<body class="admin-page-body">
+<body class="admin-page-body admin-routes-page">
   <main class="admin-dashboard-layout">
     <aside class="admin-sidebar">
       <div class="admin-sidebar-brand">
@@ -85,8 +85,7 @@
       {% include 'admin/_sidebar_nav.html' %}
 
       <div class="admin-sidebar-module">
-        <span>Usuario</span>
-        <strong>{{ account.username }}</strong>
+        
         <form method="post" action="{{ url_for('logout') }}">
           <button type="submit"><span class="logout-icon" aria-hidden="true">↪</span><span>Cerrar sesión</span></button>
         </form>
@@ -111,7 +110,7 @@
         
         <div class="admin-local-tabs route-page-tabs" role="tablist" aria-label="Secciones de administración">
           <button class="admin-registry-tab {% if catalog_tab == 'rutas' %}active{% endif %}" type="button" data-admin-page-tab="rutas" aria-selected="{{ 'true' if catalog_tab == 'rutas' else 'false' }}">
-            <span class="admin-page-tab-label">Rutas</span>
+            <span class="admin-page-tab-label">Rutas registradas</span>
             <span class="admin-route-tab-meta">
               <span class="admin-module-header-strong"><strong data-route-module-count>{{ grouped_routes[0].routes|length if grouped_routes else 0 }}</strong></span>
             </span>
@@ -144,7 +143,7 @@
                   <button class="admin-modal-close" type="button" data-catalog-modal-close aria-label="Cerrar formulario">&times;</button>
                 </div>
                 <div class="admin-form-shell">
-                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="descripcion" data-admin-save-selector="#tipos-rutas-form-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando tipo de ruta...' if editing_tipo_ruta else 'Guardando tipo de ruta...' }}">
                     <input type="hidden" name="catalog_tab" value="tipos">
                     {% if editing_tipo_ruta %}<input type="hidden" name="tipo_id" value="{{ editing_tipo_ruta.id }}">{% endif %}
                     <label>Tipo <span class="required-label-note">* Campo Obligatorio</span>
@@ -171,14 +170,6 @@
                   <button class="controller-filter-clear" data-admin-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
                 </span>
               </label>
-              <label class="admin-controller-filter">
-                <span class="sr-only">Filtrar por estatus</span>
-                <select data-admin-status-filter>
-                  <option value="Todos">Todos</option>
-                  <option value="Activo">Activos</option>
-                  <option value="Inactivo">Inactivos</option>
-                </select>
-              </label>
               {% if not is_read_only_account %}
               <button class="admin-primary-button admin-create-controller-button" type="button" data-catalog-modal-open="tipo-ruta-form-modal">Crear tipo</button>
               {% endif %}
@@ -189,7 +180,7 @@
                   <thead><tr><th>Descripción</th><th>Estatus</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for tipo_ruta in tipos_rutas %}
-                      <tr data-admin-filter-row data-filter-status="{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}">
+                      <tr data-admin-filter-row data-admin-save-row="{{ tipo_ruta.descripcion }}" data-filter-status="{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}">
                         <td>{{ tipo_ruta.descripcion }}</td>
                         <td class="admin-controller-status">
                           {% if is_read_only_account %}
@@ -210,9 +201,15 @@
                           {% endif %}
                         </td>
                         <td class="admin-controller-actions">
-                          <a class="admin-edit-button" href="{{ url_for('admin_routes_page', edit_tipo_id=tipo_ruta.id, catalog_tab='tipos') }}">Editar</a>
-                          <form method="post" action="{{ url_for('admin_delete_tipo_ruta', tipo_id=tipo_ruta.id) }}" onsubmit="return confirm('¿Deseas eliminar este tipo de ruta?');">
-                            <button class="admin-delete-button" type="submit">Eliminar</button>
+                          <a class="admin-edit-button" href="{{ url_for('admin_routes_page', edit_tipo_id=tipo_ruta.id, catalog_tab='tipos') }}" aria-label="Editar tipo de ruta {{ tipo_ruta.descripcion }}" title="Editar tipo de ruta">
+                            <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
+                            <span class="sr-only">Editar</span>
+                          </a>
+                          <form method="post" action="{{ url_for('admin_delete_tipo_ruta', tipo_id=tipo_ruta.id) }}" data-delete-confirm-form data-delete-kind="tipo de ruta" data-delete-name="{{ tipo_ruta.descripcion }}">
+                            <button class="admin-delete-button" type="submit" aria-label="Eliminar tipo de ruta {{ tipo_ruta.descripcion }}" title="Eliminar tipo de ruta">
+                              <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
+                              <span class="sr-only">Eliminar</span>
+                            </button>
                           </form>
                         </td>
                       </tr>
@@ -220,6 +217,7 @@
                   </tbody>
                 </table>
               </div>
+              {% include 'admin/_pagination.html' %}
             {% else %}
               <p class="empty-state">Sin tipos de rutas registrados.</p>
             {% endif %}
@@ -236,7 +234,7 @@
                   <button class="admin-modal-close" type="button" data-catalog-modal-close aria-label="Cerrar formulario">&times;</button>
                 </div>
                 <div class="admin-form-shell">
-                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form">
+                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="nombre" data-admin-save-selector="#servicio-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando servicio...' if editing_servicio else 'Guardando servicio...' }}">
                     <input type="hidden" name="catalog" value="servicio">
                     <input type="hidden" name="catalog_tab" value="servicios">
                     {% if editing_servicio %}<input type="hidden" name="servicio_id" value="{{ editing_servicio.id }}">{% endif %}
@@ -264,14 +262,6 @@
                   <button class="controller-filter-clear" data-admin-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
                 </span>
               </label>
-              <label class="admin-controller-filter">
-                <span class="sr-only">Filtrar por estatus</span>
-                <select data-admin-status-filter>
-                  <option value="Todos">Todos</option>
-                  <option value="Activo">Activos</option>
-                  <option value="Inactivo">Inactivos</option>
-                </select>
-              </label>
               {% if not is_read_only_account %}
               <button class="admin-primary-button admin-create-controller-button" type="button" data-catalog-modal-open="servicio-form-modal">Crear servicio</button>
               {% endif %}
@@ -282,7 +272,7 @@
                   <thead><tr><th>Nombre</th><th>Estatus</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for servicio in servicios %}
-                      <tr data-admin-filter-row data-filter-status="{{ 'Activo' if servicio.activo else 'Inactivo' }}">
+                      <tr data-admin-filter-row data-admin-save-row="{{ servicio.nombre }}" data-filter-status="{{ 'Activo' if servicio.activo else 'Inactivo' }}">
                         <td>{{ servicio.nombre }}</td>
                         <td class="admin-controller-status">
                           {% if is_read_only_account %}
@@ -303,9 +293,15 @@
                           {% endif %}
                         </td>
                         <td class="admin-controller-actions">
-                          <a class="admin-edit-button" href="{{ url_for('admin_routes_page', edit_servicio_id=servicio.id, catalog_tab='servicios') }}">Editar</a>
-                          <form method="post" action="{{ url_for('admin_delete_servicio', servicio_id=servicio.id) }}" onsubmit="return confirm('¿Deseas eliminar este servicio?');">
-                            <button class="admin-delete-button" type="submit">Eliminar</button>
+                          <a class="admin-edit-button" href="{{ url_for('admin_routes_page', edit_servicio_id=servicio.id, catalog_tab='servicios') }}" aria-label="Editar servicio {{ servicio.nombre }}" title="Editar servicio">
+                            <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
+                            <span class="sr-only">Editar</span>
+                          </a>
+                          <form method="post" action="{{ url_for('admin_delete_servicio', servicio_id=servicio.id) }}" data-delete-confirm-form data-delete-kind="servicio" data-delete-name="{{ servicio.nombre }}">
+                            <button class="admin-delete-button" type="submit" aria-label="Eliminar servicio {{ servicio.nombre }}" title="Eliminar servicio">
+                              <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
+                              <span class="sr-only">Eliminar</span>
+                            </button>
                           </form>
                         </td>
                       </tr>
@@ -313,6 +309,7 @@
                   </tbody>
                 </table>
               </div>
+              {% include 'admin/_pagination.html' %}
             {% else %}
               <p class="empty-state">Sin servicios registrados.</p>
             {% endif %}
@@ -347,7 +344,7 @@
           </div>
 
           <div class="admin-form-shell">
-            <form id="admin-route-form" method="post" action="{{ url_for('admin_create_route') }}" class="admin-route-form">
+            <form id="admin-route-form" method="post" action="{{ url_for('admin_create_route') }}" class="admin-route-form" data-admin-save-form data-admin-save-fields="ruta,origen,destino" data-admin-save-scope-field="mod1" data-admin-save-selector="#routes-section [data-admin-save-ruta]">
               {% if editing_route %}
                 <input type="hidden" name="route_id" value="{{ editing_route.id }}">
               {% endif %}
@@ -441,6 +438,47 @@
         </section>
         </div>
         </div>
+        <div class="admin-route-link-modal admin-controller-modal" id="route-link-modal" role="dialog" aria-modal="true" aria-labelledby="route-link-title" hidden>
+          <div class="admin-controller-modal-dialog admin-route-link-dialog">
+            <section class="admin-panel-card admin-route-link-panel">
+              <div class="admin-card-heading">
+                <div class="admin-card-title"><span class="admin-step-number">↗</span><h2 id="route-link-title">Vincular rutas</h2></div>
+                <button class="admin-modal-close" type="button" data-route-link-close aria-label="Cerrar vinculación">&times;</button>
+              </div>
+              <form method="post" action="{{ url_for('admin_link_routes') }}" data-route-link-form>
+                <input type="hidden" name="target_module" data-route-link-target>
+                <div class="admin-route-link-module-tabs admin-module-tabs" role="tablist" aria-label="Filtrar rutas por módulo">
+                  <button class="admin-module-arrow" type="button" data-route-link-prev aria-label="Módulo anterior">‹</button>
+                  <div class="admin-module-tabs-viewport">
+                    <div class="admin-module-tabs-track">
+                      {% for module in modules %}
+                      <button class="admin-module-tab" type="button" role="tab" aria-selected="false" data-route-link-source="{{ module.id }}" data-route-link-module-name="{{ module.nombre }}" hidden>{{ module.nombre }}</button>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  <button class="admin-module-arrow" type="button" data-route-link-next aria-label="Módulo siguiente">›</button>
+                </div>
+                <label class="admin-route-link-search">
+                  <span class="sr-only">Buscar por nombre de ruta</span>
+                  <input type="search" data-route-link-search placeholder="Buscar por nombre de ruta" autocomplete="off">
+                </label>
+                <div class="admin-route-link-list-wrap">
+                  <div class="admin-route-link-list-heading"><span>Nombre de la ruta</span><span>Seleccionar</span></div>
+                  <div class="admin-route-link-list" data-route-link-list aria-live="polite"></div>
+                </div>
+                <section class="admin-route-link-selection" aria-labelledby="route-link-selection-title">
+                  <h3 id="route-link-selection-title">Rutas seleccionadas</h3>
+                  <div class="admin-route-link-selected" data-route-link-selected></div>
+                </section>
+                <p class="admin-route-link-error" data-route-link-error role="status" hidden></p>
+                <div class="admin-form-actions admin-route-link-actions">
+                  <button class="admin-secondary-button" type="button" data-route-link-close>Cancelar</button>
+                  <button class="admin-primary-button" type="submit" data-route-link-submit disabled>Vincular</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </div>
         {% endif %}
 
         <section class="admin-panel-card admin-registry-panel admin-route-panel">
@@ -459,20 +497,10 @@
                     
                   </div>
 
-                  <div class="admin-card-heading">
-                      <div class="admin-card-title">
-                        <h2>Rutas registradas</h2>
-                      </div>
-                      <div class="admin-connection">
-                       <span class="admin-connection-dot"></span>
-                        Conectado
-                      </div>
-                
-                      
-                  </div>
+                  
 
 
-                  <div class="admin-controller-toolbar admin-route-toolbar" data-admin-toolbar role="search">
+                  <div class="admin-controller-toolbar admin-route-toolbar" data-admin-toolbar data-admin-route-filters role="search">
                     <label class="controller-filter admin-controller-search">
                       <span class="controller-filter-label">Buscar</span>
                       <span class="controller-filter-field">
@@ -480,33 +508,84 @@
                         <button class="controller-filter-clear" data-admin-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
                       </span>
                     </label>
-                    <label class="admin-controller-filter">
-                      <span class="sr-only">Filtrar por tipo de ruta</span>
-                      <select data-admin-shared-filter>
-                        <option value="Todos">Todos</option>
-                        <option value="Compartidas">Compartidas</option>
-                      </select>
-                    </label>
-                    <label class="admin-controller-filter">
-                      <span class="sr-only">Filtrar por estatus</span>
-                      <select data-admin-status-filter>
-                        <option value="Todos">Todos</option>
-                        <option value="Activo">Activas</option>
-                        <option value="Inactivo">Inactivas</option>
-                      </select>
-                    </label>
+                    <div class="admin-route-filter">
+                      <button class="admin-route-filter-button" type="button" aria-expanded="false" aria-controls="route-filters-{{ group.module_number }}" data-route-filter-toggle>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6.2 7.1v5.1l-3.6 1.8v-6.9L4 5Z"></path></svg>
+                        <span>Filtros</span>
+                        <span class="admin-route-filter-count" data-route-filter-count hidden>0</span>
+                      </button>
+                      <div class="admin-route-filter-panel" id="route-filters-{{ group.module_number }}" data-route-filter-panel hidden>
+                        <div class="admin-route-filter-heading">
+                          <strong>Filtros</strong>
+                          <button type="button" data-route-filter-clear>Limpiar</button>
+                        </div>
+                        <details class="admin-route-filter-category" open>
+                          <summary>Estatus</summary>
+                          <div class="admin-route-filter-options">
+                            <label><input type="checkbox" data-route-filter-option="status" value="Activo"><span>Activas</span></label>
+                            <label><input type="checkbox" data-route-filter-option="status" value="Inactivo"><span>Inactivas</span></label>
+                          </div>
+                        </details>
+                        <details class="admin-route-filter-category" open>
+                          <summary>Categoria</summary>
+                          <div class="admin-route-filter-options">
+                            <label><input type="checkbox" data-route-filter-option="category" value="Originales"><span>Originales</span></label>
+                            <label><input type="checkbox" data-route-filter-option="category" value="Compartidas"><span>Compartidas</span></label>
+                          </div>
+                        </details>
+                        <details class="admin-route-filter-category">
+                          <summary>Servicios</summary>
+                          <div class="admin-route-filter-options">
+                            {% for servicio in servicios %}
+                            <label><input type="checkbox" data-route-filter-option="service" value="{{ servicio.nombre }}"><span>{{ servicio.nombre }}</span></label>
+                            {% else %}
+                            <span class="admin-route-filter-empty">No hay servicios registrados.</span>
+                            {% endfor %}
+                          </div>
+                        </details>
+                        <details class="admin-route-filter-category">
+                          <summary>Tipos</summary>
+                          <div class="admin-route-filter-options">
+                            {% for tipo_ruta in tipos_rutas %}
+                            <label><input type="checkbox" data-route-filter-option="type" value="{{ tipo_ruta.descripcion }}"><span>{{ tipo_ruta.descripcion }}</span></label>
+                            {% else %}
+                            <span class="admin-route-filter-empty">No hay tipos registrados.</span>
+                            {% endfor %}
+                          </div>
+                        </details>
+                      </div>
+                    </div>
                     {% if not is_read_only_account %}
+                    <div class="admin-route-toolbar-link-control">
+                      <button class="admin-route-link-open" type="button" data-route-link-open="{{ group.module_number }}">
+                        <img src="{{ url_for('static', filename='imagenes/icons/vinculado.png') }}" alt="">
+                        <span>Vincular</span>
+                      </button>
+                      <button class="admin-route-cancel-selection" type="button" data-route-cancel-selection hidden>Cancelar selección</button>
+                    </div>
                     <label class="admin-route-create-control">
-                          <button class="admin-primary-button admin-create-controller-button" type="button" data-route-modal-open>Crear ruta</button>
+                          <button class="admin-primary-button admin-create-controller-button" type="button" data-route-create-or-delete data-route-modal-open>Crear ruta</button>
                     </label>
                     {% endif %}
                   </div>
 
+                  {% if not is_read_only_account %}
+                  <form class="admin-route-bulk-delete-form" method="post" action="{{ url_for('admin_delete_selected_routes') }}" data-route-bulk-delete-form data-delete-confirm-form data-delete-kind="rutas seleccionadas" data-delete-name="rutas seleccionadas" hidden>
+                    <input type="hidden" name="module_number" value="{{ group.module_number }}">
+                    <div data-route-bulk-delete-inputs></div>
+                  </form>
+                  {% endif %}
+
                   {% if group.routes %}
                     <div class="admin-route-table-wrap">
-                      <table class="admin-route-table">
+                      <table class="admin-route-table {% if not is_read_only_account %}admin-route-selectable{% endif %}">
                         <thead>
                           <tr>
+                            {% if not is_read_only_account %}
+                            <th class="admin-route-select-column">
+                              <input type="checkbox" data-route-select-all aria-label="Seleccionar todas las rutas visibles">
+                            </th>
+                            {% endif %}
                             <th>Nomenclatura</th>
                             <th>Ruta</th>
                             <th>Origen</th>
@@ -519,8 +598,20 @@
                         </thead>
                         <tbody>
                           {% for route in group.routes %}
-                            <tr data-admin-filter-row data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Normal' }}">
-                              <td>{{ route.nomenclatura }}</td>
+                            <tr data-admin-filter-row data-admin-save-ruta="{{ route.ruta }}" data-admin-save-origen="{{ route.origen }}" data-admin-save-destino="{{ route.destino }}" data-admin-save-row="{{ route.ruta }}" data-route-id="{{ route.id }}" data-route-module="{{ route.mod1 }}" data-route-name="{{ route.ruta }}" data-route-original="{{ 'false' if route.is_external else 'true' }}" data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Originales' }}" data-filter-service="{{ route.servicio }}" data-filter-route-type="{{ route.tipos_descripcion or 'Sin tipo' }}">
+                              {% if not is_read_only_account %}
+                              <td class="admin-route-select-column">
+                                <label class="admin-route-select-control" title="Seleccionar ruta para eliminar">
+                                  <input type="checkbox" data-route-bulk-select value="{{ route.id }}" aria-label="Seleccionar {{ route.ruta }} para eliminar">
+                                </label>
+                              </td>
+                              {% endif %}
+                              <td>
+                                {{ route.nomenclatura }}
+                                {% if route.is_external %}
+                                  <span class="admin-route-shared-module-badge" data-route-source-module="{{ route.mod1 }}" aria-label="Ruta compartida desde el módulo {{ route.mod1 }}">M{{ route.mod1 }}</span>
+                                {% endif %}
+                              </td>
                               <td>{{ route.ruta }}</td>
                               <td>{{ route.origen }}</td>
                               <td>{{ route.destino }}</td>
@@ -533,7 +624,7 @@
                                     {{ route.estado }}
                                   </span>
                                 {% elif not route.is_external %}
-                                  <form method="post" action="{{ url_for('admin_toggle_route_status', route_id=route.id) }}">
+                                  <form method="post" action="{{ url_for('admin_toggle_route_status', route_id=route.id) }}" data-route-status-action>
                                     <input type="hidden" name="estado" value="{{ route.estado }}">
                                     <label class="route-switch" title="Cambiar estado de la ruta">
                                       <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
@@ -545,7 +636,7 @@
                                     </label>
                                   </form>
                                 {% else %}
-                                  <form method="post" action="{{ url_for('admin_toggle_shared_route_status', route_id=route.id, module_number=group.module_number) }}">
+                                  <form method="post" action="{{ url_for('admin_toggle_shared_route_status', route_id=route.id, module_number=group.module_number) }}" data-route-status-action>
                                     <input type="hidden" name="estado" value="{{ route.estado }}">
                                     <label class="route-switch" title="Cambiar estado de la ruta compartida">
                                       <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
@@ -560,16 +651,28 @@
                               </td>
                               <td class="admin-controller-actions">
                                 {% if not is_read_only_account %}
-                                  {% if not route.is_external %}
-                                    <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_routes_page', edit_id=route.id) }}">Editar</a>
-                                    <form method="post" action="{{ url_for('admin_delete_route', route_id=route.id) }}" onsubmit="return confirm('¿Deseas eliminar esta ruta?');">
-                                      <button class="admin-delete-button" type="submit">Eliminar</button>
-                                    </form>
-                                  {% else %}
-                                    <form method="post" action="{{ url_for('admin_unlink_shared_route', route_id=route.id, module_number=group.module_number) }}" onsubmit="return confirm('¿Deseas desvincular esta ruta del módulo?');">
-                                      <button class="admin-unlink-button" type="submit">Desvincular</button>
-                                    </form>
-                                  {% endif %}
+                                  <div class="admin-route-actions-layout">
+                                    <div class="admin-route-individual-actions" data-route-individual-actions>
+                                      {% if not route.is_external %}
+                                        <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_routes_page', edit_id=route.id) }}" aria-label="Editar ruta {{ route.ruta }}" title="Editar ruta">
+                                          <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
+                                          <span class="sr-only">Editar</span>
+                                        </a>
+                                        <form method="post" action="{{ url_for('admin_delete_route', route_id=route.id) }}" data-delete-confirm-form data-delete-kind="ruta" data-delete-name="{{ route.ruta }}">
+                                          <button class="admin-delete-button" type="submit" aria-label="Eliminar ruta {{ route.ruta }}" title="Eliminar ruta">
+                                            <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
+                                            <span class="sr-only">Eliminar</span>
+                                          </button>
+                                        </form>
+                                      {% else %}
+                                        <form method="post" action="{{ url_for('admin_unlink_shared_route', route_id=route.id, module_number=group.module_number) }}" data-delete-confirm-form data-delete-kind="vinculación de ruta" data-delete-name="{{ route.ruta }}" data-delete-message="La ruta {{ route.ruta }} dejará de estar compartida con este módulo.">
+                                          <button class="admin-unlink-button" type="submit">Desvincular</
+                                      
+                                            button>
+                                        </form>
+                                      {% endif %}
+                                    </div>
+                                  </div>
                                 {% endif %}
                               </td>
                             </tr>
@@ -577,6 +680,14 @@
                         </tbody>
                       </table>
                     </div>
+                    <nav class="admin-route-pagination" data-route-pagination aria-label="Paginación de rutas">
+                      <span class="admin-route-pagination-summary" data-route-pagination-summary></span>
+                      <div class="admin-route-pagination-controls">
+                        <button type="button" data-route-page-prev disabled>Anterior</button>
+                        <span data-route-page-status></span>
+                        <button type="button" data-route-page-next disabled>Siguiente</button>
+                      </div>
+                    </nav>
                   {% else %}
                     <p class="empty-state">Sin rutas registradas en este módulo.</p>
                   {% endif %}
@@ -589,9 +700,11 @@
       </section>
     </div>
   </main>
+  {% include 'admin/_delete_confirmation_modal.html' %}
+  {% include 'admin/_save_feedback.html' %}
 
   <script>
-    document.querySelectorAll('#tipo-ruta-form-modal, #servicio-form-modal, #route-form-modal').forEach(function (modal) {
+    document.querySelectorAll('#tipo-ruta-form-modal, #servicio-form-modal, #route-form-modal, #route-link-modal').forEach(function (modal) {
       document.body.appendChild(modal);
     });
 
@@ -609,6 +722,151 @@
       const routeStatusValue = document.querySelector('#route-status-value');
       const routeModal = document.querySelector('#route-form-modal');
       const routeForm = document.querySelector('#admin-route-form');
+      const routeLinkModal = document.querySelector('#route-link-modal');
+      const routeLinkForm = routeLinkModal?.querySelector('[data-route-link-form]');
+      const routeLinkTarget = routeLinkModal?.querySelector('[data-route-link-target]');
+      const routeLinkTabs = Array.from(routeLinkModal?.querySelectorAll('[data-route-link-source]') || []);
+      const routeLinkViewport = routeLinkModal?.querySelector('.admin-module-tabs-viewport');
+      const routeLinkList = routeLinkModal?.querySelector('[data-route-link-list]');
+      const routeLinkSelected = routeLinkModal?.querySelector('[data-route-link-selected]');
+      const routeLinkSearch = routeLinkModal?.querySelector('[data-route-link-search]');
+      const routeLinkSubmit = routeLinkModal?.querySelector('[data-route-link-submit]');
+      const routeLinkError = routeLinkModal?.querySelector('[data-route-link-error]');
+      const selectedRoutes = new Map();
+      let routeLinkSourceModule = '';
+      function submitBulkDelete(modulePanel) {
+        const form = modulePanel?.querySelector('[data-route-bulk-delete-form]');
+        const inputs = form?.querySelector('[data-route-bulk-delete-inputs]');
+        if (!modulePanel || !form || !inputs) return;
+        const selected = Array.from(modulePanel.querySelectorAll('[data-route-bulk-select]:checked'));
+        if (!selected.length) return;
+
+        const originalCount = selected.filter((item) => item.closest('tr')?.dataset.routeOriginal === 'true').length;
+        const sharedCount = selected.length - originalCount;
+        const summary = [];
+        if (originalCount) summary.push(`${originalCount} ruta(s) original(es) se eliminarán`);
+        if (sharedCount) summary.push(`${sharedCount} ruta(s) compartida(s) se desvincularán`);
+        form.dataset.deleteMessage = `Se eliminarán ${summary.join(' y ')}. Esta acción no se puede deshacer.`;
+
+        inputs.replaceChildren();
+        selected.forEach(function (checkbox) {
+          const routeId = document.createElement('input');
+          routeId.type = 'hidden';
+          routeId.name = 'route_ids';
+          routeId.value = checkbox.value;
+          inputs.appendChild(routeId);
+        });
+        form.requestSubmit();
+      }
+
+      document.querySelectorAll('.admin-registry-content[data-admin-module-panel]').forEach(function (modulePanel) {
+        const checkboxes = Array.from(modulePanel.querySelectorAll('[data-route-bulk-select]'));
+        const routeRows = Array.from(modulePanel.querySelectorAll('.admin-route-table tbody tr[data-admin-filter-row]'));
+        const pagination = modulePanel.querySelector('[data-route-pagination]');
+        const pageSummary = pagination?.querySelector('[data-route-pagination-summary]');
+        const pageStatus = pagination?.querySelector('[data-route-page-status]');
+        const previousPageButton = pagination?.querySelector('[data-route-page-prev]');
+        const nextPageButton = pagination?.querySelector('[data-route-page-next]');
+        const selectAll = modulePanel.querySelector('[data-route-select-all]');
+        const linkButton = modulePanel.querySelector('[data-route-link-open]');
+        const cancelSelectionButton = modulePanel.querySelector('[data-route-cancel-selection]');
+        const createOrDeleteButton = modulePanel.querySelector('[data-route-create-or-delete]');
+        const pageSize = 10;
+        let currentPage = 1;
+
+        function updatePagination(resetPage) {
+          if (!pagination) return;
+          if (resetPage) currentPage = 1;
+          const matchingRows = routeRows.filter((row) => row.dataset.adminFilterMatch !== 'false');
+          const pageCount = Math.max(1, Math.ceil(matchingRows.length / pageSize));
+          currentPage = Math.min(currentPage, pageCount);
+          const startIndex = (currentPage - 1) * pageSize;
+          const visibleRows = new Set(matchingRows.slice(startIndex, startIndex + pageSize));
+
+          routeRows.forEach((row) => {
+            row.hidden = !visibleRows.has(row);
+          });
+          if (pageSummary) {
+            const firstVisible = matchingRows.length ? startIndex + 1 : 0;
+            const lastVisible = Math.min(startIndex + pageSize, matchingRows.length);
+            pageSummary.textContent = `Mostrando ${firstVisible}-${lastVisible} de ${matchingRows.length}`;
+          }
+          if (pageStatus) pageStatus.textContent = `Página ${currentPage} de ${pageCount}`;
+          if (previousPageButton) previousPageButton.disabled = currentPage <= 1;
+          if (nextPageButton) nextPageButton.disabled = currentPage >= pageCount;
+        }
+
+        function updateBulkSelection() {
+          const selected = checkboxes.filter((checkbox) => checkbox.checked);
+          const selectionMode = selected.length > 0;
+          modulePanel.classList.toggle('is-route-selection-mode', selectionMode);
+          checkboxes.forEach(function (checkbox) {
+            const row = checkbox.closest('tr');
+            const individualActions = row?.querySelector('[data-route-individual-actions]');
+            const statusAction = row?.querySelector('[data-route-status-action]');
+            if (individualActions) individualActions.hidden = selectionMode;
+            const statusInput = statusAction?.querySelector('input[type="checkbox"]');
+            if (statusInput) statusInput.disabled = selectionMode;
+            row?.classList.toggle('is-bulk-selected', checkbox.checked);
+          });
+          if (selectAll) {
+            const visible = checkboxes.filter((checkbox) => !checkbox.closest('tr')?.hidden);
+            const visibleSelected = visible.filter((checkbox) => checkbox.checked);
+            selectAll.checked = visible.length > 0 && visibleSelected.length === visible.length;
+            selectAll.indeterminate = visibleSelected.length > 0 && visibleSelected.length < visible.length;
+            selectAll.disabled = visible.length === 0;
+          }
+          if (linkButton) linkButton.hidden = selectionMode;
+          if (cancelSelectionButton) cancelSelectionButton.hidden = !selectionMode;
+          if (createOrDeleteButton) {
+            createOrDeleteButton.textContent = selectionMode ? 'Eliminar registros' : 'Crear ruta';
+            createOrDeleteButton.classList.toggle('is-bulk-delete', selectionMode);
+            createOrDeleteButton.setAttribute('aria-label', selectionMode ? 'Eliminar registros seleccionados' : 'Crear ruta');
+          }
+        }
+
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkSelection));
+        previousPageButton?.addEventListener('click', function () {
+          if (currentPage <= 1) return;
+          currentPage -= 1;
+          updatePagination(false);
+          updateBulkSelection();
+        });
+        nextPageButton?.addEventListener('click', function () {
+          currentPage += 1;
+          updatePagination(false);
+          updateBulkSelection();
+        });
+        modulePanel.querySelector('[data-admin-toolbar]')?.addEventListener('admin-filters-updated', function () {
+          updatePagination(true);
+          updateBulkSelection();
+          if (routeModuleCount && !modulePanel.hidden) {
+            const matchingRouteCount = routeRows.filter((row) => row.dataset.adminFilterMatch !== 'false').length;
+            routeModuleCount.textContent = String(matchingRouteCount);
+          }
+        });
+        selectAll?.addEventListener('change', function () {
+          checkboxes.forEach(function (checkbox) {
+            if (!checkbox.closest('tr')?.hidden) checkbox.checked = selectAll.checked;
+          });
+          updateBulkSelection();
+        });
+        cancelSelectionButton?.addEventListener('click', function () {
+          checkboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+          });
+          updateBulkSelection();
+        });
+        createOrDeleteButton?.addEventListener('click', function (event) {
+          if (!checkboxes.some((checkbox) => checkbox.checked)) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          submitBulkDelete(modulePanel);
+        });
+        updatePagination(false);
+        updateBulkSelection();
+      });
+
       const routeSteps = document.querySelectorAll('[data-route-step]');
       const routeCardHeadings = document.querySelectorAll('[data-route-card-heading]');
       const routeNextButton = document.querySelector('[data-route-next]');
@@ -623,6 +881,160 @@
       const moduleStatusById = {{ shared_module_statuses|default({})|tojson }};
       const isEditingRoute = {{ 'true' if editing_route else 'false' }};
       let routeModuleInitialized = false;
+
+      function renderRouteLinkSelection() {
+        if (!routeLinkSelected || !routeLinkForm) return;
+        routeLinkSelected.replaceChildren();
+        routeLinkForm.querySelectorAll('[data-route-link-route-id]').forEach((input) => input.remove());
+        selectedRoutes.forEach(function (route) {
+          const item = document.createElement('div');
+          item.className = 'admin-route-link-selected-item';
+          const name = document.createElement('span');
+          name.textContent = `M${route.moduleId} ${route.name}`;
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = '×';
+          remove.setAttribute('aria-label', `Quitar M${route.moduleId} ${route.name}`);
+          remove.addEventListener('click', function () {
+            selectedRoutes.delete(route.id);
+            renderRouteLinkSelection();
+            renderRouteLinkCandidates();
+          });
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'route_ids';
+          input.value = route.id;
+          input.dataset.routeLinkRouteId = '';
+          routeLinkForm.appendChild(input);
+          item.append(name, remove);
+          routeLinkSelected.appendChild(item);
+        });
+        if (routeLinkSubmit) routeLinkSubmit.disabled = selectedRoutes.size === 0;
+        if (routeLinkError) routeLinkError.hidden = true;
+      }
+
+      function renderRouteLinkCandidates() {
+        if (!routeLinkList || !routesSection) return;
+        routeLinkList.replaceChildren();
+        const query = routeLinkSearch?.value.trim().toLocaleLowerCase() || '';
+        const targetPanel = routesSection.querySelector(`[data-admin-module-panel="${routeLinkTarget?.value}"]`);
+        const alreadyLinked = new Set(
+          Array.from(targetPanel?.querySelectorAll('tr[data-route-original="false"]') || [])
+            .map((row) => row.dataset.routeId)
+        );
+        const candidates = Array.from(routesSection.querySelectorAll('tr[data-route-original="true"]'))
+          .filter((row) => row.dataset.routeModule === routeLinkSourceModule)
+          .filter((row) => row.dataset.routeModule !== routeLinkTarget?.value)
+          .filter((row) => !alreadyLinked.has(row.dataset.routeId))
+          .filter((row) => row.dataset.routeName.toLocaleLowerCase().includes(query));
+
+        if (!candidates.length) {
+          const empty = document.createElement('p');
+          empty.className = 'admin-route-link-empty';
+          empty.textContent = query ? 'No hay rutas que coincidan con la búsqueda.' : 'No hay rutas originales disponibles en este módulo.';
+          routeLinkList.appendChild(empty);
+          return;
+        }
+
+        candidates.forEach(function (row) {
+          const routeId = row.dataset.routeId;
+          const item = document.createElement('label');
+          item.className = 'admin-route-link-option';
+          const name = document.createElement('span');
+          name.textContent = row.dataset.routeName;
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = selectedRoutes.has(routeId);
+          checkbox.setAttribute('aria-label', `Seleccionar ruta ${row.dataset.routeName}`);
+          checkbox.addEventListener('change', function () {
+            if (checkbox.checked) {
+              selectedRoutes.set(routeId, {
+                id: routeId,
+                moduleId: row.dataset.routeModule,
+                name: row.dataset.routeName
+              });
+            } else {
+              selectedRoutes.delete(routeId);
+            }
+            renderRouteLinkSelection();
+          });
+          item.append(name, checkbox);
+          routeLinkList.appendChild(item);
+        });
+      }
+
+      function selectRouteLinkSource(moduleId) {
+        routeLinkSourceModule = moduleId;
+        routeLinkTabs.forEach(function (tab) {
+          const active = tab.dataset.routeLinkSource === moduleId;
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-selected', String(active));
+        });
+        renderRouteLinkCandidates();
+      }
+
+      function closeRouteLinkModal() {
+        if (!routeLinkModal) return;
+        routeLinkModal.hidden = true;
+        selectedRoutes.clear();
+        routeLinkSourceModule = '';
+        if (routeLinkSearch) routeLinkSearch.value = '';
+        renderRouteLinkSelection();
+        routeLinkTabs.forEach((tab) => {
+          tab.hidden = true;
+          tab.classList.remove('active');
+          tab.setAttribute('aria-selected', 'false');
+        });
+      }
+
+      document.querySelectorAll('[data-route-link-open]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          if (!routeLinkModal || !routeLinkTarget) return;
+          const targetModule = button.dataset.routeLinkOpen;
+          routeLinkTarget.value = targetModule;
+          selectedRoutes.clear();
+          if (routeLinkSearch) routeLinkSearch.value = '';
+          if (routeLinkError) routeLinkError.hidden = true;
+          let firstSourceModule = '';
+          routeLinkTabs.forEach(function (tab) {
+            const available = tab.dataset.routeLinkSource !== targetModule;
+            tab.hidden = !available;
+            if (available && !firstSourceModule) firstSourceModule = tab.dataset.routeLinkSource;
+          });
+          routeLinkModal.hidden = false;
+          renderRouteLinkSelection();
+          if (firstSourceModule) selectRouteLinkSource(firstSourceModule);
+          else if (routeLinkList) routeLinkList.textContent = 'No hay otros módulos disponibles.';
+          routeLinkSearch?.focus();
+        });
+      });
+
+      routeLinkTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          selectRouteLinkSource(tab.dataset.routeLinkSource);
+        });
+      });
+      routeLinkSearch?.addEventListener('input', renderRouteLinkCandidates);
+      routeLinkModal?.querySelectorAll('[data-route-link-close]').forEach((button) => {
+        button.addEventListener('click', closeRouteLinkModal);
+      });
+      routeLinkModal?.addEventListener('click', function (event) {
+        if (event.target === routeLinkModal) closeRouteLinkModal();
+      });
+      routeLinkModal?.querySelector('[data-route-link-prev]')?.addEventListener('click', function () {
+        routeLinkViewport?.scrollBy({ left: -routeLinkViewport.clientWidth, behavior: 'smooth' });
+      });
+      routeLinkModal?.querySelector('[data-route-link-next]')?.addEventListener('click', function () {
+        routeLinkViewport?.scrollBy({ left: routeLinkViewport.clientWidth, behavior: 'smooth' });
+      });
+      routeLinkForm?.addEventListener('submit', function (event) {
+        if (selectedRoutes.size) return;
+        event.preventDefault();
+        if (routeLinkError) {
+          routeLinkError.textContent = 'Selecciona al menos una ruta para vincular.';
+          routeLinkError.hidden = false;
+        }
+      });
 
       function showRouteStep(stepNumber) {
         routeSteps.forEach(function (step) {
@@ -651,14 +1063,6 @@
         if (routesPageHeader) routesPageHeader.classList.toggle('route-tab-active', !isCatalog);
         if (routesPageHeader) routesPageHeader.classList.toggle('catalog-tab-active', isCatalog);
       }
-
-      document.addEventListener('admin-module-changed', function (event) {
-        if (!routeModuleCount) return;
-        const moduleId = String(event.detail?.moduleId || '');
-        const modulePanel = Array.from(document.querySelectorAll('.admin-route-panel [data-admin-module-panel]'))
-          .find((panel) => panel.dataset.adminModulePanel === moduleId);
-        routeModuleCount.textContent = String(modulePanel?.querySelectorAll('.admin-route-table tbody tr').length || 0);
-      });
 
       pageTabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
@@ -704,7 +1108,10 @@
         });
       });
       document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') closeCatalogModals();
+        if (event.key === 'Escape') {
+          closeCatalogModals();
+          closeRouteLinkModal();
+        }
       });
 
       function setModuleMenuOpen(open) {
@@ -893,7 +1300,10 @@
   </script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
+  <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
+  {% include 'admin/_notification_toast.html' %}
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

@@ -269,7 +269,7 @@ def _initialize_schema() -> None:
                     codigo VARCHAR(40) NOT NULL UNIQUE,
                     descripcion VARCHAR(160) NOT NULL,
                     categoria VARCHAR(20) NOT NULL DEFAULT 'falta'
-                        CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad')),
+                        CHECK (categoria IN ('trabajo', 'descanso', 'falta', 'vacaciones', 'incapacidad')),
                     activo BOOLEAN NOT NULL DEFAULT TRUE
                 )
                 """
@@ -278,7 +278,7 @@ def _initialize_schema() -> None:
                 """
                 ALTER TABLE catalogos.estados_especiales
                 ADD COLUMN IF NOT EXISTS categoria VARCHAR(20) NOT NULL DEFAULT 'falta'
-                    CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad'))
+                    CHECK (categoria IN ('trabajo', 'descanso', 'falta', 'vacaciones', 'incapacidad'))
                 """
             )
             cursor.execute(
@@ -291,7 +291,7 @@ def _initialize_schema() -> None:
                 """
                 ALTER TABLE catalogos.estados_especiales
                 ADD CONSTRAINT estados_especiales_categoria_check
-                CHECK (categoria IN ('descanso', 'falta', 'vacaciones', 'incapacidad'))
+                CHECK (categoria IN ('trabajo', 'descanso', 'falta', 'vacaciones', 'incapacidad'))
                 """
             )
             cursor.execute(
@@ -926,6 +926,8 @@ def refresh_analysis_tables() -> None:
                                THEN 'VACACIONES'
                            WHEN special_state.categoria = 'vacaciones'
                                THEN 'VACACIONES'
+                           WHEN special_state.categoria = 'trabajo'
+                               THEN 'TRABAJADO'
                            WHEN special_state.categoria = 'descanso'
                                THEN 'DESCANSO'
                            WHEN special_state.categoria = 'falta'
@@ -1188,6 +1190,51 @@ def delete_controller(controller_id: int) -> bool:
     return deleted
 
 
+def delete_controllers_from_module(controller_ids: list[int], module_number: int) -> list[dict]:
+    unique_ids = list(dict.fromkeys(controller_ids))
+    if not unique_ids:
+        raise ValueError("Selecciona al menos un controlador.")
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, nombre, credencial, sexo, mod1
+                FROM catalogos.controladores
+                WHERE id = ANY(%s) AND mod1 = %s
+                ORDER BY id
+                FOR UPDATE
+                """,
+                (unique_ids, module_number),
+            )
+            rows = cursor.fetchall()
+            if len(rows) != len(unique_ids):
+                raise ValueError("Uno de los controladores seleccionados ya no pertenece a este módulo.")
+
+            cursor.execute(
+                """
+                DELETE FROM catalogos.controladores
+                WHERE id = ANY(%s) AND mod1 = %s
+                RETURNING id
+                """,
+                (unique_ids, module_number),
+            )
+            deleted_ids = {row[0] for row in cursor.fetchall()}
+            if deleted_ids != set(unique_ids):
+                raise ValueError("No se pudieron eliminar todos los controladores seleccionados.")
+        connection.commit()
+    return [
+        {
+            "id": row[0],
+            "nombre": row[1],
+            "credencial": row[2],
+            "sexo": row[3],
+            "mod1": row[4],
+        }
+        for row in rows
+    ]
+
+
 def fetch_users(module_number: int | None = None) -> list[dict]:
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -1414,6 +1461,50 @@ def delete_user(user_id: int) -> bool:
     return deleted
 
 
+def delete_users_by_ids(user_ids: list[int]) -> list[dict]:
+    unique_ids = list(dict.fromkeys(user_ids))
+    if not unique_ids:
+        raise ValueError("Selecciona al menos un usuario.")
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, username, module_number, tipo_usuario
+                FROM seguridad.usuarios
+                WHERE id = ANY(%s)
+                ORDER BY id
+                FOR UPDATE
+                """,
+                (unique_ids,),
+            )
+            rows = cursor.fetchall()
+            if len(rows) != len(unique_ids):
+                raise ValueError("Uno de los usuarios seleccionados ya no está disponible.")
+
+            cursor.execute(
+                """
+                DELETE FROM seguridad.usuarios
+                WHERE id = ANY(%s)
+                RETURNING id
+                """,
+                (unique_ids,),
+            )
+            deleted_ids = {row[0] for row in cursor.fetchall()}
+            if deleted_ids != set(unique_ids):
+                raise ValueError("No se pudieron eliminar todos los usuarios seleccionados.")
+        connection.commit()
+    return [
+        {
+            "id": row[0],
+            "username": row[1],
+            "module_number": row[2],
+            "tipo_usuario": row[3],
+        }
+        for row in rows
+    ]
+
+
 ROUTE_COLUMNS = ("id", "nomenclatura", "ruta", "origen", "destino", "servicio", "estado", "mod1")
 
 
@@ -1500,6 +1591,176 @@ def fetch_routes(module_number: int) -> list[dict]:
             )
             columns = tuple(column.name for column in cursor.description)
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def fetch_controller_analysis_dashboard(
+    month: int,
+    year: int,
+    selected_credential: str | None = None,
+    selected_module: int | None = None,
+) -> dict:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT COUNT(*), COUNT(*) FILTER (WHERE active)
+                FROM catalogos.controladores
+                """
+            )
+            registered_controllers, active_controllers = cursor.fetchone()
+
+            cursor.execute(
+                """
+                SELECT COUNT(DISTINCT credential)
+                FROM analisis.analisis_trabajadores
+                WHERE month = %s AND year = %s
+                """,
+                (month, year),
+            )
+            assigned_controllers = cursor.fetchone()[0]
+
+            cursor.execute(
+                """
+                SELECT credential, name, module_number, work_days_count,
+                       incapacity_days_count, rest_days_count, vacation_days_count,
+                       absence_days_count, holiday_days_count, permission_days_count,
+                       special_status_days_count
+                FROM analisis.analisis_trabajadores
+                WHERE month = %s AND year = %s
+                ORDER BY name, module_number, credential
+                """,
+                (month, year),
+            )
+            workers = [
+                {
+                    "credential": row[0],
+                    "name": row[1],
+                    "module_number": row[2],
+                    "worked": row[3],
+                    "incapacity": row[4],
+                    "rest": row[5],
+                    "vacation": row[6],
+                    "absence": row[7],
+                    "holiday": row[8],
+                    "permission": row[9],
+                    "special_status": row[10],
+                    "change_of_rest": 0,
+                    "holiday_rest": 0,
+                    "sefi": 0,
+                }
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                SELECT credential, module_number,
+                       COUNT(*) FILTER (
+                           WHERE UPPER(REPLACE(TRIM(status_code), ' ', '')) IN ('C/D', 'CD')
+                       ) AS change_of_rest,
+                       COUNT(*) FILTER (
+                           WHERE UPPER(REPLACE(TRIM(status_code), ' ', '')) IN ('D/F', 'DF')
+                       ) AS holiday_rest,
+                       COUNT(*) FILTER (
+                           WHERE UPPER(TRIM(status_code)) = 'SEFI'
+                       ) AS sefi
+                FROM analisis.trabajador_dia
+                WHERE month = %s AND year = %s
+                GROUP BY credential, module_number
+                """,
+                (month, year),
+            )
+            special_counts = {
+                (row[0], row[1]): {
+                    "change_of_rest": row[2],
+                    "holiday_rest": row[3],
+                    "sefi": row[4],
+                }
+                for row in cursor.fetchall()
+            }
+            for worker in workers:
+                worker.update(
+                    special_counts.get(
+                        (worker["credential"], worker["module_number"]), {}
+                    )
+                )
+
+            selected_worker = next(
+                (
+                    worker
+                    for worker in workers
+                    if worker["credential"] == selected_credential
+                    and (
+                        selected_module is None
+                        or worker["module_number"] == selected_module
+                    )
+                ),
+                None,
+            )
+            if selected_worker is None and workers:
+                selected_worker = workers[0]
+
+            route_days = []
+            calendar_days = []
+            if selected_worker:
+                cursor.execute(
+                    """
+                    SELECT route, COUNT(DISTINCT work_date) AS days
+                    FROM analisis.ruta_dia
+                    WHERE month = %s AND year = %s
+                      AND credential = %s AND module_number = %s
+                    GROUP BY route
+                    ORDER BY days DESC, route
+                    """,
+                    (
+                        month,
+                        year,
+                        selected_worker["credential"],
+                        selected_worker["module_number"],
+                    ),
+                )
+                route_days = [
+                    {"route": row[0], "days": row[1]}
+                    for row in cursor.fetchall()
+                ]
+
+                cursor.execute(
+                    """
+                    SELECT EXTRACT(DAY FROM work_date)::integer AS day,
+                           status, status_code, route, shift
+                    FROM analisis.trabajador_dia
+                    WHERE month = %s AND year = %s
+                      AND credential = %s AND module_number = %s
+                    ORDER BY work_date
+                    """,
+                    (
+                        month,
+                        year,
+                        selected_worker["credential"],
+                        selected_worker["module_number"],
+                    ),
+                )
+                calendar_days = [
+                    {
+                        "day": row[0],
+                        "status": row[1],
+                        "code": row[2],
+                        "route": row[3],
+                        "shift": row[4],
+                    }
+                    for row in cursor.fetchall()
+                ]
+
+    return {
+        "registered_controllers": registered_controllers or 0,
+        "active_controllers": active_controllers or 0,
+        "inactive_controllers": (registered_controllers or 0)
+        - (active_controllers or 0),
+        "assigned_controllers": assigned_controllers or 0,
+        "workers": workers,
+        "selected_worker": selected_worker,
+        "route_days": route_days,
+        "calendar_days": calendar_days,
+    }
 
 
 def fetch_analysis_metrics() -> dict:
@@ -1758,6 +2019,39 @@ def delete_route(route_id: int) -> bool:
     return deleted
 
 
+def delete_routes_from_module(route_ids: list[int], module_number: int) -> dict[str, int]:
+    if not route_ids:
+        raise ValueError("Selecciona al menos una ruta.")
+
+    deleted_originals = 0
+    unlinked_shared = 0
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            for route_id in dict.fromkeys(route_ids):
+                cursor.execute(
+                    "DELETE FROM catalogos.rutas WHERE id = %s AND mod1 = %s",
+                    (route_id, module_number),
+                )
+                if cursor.rowcount:
+                    deleted_originals += 1
+                    continue
+
+                cursor.execute(
+                    "DELETE FROM catalogos.modulo_ruta WHERE ruta_id = %s AND modulo_id = %s",
+                    (route_id, module_number),
+                )
+                if cursor.rowcount:
+                    unlinked_shared += 1
+                    continue
+
+                raise ValueError("Una de las rutas seleccionadas ya no pertenece a este módulo.")
+        connection.commit()
+    return {
+        "deleted_originals": deleted_originals,
+        "unlinked_shared": unlinked_shared,
+    }
+
+
 def update_route_status(route_id: int, estado: str) -> dict | None:
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -1839,6 +2133,42 @@ def link_route_to_module(route_id: int, module_number: int, estado: str | None =
                 raise ValueError("La ruta no existe o pertenece al módulo actual")
         connection.commit()
     return dict(zip(("id", "modulo_id", "ruta_id", "estado", "nomenclatura"), row))
+
+
+def link_routes_to_module(route_ids: list[int], module_number: int) -> int:
+    if not route_ids:
+        raise ValueError("Selecciona al menos una ruta.")
+
+    linked_count = 0
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            for route_id in dict.fromkeys(route_ids):
+                cursor.execute(
+                    "SELECT mod1, estado FROM catalogos.rutas WHERE id = %s",
+                    (route_id,),
+                )
+                route_row = cursor.fetchone()
+                if route_row is None or route_row[0] == module_number:
+                    raise ValueError("Una de las rutas seleccionadas no se puede vincular.")
+
+                cursor.execute(
+                    "SELECT 1 FROM catalogos.modulo_ruta WHERE ruta_id = %s AND modulo_id = %s",
+                    (route_id, module_number),
+                )
+                if cursor.fetchone() is not None:
+                    raise ValueError("Una de las rutas seleccionadas ya está vinculada a este módulo.")
+
+                nomenclatura = next_route_nomenclature(connection, module_number)
+                cursor.execute(
+                    """
+                    INSERT INTO catalogos.modulo_ruta (modulo_id, ruta_id, estado, nomenclatura)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (module_number, route_id, route_row[1], nomenclatura),
+                )
+                linked_count += 1
+        connection.commit()
+    return linked_count
 
 
 def update_module_route_status(route_id: int, module_number: int, estado: str) -> dict | None:

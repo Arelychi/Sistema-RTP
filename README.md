@@ -92,7 +92,9 @@ Cambia estas contraseñas antes de usar el sistema en producción. Las contrase�
 - Registro de nombre, credencial, ruta, turno y nomenclatura.
 - Calendario del mes actual con navegación entre meses.
 - Días de trabajo y descanso alternables con clic.
+- Botón **MD** para marcar un día trabajado con el código `MD`.
 - Tabla mensual estilo rol, con el código combinado de nomenclatura y turno, por ejemplo `A` + `1` = `A1`.
+- La vista de rol mensual del administrador usa su propia página y las pestañas de módulo para cargar y guardar asignaciones; comparte la plantilla y la lógica del calendario con la vista del módulo.
 
 Los estados especiales del rol mensual tienen una categoría: **Descanso**, **Falta**, **Vacaciones** o **Incapacidad**. Los estados de Descanso conservan su código visible (por ejemplo, `D/F`) y cuentan como descanso; Vacaciones aplica la lógica de `V`; Falta e Incapacidad se guardan como estados diarios y se incluyen en sus contadores analíticos. En el calendario, Falta se marca en rojo e Incapacidad en azul claro. Al agregar la categoría a una base existente, los estados especiales ya registrados se migran como **Falta** para conservar su clasificación previa.
 
