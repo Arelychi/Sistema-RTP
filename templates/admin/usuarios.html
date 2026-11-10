@@ -33,7 +33,7 @@
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="admin-alerts" aria-live="polite">
+          <div class="admin-alerts" aria-live="polite" hidden>
             {% for category, message in messages %}
               <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
             {% endfor %}
@@ -70,7 +70,7 @@
           <div class="admin-registry-contents">
           <div class="admin-registry-content active" id="user-form" role="tabpanel">
           <div class="admin-form-shell">
-            <form method="post" action="{{ url_for('admin_create_user') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="username" data-admin-save-selector="[data-admin-save-username]" data-admin-save-label="{{ 'Actualizando usuario...' if editing_user else 'Guardando usuario...' }}">
+            <form method="post" action="{{ url_for('admin_create_user') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="username" data-admin-save-scope-field="module_number" data-admin-save-selector="[data-admin-save-username]" data-admin-save-label="{{ 'Actualizando usuario...' if editing_user else 'Guardando usuario...' }}">
               {% if editing_user %}
                 <input type="hidden" name="user_id" value="{{ editing_user.id }}">
               {% endif %}
@@ -163,9 +163,10 @@
               </div>
 
               <div class="admin-form-actions">
-                
                 {% if editing_user %}
                   <a class="admin-secondary-button" href="{{ url_for('admin_users_page') }}">Cancelar</a>
+                {% else %}
+                  <button class="admin-secondary-button" type="button" data-user-modal-close>Cancelar</button>
                 {% endif %}
                 <button class="admin-primary-button" type="submit">
                   {{ 'Actualizar usuario' if editing_user else 'Guardar usuario' }}
@@ -403,22 +404,25 @@
                   <form class="admin-users-bulk-delete-form" method="post" action="{{ url_for('admin_delete_selected_users') }}" data-users-bulk-delete-form data-delete-confirm-form data-delete-kind="usuarios seleccionados" data-delete-name="usuarios seleccionados" data-delete-message="Se eliminarán los usuarios seleccionados. Esta acción no se puede deshacer." hidden>
                     <div data-users-bulk-delete-inputs></div>
                   </form>
-                  <div class="admin-user-selection-header">
-                    <label><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"> Seleccionar todos los visibles</label>
-                  </div>
                   {% endif %}
                   {% if admin_users %}
-                    <ul class="admin-user-list">
+                    <div class="admin-route-table-wrap">
+                    <table class="admin-route-table admin-user-table{% if not is_read_only_account %} admin-user-selectable{% endif %}">
+                      <thead><tr>
+                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"></th>{% endif %}
+                        <th>Usuario</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estatus</th><th>Acciones</th>
+                      </tr></thead>
+                      <tbody>
                       {% for user in admin_users %}
-                        <li class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Administrador">
+                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Administrador">
                           {% if not is_read_only_account %}
-                          <span class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></span>
+                          <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
-                          <div class="admin-user-main">
-                            <strong>{{ user.username }}</strong>
-                            <span>{{ user.correo or 'Sin correo' }} · Administrador</span>
-                          </div>
-                          <div class="admin-controller-status">
+                          <td><strong>{{ user.username }}</strong></td>
+                          <td>{{ user.correo or 'Sin correo' }}</td>
+                          <td>{{ user.telefono or 'Sin teléfono' }}</td>
+                          <td>Administrador</td>
+                          <td class="admin-controller-status">
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
@@ -430,9 +434,9 @@
                                 </label>
                               </form>
                             {% endif %}
-                          </div>
+                          </td>
                           {% if not is_read_only_account %}
-                          <div class="admin-controller-actions">
+                          <td class="admin-controller-actions">
                             <span class="admin-user-individual-actions" data-user-individual-actions>
                             <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_users_page', edit_user_id=user.id) }}" aria-label="Editar usuario {{ user.username }}" title="Editar usuario">
                               <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
@@ -445,11 +449,15 @@
                               </button>
                             </form>
                             </span>
-                          </div>
+                          </td>
+                          {% else %}
+                          <td></td>
                           {% endif %}
-                        </li>
+                        </tr>
                       {% endfor %}
-                    </ul>
+                      </tbody>
+                    </table>
+                    </div>
                     {% include 'admin/_pagination.html' %}
                   {% else %}
                     <p class="empty-state">Sin usuarios administradores.</p>
@@ -507,22 +515,25 @@
                   <form class="admin-users-bulk-delete-form" method="post" action="{{ url_for('admin_delete_selected_users') }}" data-users-bulk-delete-form data-delete-confirm-form data-delete-kind="usuarios seleccionados" data-delete-name="usuarios seleccionados" data-delete-message="Se eliminarán los usuarios seleccionados. Esta acción no se puede deshacer." hidden>
                     <div data-users-bulk-delete-inputs></div>
                   </form>
-                  <div class="admin-user-selection-header">
-                    <label><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"> Seleccionar todos los visibles</label>
-                  </div>
                   {% endif %}
                   {% if consultant_users %}
-                    <ul class="admin-user-list">
+                    <div class="admin-route-table-wrap">
+                    <table class="admin-route-table admin-user-table{% if not is_read_only_account %} admin-user-selectable{% endif %}">
+                      <thead><tr>
+                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"></th>{% endif %}
+                        <th>Usuario</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estatus</th><th>Acciones</th>
+                      </tr></thead>
+                      <tbody>
                       {% for user in consultant_users %}
-                        <li class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Consultor">
+                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Consultor">
                           {% if not is_read_only_account %}
-                          <span class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></span>
+                          <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
-                          <div class="admin-user-main">
-                            <strong>{{ user.username }}</strong>
-                            <span>{{ user.correo or 'Sin correo' }} · Consultor (solo lectura)</span>
-                          </div>
-                          <div class="admin-controller-status">
+                          <td><strong>{{ user.username }}</strong></td>
+                          <td>{{ user.correo or 'Sin correo' }}</td>
+                          <td>{{ user.telefono or 'Sin teléfono' }}</td>
+                          <td>Consultor (solo lectura)</td>
+                          <td class="admin-controller-status">
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
@@ -534,9 +545,9 @@
                                 </label>
                               </form>
                             {% endif %}
-                          </div>
+                          </td>
                           {% if not is_read_only_account %}
-                          <div class="admin-controller-actions">
+                          <td class="admin-controller-actions">
                             <span class="admin-user-individual-actions" data-user-individual-actions>
                             <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_users_page', edit_user_id=user.id) }}" aria-label="Editar usuario {{ user.username }}" title="Editar usuario">
                               <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
@@ -549,11 +560,15 @@
                               </button>
                             </form>
                             </span>
-                          </div>
+                          </td>
+                          {% else %}
+                          <td></td>
                           {% endif %}
-                        </li>
+                        </tr>
                       {% endfor %}
-                    </ul>
+                      </tbody>
+                    </table>
+                    </div>
                     {% include 'admin/_pagination.html' %}
                   {% else %}
                     <p class="empty-state">Sin usuarios consultores.</p>
@@ -595,7 +610,7 @@
 
       document.querySelectorAll('[data-users-selection-group]').forEach(function (group) {
         const toolbar = group.querySelector('.admin-users-toolbar');
-        const rows = Array.from(group.querySelectorAll('.admin-user-item, .admin-user-table tbody tr'));
+        const rows = Array.from(new Set(group.querySelectorAll('.admin-user-item, .admin-user-table tbody tr')));
         const checkboxes = rows.map((row) => row.querySelector('[data-users-bulk-select]')).filter(Boolean);
         const selectAll = group.querySelector('[data-users-select-all]');
         const cancelButton = group.querySelector('[data-users-cancel-selection]');

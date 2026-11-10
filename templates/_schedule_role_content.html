@@ -8,22 +8,34 @@
       <p class="month-closed-notice" hidden></p>
 
       {% if admin_embed %}
-      <div id="schedule-assignment-modal" class="schedule-assignment-modal" hidden>
+      <div id="schedule-assignment-modal" class="admin-controller-modal schedule-assignment-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-assignment-title" hidden>
         <button class="schedule-assignment-backdrop" type="button" data-schedule-modal-close aria-label="Cerrar modal"></button>
-        <section class="schedule-assignment-dialog" role="dialog" aria-modal="true" aria-labelledby="schedule-assignment-title" tabindex="-1">
-          <header class="schedule-assignment-heading">
-            <div><p class="code-conflict-eyebrow">Rol mensual</p><h2 id="schedule-assignment-title">Crear asignación</h2></div>
-            <button class="schedule-assignment-close" type="button" data-schedule-modal-close aria-label="Cerrar modal">&times;</button>
-          </header>
+        <div class="admin-controller-modal-dialog schedule-assignment-dialog" tabindex="-1">
+          <section class="admin-panel-card admin-form-panel schedule-assignment-panel">
+            <div class="admin-card-heading">
+              <div class="admin-card-title"><span class="admin-step-number">01</span><h2 id="schedule-assignment-title">Crear asignación</h2></div>
+              <button class="admin-modal-close schedule-assignment-close" type="button" data-schedule-modal-close aria-label="Cerrar formulario">&times;</button>
+            </div>
+            <div class="admin-form-shell schedule-assignment-shell">
       {% endif %}
+          {% if not admin_embed %}
           <div class="schedule-grid-toggle">
             <span class="schedule-grid-toggle-label"><span class="schedule-grid-toggle-line"></span>Editor de asignaciones</span>
             <button id="toggle-schedule-grid" class="schedule-grid-toggle-button" type="button" aria-label="Ocultar editor de asignaciones" aria-expanded="true" title="Ocultar formulario"><span class="schedule-grid-toggle-icon" aria-hidden="true">🠉</span><span class="schedule-grid-toggle-text">Ocultar formulario</span></button>
           </div>
+          {% endif %}
           <section id="schedule-grid" class="schedule-grid">
             <section class="card schedule-form-card">
-              <div class="card-heading"><div class="card-title"><span class="step-number">01</span><h2>Asignar registro</h2></div><button id="create-record" class="secondary-button create-record-button" type="button">Crear registro</button></div>
-              <form id="schedule-form">
+              <div class="card-heading{% if admin_embed %} admin-card-heading{% endif %}">
+                <div class="card-title{% if admin_embed %} admin-card-title{% endif %}">
+                  <span class="{% if admin_embed %}admin-step-number{% else %}step-number{% endif %}">{{ '02' if admin_embed else '01' }}</span>
+                  <h2>Asignar registro</h2>
+                </div>
+                {% if not admin_embed %}
+                <button id="create-record" class="{% if admin_embed %}admin-secondary-button{% else %}secondary-button{% endif %} create-record-button" type="button">Crear registro</button>
+                {% endif %}
+              </div>
+              <form id="schedule-form"{% if admin_embed %} class="admin-controller-form"{% endif %}>
                 <label>
                   Buscar trabajador <span class="required-label-note">* Campo Obligatorio</span>
                   <span class="combo-field"><input id="controller-search" type="search" placeholder="Buscar trabajador por nombre o credencial" autocomplete="off" aria-label="Buscar trabajador" role="combobox" aria-autocomplete="list" aria-controls="controller-search-menu" aria-expanded="false" required><span class="combo-field-icon" aria-hidden="true"></span><div id="controller-search-menu" class="combo-menu" role="listbox" hidden></div></span>
@@ -34,16 +46,33 @@
                 <label>Ruta<select id="route-select" name="route"><option value="">Selecciona una ruta</option></select></label>
                 <div class="two-fields"><label>Turno<select id="shift-select" name="shift"><option value="">Selecciona un turno</option></select></label><label>Nomenclatura<input id="route-nomenclature" class="display-value-field" name="nomenclature" maxlength="10" placeholder="A" readonly></label></div>
                 <div class="code-preview">Código seleccionado <strong id="code-preview">--</strong></div>
+                {% if not admin_embed %}
                 <div id="day-edit-actions" class="day-edit-actions" hidden>
                   <strong id="editing-day-label"></strong>
                 </div>
-                <div class="record-form-actions"><button class="primary-button" type="submit">Guardar asignación</button><button id="cancel-edit-button" class="secondary-button" type="button" hidden>Cancelar edición</button></div>
+                {% endif %}
+                {% if not admin_embed %}
+                <div class="record-form-actions">
+                  <button class="primary-button" type="submit">Guardar asignación</button>
+                  <button id="cancel-edit-button" class="secondary-button" type="button" hidden>Cancelar edición</button>
+                </div>
+                {% endif %}
+                {% if not admin_embed %}
                 <p id="form-message" class="form-message" role="status"></p>
+                {% endif %}
               </form>
             </section>
 
             <section class="card calendar-card">
-              <div class="card-heading"><div class="card-title"><span class="step-number">02</span><h2>Calendario</h2></div></div>
+              <div class="card-heading{% if admin_embed %} admin-card-heading{% endif %}">
+                <div class="card-title{% if admin_embed %} admin-card-title{% endif %}">
+                  <span class="{% if admin_embed %}admin-step-number{% else %}step-number{% endif %}">{{ '03' if admin_embed else '02' }}</span>
+                  <h2>Calendario</h2>
+                </div>
+                {% if admin_embed %}
+                <button id="clear-days" class="admin-secondary-button calendar-clear-button" type="button">Limpiar</button>
+                {% endif %}
+              </div>
 
               <div class="calendar-tabs" aria-label="Cambiar vista del calendario">
                 <button class="calendar-tab is-active" type="button" data-tab="calendar">Calendario</button>
@@ -60,7 +89,10 @@
                   <button class="mode-button mode-delete" data-mode="delete" type="button">Eliminar asignación</button>
                 </div>
                 <div id="calendar" class="mini-calendar"></div>
-                <div class="selection-summary"><span id="selection-summary">0 días seleccionados</span><button id="clear-days" class="text-button" type="button">Limpiar</button></div>
+                <div class="selection-summary">
+                  <span id="selection-summary">0 días seleccionados</span>
+                  {% if not admin_embed %}<button id="clear-days" class="text-button" type="button">Limpiar</button>{% endif %}
+                </div>
               </div>
 
               <div id="routes-panel" class="calendar-panel routes-panel" aria-live="polite">
@@ -81,16 +113,49 @@
             </section>
           </section>
       {% if admin_embed %}
-        </section>
+            </div>
+            <div class="admin-form-actions schedule-assignment-actions">
+              <button id="schedule-assignment-cancel" class="admin-secondary-button" type="button">Cancelar</button>
+              <button class="admin-primary-button primary-button" type="submit" form="schedule-form">Guardar asignación</button>
+            </div>
+          </section>
+        </div>
       </div>
       {% endif %}
 
       <section class="card schedule-table-card">
         <section class="card-schedule">
-          <div class="schedule-table-heading">
-            <div class="card-title"><span class="step-number">03</span><h2>Programacíón de controladores de tiempo del mes <span id="monthly-role-period">{{ today.month }}/{{ today.year }}</span></h2></div>
+          {% if not admin_embed %}
+          <div class="schedule-table-titlebar">
+            <div class="card-title"><span class="step-number">03</span><span id="monthly-role-period">{{ today.month }}/{{ today.year }}</span></div>
             <div><button id="save-all-records" class="button-subir" type="button">Subir<img class="module-brand-logo-subir" src="{{ url_for('static', filename='/imagenes/icons/subir.png') }}"></button></div>
           </div>
+          {% endif %}
+          {% if admin_embed %}
+          <div class="admin-controller-toolbar admin-role-schedule-toolbar">
+            <label class="controller-filter admin-controller-search" for="schedule-record-filter">
+              <span class="controller-filter-label">Buscar</span>
+              <span class="controller-filter-field">
+                <input id="schedule-record-filter" type="search" placeholder="Nombre o credencial" autocomplete="off">
+                <button id="clear-schedule-filter" class="controller-filter-clear" type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
+              </span>
+            </label>
+            <label class="admin-controller-filter">
+              <span class="sr-only">Filtrar por tipo de asignación</span>
+              <select id="schedule-status-filter">
+                <option value="Todos">Todos los estados</option>
+                <option value="Trabajo">Trabajo / MD</option>
+                <option value="Descanso">Descanso</option>
+                <option value="Vacaciones">Vacaciones</option>
+                <option value="Falta">Faltas</option>
+                <option value="Incapacidad">Incapacidad</option>
+                <option value="Especial">Otros estados</option>
+                <option value="Sin asignación">Sin asignación</option>
+              </select>
+            </label>
+            <button id="open-schedule-assignment" class="admin-primary-button admin-create-controller-button schedule-assignment-open" type="button"><img class="admin-role-assignment-plus-icon" src="{{ url_for('static', filename='imagenes/icons/mas.png') }}" alt="" aria-hidden="true">Crear asignación</button>
+          </div>
+          {% else %}
           <div class="table-heading-actions">
             <label class="schedule-filter" for="schedule-record-filter">
               <span class="schedule-filter-label">Buscar</span>
@@ -100,12 +165,8 @@
               </span>
             </label>
             <span id="record-count" class="record-count">0 registros</span>
-            {% if admin_embed %}
-              <button id="open-schedule-assignment" class="primary-button schedule-assignment-open" type="button">
-                <img src="{{ url_for('static', filename='imagenes/icons/mas.png') }}" alt="">Crear asignación
-              </button>
-            {% endif %}
           </div>
+          {% endif %}
           <div class="table-container schedule-table-container">
             <table id="schedule-table"><thead></thead><tbody></tbody></table>
           </div>

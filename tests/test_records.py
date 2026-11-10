@@ -5,6 +5,7 @@ from io import BytesIO
 from openpyxl import load_workbook
 
 import app.web as web
+import app.db as db
 from app.web import app
 
 
@@ -36,6 +37,139 @@ def post_record(client, **overrides):
     }
     payload.update(overrides)
     return client.post("/api/records", json=payload)
+
+
+def test_monthly_controller_workday_counts_use_saved_work_days(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.query = ""
+            self.params = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, query, params):
+            self.query = query
+            self.params = params
+
+        def fetchall(self):
+            return [("12345", 2, 20), ("67890", 1, 0)]
+
+    class FakeConnection:
+        def __init__(self):
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    connection = FakeConnection()
+    monkeypatch.setattr(db, "get_connection", lambda: connection)
+
+    counts = db.fetch_monthly_controller_workday_counts(11, 2026)
+
+    assert counts == {("12345", 2): 20, ("67890", 1): 0}
+    assert connection.fake_cursor.params == (11, 2026)
+    assert "jsonb_array_elements_text" in connection.fake_cursor.query
+    assert "sr.month = %s AND sr.year = %s" in connection.fake_cursor.query
+
+
+def test_controller_analysis_returns_module_routes_and_daily_totals(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.query = ""
+            self.parameters = None
+            self.executed = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, parameters=None):
+            self.query = query
+            self.parameters = parameters
+            self.executed.append((query, parameters))
+
+        def fetchone(self):
+            if "COUNT(*), COUNT(*) FILTER (WHERE active)" in self.query:
+                return 2, 1
+            if "COUNT(DISTINCT credential)" in self.query:
+                return (1,)
+            raise AssertionError(f"Unexpected fetchone query: {self.query}")
+
+        def fetchall(self):
+            if "SELECT credential, name, module_number, work_days_count" in self.query:
+                return [("12345", "Ana", 2, 10, 1, 3, 1, 0, 1, 0, 1)]
+            if "AS change_of_rest" in self.query:
+                return [("12345", 2, 1, 2, 1)]
+            if "COUNT(DISTINCT credential) AS controllers" in self.query:
+                return [(2, "Ruta Centro", 5, 1)]
+            if "COUNT(*) AS assignments" in self.query:
+                return [(1, 1, 1, 0, 0, 0, 0, 0, 0, 0)]
+            if "SELECT EXTRACT(DAY FROM work_date)::integer AS day" in self.query:
+                return [(1, "TRABAJADO", "A1", "Ruta Centro", "Matutino")]
+            if "SELECT route, COUNT(DISTINCT work_date) AS days" in self.query:
+                return [("Ruta Centro", 5)]
+            return []
+
+    class FakeConnection:
+        def __init__(self):
+            self.fake_cursor = FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+    connection = FakeConnection()
+    monkeypatch.setattr(db, "get_connection", lambda: connection)
+
+    dashboard = db.fetch_controller_analysis_dashboard(11, 2026, "12345", 2)
+
+    assert dashboard["selected_worker"]["name"] == "Ana"
+    assert dashboard["selected_worker"]["change_of_rest"] == 1
+    assert dashboard["route_days_by_module"] == [
+        {
+            "module_number": 2,
+            "route": "Ruta Centro",
+            "days": 5,
+            "controllers": 1,
+        }
+    ]
+    assert dashboard["daily_summary"] == [
+        {
+            "day": 1,
+            "assignments": 1,
+            "worked": 1,
+            "rest": 0,
+            "absence": 0,
+            "incapacity": 0,
+            "permission": 0,
+            "vacation": 0,
+            "holiday": 0,
+            "unprogrammed": 0,
+        }
+    ]
+    unselected_dashboard = db.fetch_controller_analysis_dashboard(11, 2026)
+    assert unselected_dashboard["selected_worker"] is None
+    assert unselected_dashboard["route_days"] == []
+    assert unselected_dashboard["calendar_days"] == []
+    assert any("FROM analisis.ruta_dia" in query for query, _ in connection.fake_cursor.executed)
+    assert any("FROM analisis.trabajador_dia" in query and "GROUP BY work_date" in query for query, _ in connection.fake_cursor.executed)
 
 
 def test_daily_details_are_updated_without_changing_other_days(monkeypatch):
@@ -110,7 +244,7 @@ def test_md_assignment_without_route_uses_database_save_path(monkeypatch):
     monkeypatch.setattr(web, "initialize_schema", lambda: None)
     monkeypatch.setattr(web, "records_for", lambda *args: [])
     monkeypatch.setattr(web, "upsert_record", fake_upsert_record)
-    monkeypatch.setattr(web, "refresh_analysis_tables", lambda: None)
+    monkeypatch.setattr(web, "refresh_analysis_tables", lambda **_scope: None)
     monkeypatch.setattr(web, "record_history", lambda *args, **kwargs: None)
 
     with app.test_client() as client:
@@ -252,7 +386,11 @@ def test_single_record_save_refreshes_analysis_tables(monkeypatch):
     monkeypatch.setattr(web, "initialize_schema", lambda: None)
     monkeypatch.setattr(web, "records_for", lambda *args: [])
     monkeypatch.setattr(web, "upsert_record", lambda record: dict(saved_record))
-    monkeypatch.setattr(web, "refresh_analysis_tables", lambda: refreshed.append(True))
+    monkeypatch.setattr(
+        web,
+        "refresh_analysis_tables",
+        lambda **scope: refreshed.append(scope),
+    )
     monkeypatch.setattr(web, "record_history", lambda *args, **kwargs: None)
 
     with app.test_client() as client:
@@ -262,7 +400,176 @@ def test_single_record_save_refreshes_analysis_tables(monkeypatch):
         response = post_record(client)
 
     assert response.status_code == 201
-    assert refreshed == [True]
+    assert refreshed == [{"month": TEST_MONTH, "year": TEST_YEAR, "module_number": 1}]
+
+
+def test_scoped_analysis_refresh_only_rebuilds_selected_month_and_module(monkeypatch):
+    class Cursor:
+        def __init__(self):
+            self.executed = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, parameters=None):
+            self.executed.append((query, parameters))
+
+    class Connection:
+        def __init__(self):
+            self.test_cursor = Cursor()
+            self.committed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.test_cursor
+
+        def commit(self):
+            self.committed = True
+
+    connection = Connection()
+    monkeypatch.setattr(db, "get_connection", lambda: connection)
+
+    db.refresh_analysis_tables(month=10, year=2026, module_number=2)
+
+    deletions = [
+        (query, parameters)
+        for query, parameters in connection.test_cursor.executed
+        if query.startswith("DELETE FROM analisis.")
+    ]
+    inserts = [
+        (query, parameters)
+        for query, parameters in connection.test_cursor.executed
+        if query.lstrip().startswith("INSERT INTO analisis.")
+    ]
+    assert len(deletions) == 4
+    assert all(parameters == (10, 2026, 2) for _, parameters in deletions)
+    assert len(inserts) == 4
+    assert all(parameters == (10, 2026, 2) for _, parameters in inserts[:3])
+    assert inserts[3][1] == (10, 2026, 2, 10, 2026, 2)
+    assert not any("TRUNCATE analisis." in query for query, _ in connection.test_cursor.executed)
+    assert connection.committed
+
+
+def test_analysis_refresh_requires_complete_scope(monkeypatch):
+    opened_connection = []
+    monkeypatch.setattr(db, "get_connection", lambda: opened_connection.append(True))
+
+    try:
+        db.refresh_analysis_tables(month=10)
+    except ValueError as error:
+        assert str(error) == "Mes, año y módulo deben proporcionarse juntos."
+    else:
+        raise AssertionError("A refresh with an incomplete scope must be rejected.")
+
+    assert not opened_connection
+
+
+def test_monthly_bulk_save_uses_schedule_records_and_preserves_vacations(monkeypatch):
+    class Cursor:
+        def __init__(self):
+            self.executed = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, parameters=None):
+            self.executed.append((query, parameters))
+
+    class Connection:
+        def __init__(self):
+            self.test_cursor = Cursor()
+            self.committed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.test_cursor
+
+        def commit(self):
+            self.committed = True
+
+    connection = Connection()
+    monkeypatch.setattr(db, "get_connection", lambda: connection)
+    monkeypatch.setattr(db, "refresh_analysis_tables", lambda **_scope: None)
+
+    saved = db.save_month_records(
+        [
+            {
+                "name": "Ana Prueba",
+                "credential": "AR-02",
+                "shift": "1",
+                "route": "Ruta Centro",
+                "nomenclature": "A",
+                "work_days": [1],
+                "rest_days": [3],
+                "vacation_days": [2],
+                "daily_assignments": {"1": "A1"},
+            }
+        ],
+        module_number=2,
+        month=10,
+        year=2026,
+    )
+
+    delete_query, _ = connection.test_cursor.executed[0]
+    insert_query, insert_parameters = connection.test_cursor.executed[1]
+    assert "DELETE FROM schedule_records" in delete_query
+    assert "INSERT INTO schedule_records" in insert_query
+    assert "programacion.registros" not in insert_query
+    assert json.loads(insert_parameters[10]) == {"1": "A1", "2": "V"}
+    assert saved == 1
+    assert connection.committed
+
+
+def test_legacy_schedule_migration_archives_conflicts_before_dropping_source():
+    class Cursor:
+        def __init__(self):
+            self.executed = []
+            self.results = [("programacion.registros",), (True,)]
+            self.rowcount = 0
+
+        def execute(self, query, parameters=None):
+            self.executed.append(query)
+            if "INSERT INTO programacion.registros_legacy_conflicts" in query:
+                self.rowcount = 2
+            elif "INSERT INTO schedule_records" in query:
+                self.rowcount = 3
+
+        def fetchone(self):
+            return self.results.pop(0)
+
+    cursor = Cursor()
+
+    db._migrate_legacy_schedule_records(cursor)
+
+    archive_index = next(
+        index for index, query in enumerate(cursor.executed)
+        if "INSERT INTO programacion.registros_legacy_conflicts" in query
+    )
+    migration_index = next(
+        index for index, query in enumerate(cursor.executed)
+        if "INSERT INTO schedule_records" in query
+    )
+    drop_index = next(
+        index for index, query in enumerate(cursor.executed)
+        if "DROP TABLE programacion.registros" in query
+    )
+    assert archive_index < migration_index < drop_index
 
 
 def test_deleted_day_does_not_return_from_memory_merge(monkeypatch):

@@ -33,8 +33,10 @@ from app.db import (
     delete_routes_from_module,
     delete_controllers_from_module,
     delete_users_by_ids,
+    delete_turnos_by_ids,
     fetch_catalog_items,
     fetch_controllers,
+    fetch_monthly_controller_workday_counts,
     fetch_controller_by_credential,
     fetch_records,
     fetch_external_routes,
@@ -86,6 +88,23 @@ app.config["SECRET_KEY"] = settings.secret_key
 app.config["ENVIRONMENT"] = settings.environment
 memory_records: list[dict] = []
 memory_controllers: list[dict] = []
+MONTH_NAMES_ES = (
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+)
+
+
+def attach_monthly_workday_counts(
+    grouped_controllers: list[dict],
+    month: int,
+    year: int,
+) -> None:
+    counts = fetch_monthly_controller_workday_counts(month, year)
+    for group in grouped_controllers:
+        module_number = int(group["module_number"])
+        for controller in group["controllers"]:
+            key = (str(controller["credencial"]), module_number)
+            controller["monthly_assigned_days"] = counts.get(key, 0)
 
 
 @app.errorhandler(500)
@@ -394,6 +413,7 @@ def admin_dashboard():
     account = session.get("account")
     if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    today = date.today()
     try:
         initialize_schema()
         modules = request_modules()
@@ -409,12 +429,15 @@ def admin_dashboard():
     except Exception:
         modules = []
         grouped_controllers = []
+    else:
+        attach_monthly_workday_counts(grouped_controllers, today.month, today.year)
 
     return render_template(
         "admin/dashboard.html",
         account=account,
         modules=modules,
         grouped_controllers=grouped_controllers,
+        current_month_name=MONTH_NAMES_ES[today.month - 1],
     )
 
 
@@ -436,6 +459,7 @@ def admin_monthly_role_page():
         (item for item in estados_especiales if item.get("id") == edit_estado_id),
         None,
     ) if edit_estado_id else None
+    show_special_statuses = bool(editing_estado_especial) or request.args.get("tab") == "estados"
     requested_module = request.args.get("module_number", type=int)
     module_numbers = {int(module["id"]) for module in modules if module.get("id") is not None}
     module_number = requested_module if requested_module in module_numbers else (
@@ -450,6 +474,7 @@ def admin_monthly_role_page():
         admin_embed=True,
         estados_especiales=estados_especiales,
         editing_estado_especial=editing_estado_especial,
+        show_special_statuses=show_special_statuses,
     )
 
 
@@ -506,6 +531,7 @@ def admin_controllers_page():
     account = session.get("account")
     if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    today = date.today()
     edit_controller_id = request.args.get("edit_id", type=int)
     try:
         initialize_schema()
@@ -522,6 +548,8 @@ def admin_controllers_page():
     except Exception:
         modules = []
         grouped_controllers = []
+    else:
+        attach_monthly_workday_counts(grouped_controllers, today.month, today.year)
 
     editing_controller = None
     if edit_controller_id:
@@ -539,6 +567,7 @@ def admin_controllers_page():
         modules=modules,
         grouped_controllers=grouped_controllers,
         editing_controller=editing_controller,
+        current_month_name=MONTH_NAMES_ES[today.month - 1],
     )
 
 
@@ -752,10 +781,9 @@ def admin_analysis_page():
         month, year = today.month, today.year
     selected_credential = request.args.get("credential", "")
     selected_module = request.args.get("module", type=int)
-    months_es = (
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-    )
+    active_tab = request.args.get("tab", "resumen")
+    if active_tab not in {"resumen", "controladores", "rutas", "incidencias"}:
+        active_tab = "resumen"
     previous_period = (year - 1, 12) if month == 1 else (year, month - 1)
     next_period = (year + 1, 1) if month == 12 else (year, month + 1)
     if previous_period[0] < 1:
@@ -770,7 +798,9 @@ def admin_analysis_page():
         "workers": [],
         "selected_worker": None,
         "route_days": [],
+        "route_days_by_module": [],
         "calendar_days": [],
+        "daily_summary": [],
     }
     modules = []
     analysis_error = None
@@ -789,28 +819,41 @@ def admin_analysis_page():
 
     selected_worker = dashboard["selected_worker"]
     route_days = dashboard["route_days"]
-    route_max = max((item["days"] for item in route_days), default=1)
-    chart_width = 680
-    chart_bottom = 190
-    chart_top = 30
-    route_points = []
-    for index, item in enumerate(route_days):
-        x = (
-            42 + (chart_width - 84) * index / (len(route_days) - 1)
-            if len(route_days) > 1
-            else chart_width / 2
+    route_max = max((item["days"] for item in route_days), default=1) or 1
+    route_points = [
+        {
+            "label": item["route"],
+            "days": item["days"],
+            "width": round(item["days"] / route_max * 100, 1),
+        }
+        for item in route_days
+    ]
+
+    route_days_by_module = dashboard.get("route_days_by_module", [])
+    module_names = {
+        str(module["id"]): module["nombre"]
+        for module in modules
+        if module.get("id") is not None
+    }
+    route_analytics_max = max(
+        (item["days"] for item in route_days_by_module),
+        default=1,
+    ) or 1
+    route_analytics = [
+        {
+            **item,
+            "module_name": module_names.get(
+                str(item["module_number"]),
+                f'Módulo {item["module_number"]}',
+            ),
+            "width": round(item["days"] / route_analytics_max * 100, 1),
+        }
+        for item in sorted(
+            route_days_by_module,
+            key=lambda route: (-route["days"], route["module_number"], route["route"]),
         )
-        y = chart_bottom - (chart_bottom - chart_top) * item["days"] / route_max
-        route_points.append(
-            {
-                "x": round(x, 1),
-                "y": round(y, 1),
-                "label_x": round(x, 1),
-                "label": item["route"][:14],
-                "days": item["days"],
-            }
-        )
-    route_line = " ".join(f'{point["x"]},{point["y"]}' for point in route_points)
+    ]
+    top_route_analytics = route_analytics[:10]
 
     calendar_entries = {
         item["day"]: item for item in dashboard["calendar_days"]
@@ -862,24 +905,117 @@ def admin_analysis_page():
             )
         calendar_grid.append(calendar_row)
 
-    status_chart = []
-    if selected_worker:
-        status_chart = [
-            ("Trabajo", selected_worker["worked"], "is-work"),
-            ("Vacaciones", selected_worker["vacation"], "is-vacation"),
-            ("Descanso", selected_worker["rest"], "is-rest"),
-            ("Falta", selected_worker["absence"], "is-absence"),
+    status_categories = (
+        ("Trabajo", "worked", "is-work"),
+        ("Descanso", "rest", "is-rest"),
+        ("Falta", "absence", "is-absence"),
+        ("Incapacidad", "incapacity", "is-incapacity"),
+        ("Permiso", "permission", "is-permission"),
+        ("Vacaciones", "vacation", "is-vacation"),
+        ("Festivo", "holiday", "is-holiday"),
+    )
+    monthly_status_values = {
+        key: sum(worker.get(key, 0) or 0 for worker in dashboard["workers"])
+        for _, key, _ in status_categories
+    }
+    monthly_status_total = sum(monthly_status_values.values())
+
+    def build_status_chart(values: dict) -> list[dict]:
+        total = sum(values.get(key, 0) or 0 for _, key, _ in status_categories)
+        return [
+            {
+                "label": label,
+                "value": values.get(key, 0) or 0,
+                "class_name": class_name,
+                "width": round((values.get(key, 0) or 0) / total * 100, 1)
+                if total else 0,
+            }
+            for label, key, class_name in status_categories
         ]
-    status_chart_max = max((item[1] for item in status_chart), default=1) or 1
-    status_chart = [
-        {
-            "label": label,
-            "value": value,
-            "class_name": class_name,
-            "width": round(value / status_chart_max * 100, 1),
+
+    monthly_status_chart = build_status_chart(monthly_status_values)
+    status_chart = build_status_chart(selected_worker or {})
+
+    module_summary = []
+    for module in modules:
+        module_workers = [
+            worker for worker in dashboard["workers"]
+            if str(worker.get("module_number")) == str(module.get("id"))
+        ]
+        values = {
+            key: sum(worker.get(key, 0) or 0 for worker in module_workers)
+            for _, key, _ in status_categories
         }
-        for label, value, class_name in status_chart
-    ]
+        total = sum(values.values())
+        module_summary.append(
+            {
+                "name": module["nombre"],
+                "module_number": module["id"],
+                "assigned": len(module_workers),
+                "total": total,
+                "segments": [
+                    {
+                        "label": label,
+                        "value": values[key],
+                        "class_name": class_name,
+                        "width": round(values[key] / total * 100, 1) if total else 0,
+                    }
+                    for label, key, class_name in status_categories
+                ],
+            }
+        )
+
+    daily_entries = {
+        int(item["day"]): item
+        for item in dashboard.get("daily_summary", [])
+    }
+    daily_calendar_grid = []
+    for week in calendar_weeks:
+        daily_row = []
+        for day in week:
+            if day is None:
+                daily_row.append(None)
+                continue
+            entry = daily_entries.get(day, {})
+            incidents = sum(
+                entry.get(key, 0) or 0
+                for key in ("absence", "incapacity", "permission")
+            )
+            worked = entry.get("worked", 0) or 0
+            if not entry:
+                class_name = "is-no-data"
+            elif incidents:
+                class_name = "has-incidents"
+            elif worked:
+                class_name = "has-work"
+            else:
+                class_name = "has-no-work"
+            title = (
+                f"Día {day}: sin datos analíticos para este periodo."
+                if not entry else
+                f"Día {day}: {worked} asignaciones de trabajo, {incidents} "
+                f"incidencias y {entry.get('unprogrammed', 0)} sin programación."
+            )
+            daily_row.append(
+                {
+                    "day": day,
+                    "worked": worked,
+                    "incidents": incidents,
+                    "has_data": bool(entry),
+                    "class_name": class_name,
+                    "title": title,
+                }
+            )
+        daily_calendar_grid.append(daily_row)
+
+    monthly_incident_totals = {
+        key: monthly_status_values[key]
+        for key in ("absence", "incapacity", "permission")
+    }
+    special_code_totals = {
+        key: sum(worker.get(key, 0) or 0 for worker in dashboard["workers"])
+        for key in ("change_of_rest", "holiday_rest", "sefi")
+    }
 
     return render_template(
         "admin/analisis.html",
@@ -889,15 +1025,23 @@ def admin_analysis_page():
         analysis_error=analysis_error,
         month=month,
         year=year,
-        month_label=months_es[month - 1],
+        month_label=MONTH_NAMES_ES[month - 1],
         previous_period=previous_period,
         next_period=next_period,
+        active_tab=active_tab,
         selected_worker=selected_worker,
         route_points=route_points,
-        route_line=route_line,
         route_max=route_max,
         calendar_grid=calendar_grid,
         status_chart=status_chart,
+        monthly_status_chart=monthly_status_chart,
+        monthly_status_total=monthly_status_total,
+        module_summary=module_summary,
+        route_analytics=route_analytics,
+        top_route_analytics=top_route_analytics,
+        daily_calendar_grid=daily_calendar_grid,
+        monthly_incident_totals=monthly_incident_totals,
+        special_code_totals=special_code_totals,
     )
 
 
@@ -1285,6 +1429,36 @@ def admin_delete_turno(turno_id: int):
     return redirect(url_for("admin_turnos_page"))
 
 
+@app.post("/administrador/turnos/eliminar-seleccionados")
+def admin_delete_selected_turnos():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+
+    raw_turno_ids = request.form.getlist("turno_ids")
+    try:
+        turno_ids = list(dict.fromkeys(int(value) for value in raw_turno_ids))
+    except (TypeError, ValueError):
+        flash("Selecciona turnos válidos.", "error")
+        return redirect(url_for("admin_turnos_page"))
+
+    if not turno_ids or any(turno_id <= 0 for turno_id in turno_ids):
+        flash("Selecciona al menos un turno válido.", "error")
+        return redirect(url_for("admin_turnos_page"))
+
+    try:
+        initialize_schema()
+        deleted_ids = delete_turnos_by_ids(turno_ids)
+        renumber_turnos_by_start()
+        flash(f"{len(deleted_ids)} turno(s) eliminado(s) correctamente.", "success")
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("No fue posible eliminar los turnos seleccionados")
+        flash("No se pudieron eliminar los turnos seleccionados.", "error")
+    return redirect(url_for("admin_turnos_page"))
+
+
 @app.post("/administrador/turnos/<int:turno_id>/estado")
 def admin_toggle_turno_status(turno_id: int):
     account = session.get("account")
@@ -1358,7 +1532,7 @@ def admin_create_tipo_ruta():
             "incapacidad",
         }:
             flash("Completa el código, la descripción y una categoría válida para el estado especial.", "error")
-            return redirect(url_for("admin_monthly_role_page"))
+            return redirect(url_for("admin_monthly_role_page", tab="estados"))
         payload = {"codigo": codigo, "descripcion": descripcion, "categoria": categoria, "activo": activo}
         try:
             initialize_schema()
@@ -1377,14 +1551,14 @@ def admin_create_tipo_ruta():
                     "El estado especial se guardó, pero no se actualizaron las tablas analíticas.",
                     "error",
                 )
-                return redirect(url_for("admin_monthly_role_page"))
+                return redirect(url_for("admin_monthly_role_page", tab="estados"))
             if estado_id:
                 flash("Estado especial actualizado correctamente.", "success")
             else:
                 flash("Estado especial registrado correctamente.", "success")
         except Exception:
             flash("No se pudo guardar el estado especial. Verifica que el código no esté repetido.", "error")
-        return redirect(url_for("admin_monthly_role_page"))
+        return redirect(url_for("admin_monthly_role_page", tab="estados"))
 
     if catalog == "servicio":
         catalog_tab = "servicios"
@@ -1496,13 +1670,39 @@ def admin_delete_estado_especial(estado_id: int):
                     "El estado especial se eliminó, pero no se actualizaron las tablas analíticas.",
                     "error",
                 )
-                return redirect(url_for("admin_monthly_role_page"))
+                return redirect(url_for("admin_monthly_role_page", tab="estados"))
             flash("Estado especial eliminado correctamente.", "success")
         else:
             flash("No se encontró el estado especial para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar el estado especial.", "error")
-    return redirect(url_for("admin_monthly_role_page"))
+    return redirect(url_for("admin_monthly_role_page", tab="estados"))
+
+
+@app.post("/administrador/estados-especiales/<int:estado_id>/estado")
+def admin_toggle_estado_especial_status(estado_id: int):
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    requested_status = str(request.form.get("estado", "")).strip()
+    if requested_status not in {"Activo", "Inactivo"}:
+        flash("El estado especial no es válido.", "error")
+        return redirect(url_for("admin_monthly_role_page", tab="estados"))
+    try:
+        initialize_schema()
+        updated = update_catalog_status(
+            "estados_especiales",
+            estado_id,
+            requested_status == "Activo",
+        )
+        flash(
+            f"Estado especial {requested_status.lower()} correctamente."
+            if updated else "No se encontró el estado especial para actualizar.",
+            "success" if updated else "error",
+        )
+    except Exception:
+        flash("No se pudo cambiar el estado especial.", "error")
+    return redirect(url_for("admin_monthly_role_page", tab="estados"))
 
 
 @app.post("/administrador/servicios/<int:servicio_id>/eliminar")
@@ -2485,7 +2685,7 @@ def _create_record():
                 memory_records.insert(0, saved)
     if saved_to_database:
         try:
-            refresh_analysis_tables()
+            refresh_analysis_tables(month=month, year=year, module_number=module_number)
         except Exception:
             app.logger.exception(
                 "El registro %s se guardó, pero no se pudieron actualizar las tablas analíticas",
@@ -2563,7 +2763,7 @@ def delete_record_by_credential():
                 deleted = True
     if deleted_from_database:
         try:
-            refresh_analysis_tables()
+            refresh_analysis_tables(month=month, year=year, module_number=module_number)
         except Exception:
             app.logger.exception(
                 "El registro %s se eliminó, pero no se pudieron actualizar las tablas analíticas",

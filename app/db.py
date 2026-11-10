@@ -1,4 +1,5 @@
 import json
+import logging
 from threading import Lock
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -14,11 +15,109 @@ FIXED_MODULE_COUNT = 7
 
 _schema_initialized = False
 _schema_lock = Lock()
+logger = logging.getLogger(__name__)
 
 
 def normalize_display_text(value: str | None) -> str:
     """Normalize user-facing text to title case before storing it."""
     return " ".join(str(value or "").split()).title()
+
+
+def _migrate_legacy_schedule_records(cursor) -> None:
+    cursor.execute(
+        "SELECT pg_advisory_xact_lock(hashtext('sistema_rtp'), hashtext('schema_migration'))"
+    )
+    cursor.execute("SELECT to_regclass('programacion.registros')")
+    if cursor.fetchone()[0] is None:
+        return
+
+    cursor.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM programacion.registros AS legacy
+            JOIN schedule_records AS current
+              ON current.credential = legacy.credential
+             AND current.month = legacy.month
+             AND current.year = legacy.year
+             AND current.module_number = legacy.module_number
+        )
+        """
+    )
+    has_conflicts = cursor.fetchone()[0]
+    archived_count = 0
+    if has_conflicts:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS programacion.registros_legacy_conflicts AS
+            SELECT * FROM programacion.registros WITH NO DATA
+            """
+        )
+        cursor.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS registros_legacy_conflicts_key_idx
+            ON programacion.registros_legacy_conflicts
+                (module_number, credential, month, year)
+            """
+        )
+        cursor.execute(
+            """
+            INSERT INTO programacion.registros_legacy_conflicts
+            SELECT legacy.*
+            FROM programacion.registros AS legacy
+            JOIN schedule_records AS current
+              ON current.credential = legacy.credential
+             AND current.month = legacy.month
+             AND current.year = legacy.year
+             AND current.module_number = legacy.module_number
+            ON CONFLICT (module_number, credential, month, year) DO NOTHING
+            """
+        )
+        archived_count = cursor.rowcount
+
+    cursor.execute(
+        """
+        INSERT INTO schedule_records (
+            name, credential, shift, route, nomenclature, month, year,
+            work_days, rest_days, daily_assignments, daily_details,
+            module_number, created_at
+        )
+        SELECT legacy.name,
+               legacy.credential,
+               legacy.shift,
+               legacy.route,
+               legacy.nomenclature,
+               legacy.month,
+               legacy.year,
+               legacy.work_days,
+               legacy.rest_days,
+               COALESCE(legacy.daily_assignments, '{}'::jsonb)
+                   || COALESCE(vacations.assignments, '{}'::jsonb),
+               legacy.daily_details,
+               legacy.module_number,
+               legacy.saved_at
+        FROM programacion.registros AS legacy
+        LEFT JOIN LATERAL (
+            SELECT jsonb_object_agg(day, '"V"'::jsonb) AS assignments
+            FROM jsonb_array_elements_text(legacy.vacation_days) AS vacation(day)
+        ) AS vacations ON TRUE
+        ON CONFLICT (credential, month, year, module_number) DO NOTHING
+        """
+    )
+    migrated_count = cursor.rowcount
+    cursor.execute("DROP TABLE programacion.registros")
+    if archived_count:
+        logger.warning(
+            "Se retiró programacion.registros tras migrar %s registros; "
+            "%s conflictos quedaron en programacion.registros_legacy_conflicts para revisión.",
+            migrated_count,
+            archived_count,
+        )
+    else:
+        logger.info(
+            "Se retiró programacion.registros tras migrar %s registros sin conflictos.",
+            migrated_count,
+        )
 
 
 @contextmanager
@@ -442,30 +541,15 @@ def _initialize_schema() -> None:
                     rest_days JSONB NOT NULL DEFAULT '[]'::jsonb,
                     daily_assignments JSONB NOT NULL DEFAULT '{}'::jsonb,
                     daily_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    module_number SMALLINT NOT NULL DEFAULT 1,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
             )
             cursor.execute(
                 """
-                CREATE TABLE IF NOT EXISTS programacion.registros (
-                    id BIGSERIAL PRIMARY KEY,
-                    module_number SMALLINT NOT NULL,
-                    name VARCHAR(160) NOT NULL,
-                    credential VARCHAR(80) NOT NULL,
-                    shift VARCHAR(40) NOT NULL,
-                    route VARCHAR(80) NOT NULL,
-                    nomenclature VARCHAR(20) NOT NULL,
-                    month INTEGER NOT NULL,
-                    year INTEGER NOT NULL,
-                    work_days JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    rest_days JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    vacation_days JSONB NOT NULL DEFAULT '[]'::jsonb,
-                    daily_assignments JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    daily_details JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE (module_number, credential, month, year)
-                )
+                ALTER TABLE schedule_records
+                ADD COLUMN IF NOT EXISTS module_number SMALLINT NOT NULL DEFAULT 1
                 """
             )
             cursor.execute(
@@ -622,11 +706,7 @@ def _initialize_schema() -> None:
                 ADD COLUMN IF NOT EXISTS daily_details JSONB NOT NULL DEFAULT '{}'::jsonb
                 """
             )
-            cursor.execute(
-                """
-                ALTER TABLE schedule_records ADD COLUMN IF NOT EXISTS module_number SMALLINT NOT NULL DEFAULT 1
-                """
-            )
+            _migrate_legacy_schedule_records(cursor)
             cursor.execute(
                 """
                 CREATE INDEX IF NOT EXISTS schedule_records_user_month_idx
@@ -790,6 +870,29 @@ def fetch_controllers(module_number: int | None = None, active_only: bool = Fals
             return [dict(zip(("id", "nombre", "credencial", "sexo", "mod1", "active"), row)) for row in cursor.fetchall()]
 
 
+def fetch_monthly_controller_workday_counts(month: int, year: int) -> dict[tuple[str, int], int]:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT sr.credential,
+                       sr.module_number,
+                       COUNT(DISTINCT assigned.day)::integer
+                FROM schedule_records AS sr
+                CROSS JOIN LATERAL jsonb_array_elements_text(
+                    COALESCE(sr.work_days, '[]'::jsonb)
+                ) AS assigned(day)
+                WHERE sr.month = %s AND sr.year = %s
+                GROUP BY sr.credential, sr.module_number
+                """,
+                (month, year),
+            )
+            return {
+                (str(credential), int(module_number)): count
+                for credential, module_number, count in cursor.fetchall()
+            }
+
+
 def fetch_controller_by_credential(credential: str) -> dict | None:
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -850,12 +953,22 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "DELETE FROM programacion.registros WHERE module_number = %s AND month = %s AND year = %s",
+                "DELETE FROM schedule_records WHERE module_number = %s AND month = %s AND year = %s",
                 (module_number, month, year),
             )
             for record in records:
                 name = normalize_display_text(record.get("name"))
                 route = normalize_display_text(record.get("route"))
+                daily_assignments = dict(record.get("daily_assignments") or {})
+                vacation_days = record.get("vacation_days")
+                if vacation_days is None:
+                    vacation_days = [
+                        int(day)
+                        for day, value in daily_assignments.items()
+                        if str(value).strip().upper() == "V"
+                    ]
+                for day in vacation_days:
+                    daily_assignments[str(day)] = "V"
                 daily_details = {
                     str(day): {
                         **detail,
@@ -864,21 +977,14 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
                     if isinstance(detail, dict) else detail
                     for day, detail in (record.get("daily_details") or {}).items()
                 }
-                vacation_days = record.get("vacation_days")
-                if vacation_days is None:
-                    vacation_days = [
-                        int(day)
-                        for day, value in (record.get("daily_assignments") or {}).items()
-                        if str(value).strip().upper() == "V"
-                    ]
                 cursor.execute(
                     """
-                    INSERT INTO programacion.registros
+                    INSERT INTO schedule_records
                         (module_number, name, credential, shift, route, nomenclature,
-                         month, year, work_days, rest_days, vacation_days,
+                         month, year, work_days, rest_days,
                          daily_assignments, daily_details)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
-                            %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
+                            %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
                     """,
                     (
                         module_number,
@@ -891,21 +997,63 @@ def save_month_records(records: list[dict], module_number: int, month: int, year
                         year,
                         json.dumps(record.get("work_days") or []),
                         json.dumps(record.get("rest_days") or []),
-                        json.dumps(vacation_days),
-                        json.dumps(record.get("daily_assignments") or {}),
+                        json.dumps(daily_assignments),
                         json.dumps(daily_details),
                     ),
                 )
         connection.commit()
-    refresh_analysis_tables()
+    refresh_analysis_tables(month=month, year=year, module_number=module_number)
     return len(records)
 
 
-def refresh_analysis_tables() -> None:
-    """Rebuild clean daily and monthly datasets for Power BI."""
+def refresh_analysis_tables(
+    month: int | None = None,
+    year: int | None = None,
+    module_number: int | None = None,
+) -> None:
+    """Rebuild analytical tables globally or for one month and module."""
+    scope = (month, year, module_number)
+    if any(value is not None for value in scope) and not all(value is not None for value in scope):
+        raise ValueError("Mes, año y módulo deben proporcionarse juntos.")
+    scope_values = scope if month is not None else ()
+    record_filter = (
+        " AND sr.month = %s AND sr.year = %s AND sr.module_number = %s"
+        if month is not None else ""
+    )
+    daily_filter = (
+        " AND td.month = %s AND td.year = %s AND td.module_number = %s"
+        if month is not None else ""
+    )
+    period_filter = (
+        " AND month = %s AND year = %s"
+        if month is not None else ""
+    )
+    module_filter = " AND module_number = %s" if month is not None else ""
+    route_scope_values = (
+        (month, year, module_number, month, year, module_number)
+        if month is not None else ()
+    )
+
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute("TRUNCATE analisis.trabajador_dia, analisis.ruta_dia, analisis.analisis_trabajadores, analisis.analisis_rutas")
+            if month is None:
+                cursor.execute(
+                    "TRUNCATE analisis.trabajador_dia, analisis.ruta_dia, "
+                    "analisis.analisis_trabajadores, analisis.analisis_rutas"
+                )
+            else:
+                scope_values = (month, year, module_number)
+                for table in (
+                    "analisis.ruta_dia",
+                    "analisis.trabajador_dia",
+                    "analisis.analisis_trabajadores",
+                    "analisis.analisis_rutas",
+                ):
+                    cursor.execute(
+                        f"DELETE FROM {table} WHERE month = %s AND year = %s AND module_number = %s",
+                        scope_values,
+                    )
+
             cursor.execute(
                 """
                 INSERT INTO analisis.trabajador_dia (
@@ -971,7 +1119,8 @@ def refresh_analysis_tables() -> None:
                         COALESCE(day_data.assignment, day_detail->>'code', '')
                     )
                 WHERE sr.year > 0 AND sr.month BETWEEN 1 AND 12
-                """
+                """ + record_filter,
+                scope_values,
             )
             cursor.execute(
                 """
@@ -1013,7 +1162,8 @@ def refresh_analysis_tables() -> None:
                 ) AS route_data ON TRUE
                 WHERE NULLIF(TRIM(td.route), '') IS NOT NULL
                   AND td.status = 'TRABAJADO'
-                """
+                """ + daily_filter,
+                scope_values,
             )
             cursor.execute(
                 """
@@ -1057,9 +1207,12 @@ def refresh_analysis_tables() -> None:
                     ORDER BY COUNT(*) DESC, td2.shift
                     LIMIT 1
                 ) AS shift_usage ON TRUE
+                WHERE TRUE
+                """ + daily_filter + """
                 GROUP BY td.month, td.year, td.module_number, td.credential,
                          shift_usage.shift, shift_usage.usage_count
-                """
+                """,
+                scope_values,
             )
             cursor.execute(
                 """
@@ -1072,6 +1225,8 @@ def refresh_analysis_tables() -> None:
                 WITH periods AS (
                     SELECT DISTINCT month, year
                     FROM schedule_records
+                    WHERE TRUE
+                """ + period_filter + """
                 ),
                 route_modules AS (
                     SELECT r.id AS route_id, r.mod1 AS module_number
@@ -1080,12 +1235,20 @@ def refresh_analysis_tables() -> None:
                     SELECT mr.ruta_id, mr.modulo_id
                     FROM catalogos.modulo_ruta AS mr
                 ),
+                selected_route_modules AS (
+                    SELECT route_id, module_number
+                    FROM route_modules
+                    WHERE TRUE
+                """ + module_filter + """
+                ),
                 route_usage AS (
                     SELECT route_id, month, year, module_number,
                            COUNT(*) AS assignment_count,
                            COUNT(DISTINCT work_date) AS work_day_count,
                            COUNT(DISTINCT credential) AS controller_count
                     FROM analisis.ruta_dia
+                    WHERE TRUE
+                """ + period_filter + module_filter + """
                     GROUP BY route_id, month, year, module_number
                 )
                 SELECT periods.month,
@@ -1106,7 +1269,7 @@ def refresh_analysis_tables() -> None:
                        shared.module_count,
                        shared.module_count > 1
                 FROM periods
-                CROSS JOIN route_modules
+                CROSS JOIN selected_route_modules AS route_modules
                 JOIN catalogos.rutas AS r ON r.id = route_modules.route_id
                 LEFT JOIN catalogos.tipos_rutas AS tr ON tr.id = r.tipos
                 LEFT JOIN route_usage
@@ -1119,7 +1282,8 @@ def refresh_analysis_tables() -> None:
                     FROM route_modules AS shared_modules
                     WHERE shared_modules.route_id = r.id
                 ) AS shared ON TRUE
-                """
+                """,
+                route_scope_values,
             )
         connection.commit()
 
@@ -1696,11 +1860,68 @@ def fetch_controller_analysis_dashboard(
                 ),
                 None,
             )
-            if selected_worker is None and workers:
-                selected_worker = workers[0]
 
             route_days = []
             calendar_days = []
+            route_days_by_module = []
+            daily_summary = []
+            cursor.execute(
+                """
+                SELECT module_number, route,
+                       COUNT(DISTINCT work_date) AS days,
+                       COUNT(DISTINCT credential) AS controllers
+                FROM analisis.ruta_dia
+                WHERE month = %s AND year = %s
+                GROUP BY module_number, route
+                ORDER BY module_number, days DESC, route
+                """,
+                (month, year),
+            )
+            route_days_by_module = [
+                {
+                    "module_number": row[0],
+                    "route": row[1],
+                    "days": row[2],
+                    "controllers": row[3],
+                }
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                SELECT EXTRACT(DAY FROM work_date)::integer AS day,
+                       COUNT(*) AS assignments,
+                       COUNT(*) FILTER (WHERE status = 'TRABAJADO') AS worked,
+                       COUNT(*) FILTER (WHERE status = 'DESCANSO') AS rest,
+                       COUNT(*) FILTER (WHERE status = 'FALTA') AS absence,
+                       COUNT(*) FILTER (WHERE status = 'INCAPACIDAD') AS incapacity,
+                       COUNT(*) FILTER (WHERE status = 'PERMISO') AS permission,
+                       COUNT(*) FILTER (WHERE status = 'VACACIONES') AS vacation,
+                       COUNT(*) FILTER (WHERE status = 'FESTIVO') AS holiday,
+                       COUNT(*) FILTER (WHERE status = 'NO_PROGRAMADO') AS unprogrammed
+                FROM analisis.trabajador_dia
+                WHERE month = %s AND year = %s
+                GROUP BY work_date
+                ORDER BY work_date
+                """,
+                (month, year),
+            )
+            daily_summary = [
+                {
+                    "day": row[0],
+                    "assignments": row[1],
+                    "worked": row[2],
+                    "rest": row[3],
+                    "absence": row[4],
+                    "incapacity": row[5],
+                    "permission": row[6],
+                    "vacation": row[7],
+                    "holiday": row[8],
+                    "unprogrammed": row[9],
+                }
+                for row in cursor.fetchall()
+            ]
+
             if selected_worker:
                 cursor.execute(
                     """
@@ -1759,7 +1980,9 @@ def fetch_controller_analysis_dashboard(
         "workers": workers,
         "selected_worker": selected_worker,
         "route_days": route_days,
+        "route_days_by_module": route_days_by_module,
         "calendar_days": calendar_days,
+        "daily_summary": daily_summary,
     }
 
 
@@ -1804,7 +2027,7 @@ def fetch_analysis_metrics() -> dict:
                        COUNT(*) AS assignments,
                        COUNT(DISTINCT sr.credential) AS controllers,
                        COUNT(DISTINCT sr.module_number) AS modules
-                FROM programacion.registros AS sr
+                FROM schedule_records AS sr
                 WHERE NULLIF(TRIM(sr.route), '') IS NOT NULL
                 GROUP BY sr.route
                 ORDER BY assignments DESC, controllers DESC, sr.route
@@ -1826,7 +2049,7 @@ def fetch_analysis_metrics() -> dict:
                   SELECT sr.route,
                       COUNT(DISTINCT sr.credential) AS controllers,
                       COUNT(DISTINCT sr.module_number) AS modules
-                  FROM programacion.registros AS sr
+                  FROM schedule_records AS sr
                   WHERE NULLIF(TRIM(sr.route), '') IS NOT NULL
                   GROUP BY sr.route
                   ORDER BY controllers DESC, modules DESC, sr.route
@@ -1868,8 +2091,12 @@ def fetch_analysis_metrics() -> dict:
                 SELECT sr.credential, sr.name,
                        SUM(jsonb_array_length(sr.work_days)) AS dias_trabajados,
                        SUM(jsonb_array_length(sr.rest_days)) AS dias_descanso,
-                       SUM(jsonb_array_length(sr.vacation_days)) AS dias_vacaciones
-                FROM programacion.registros AS sr
+                       SUM((
+                           SELECT COUNT(*)
+                           FROM jsonb_each_text(sr.daily_assignments) AS assignment(day, code)
+                           WHERE upper(assignment.code) = 'V'
+                       )) AS dias_vacaciones
+                FROM schedule_records AS sr
                 GROUP BY sr.credential, sr.name
                 ORDER BY sr.name, sr.credential
                 LIMIT 100
@@ -1889,7 +2116,7 @@ def fetch_analysis_metrics() -> dict:
             cursor.execute(
                 """
                 SELECT NULLIF(TRIM(shift), '') AS turno, COUNT(*) AS usos
-                FROM programacion.registros
+                FROM schedule_records
                 WHERE NULLIF(TRIM(shift), '') IS NOT NULL
                 GROUP BY 1
                 ORDER BY usos DESC, turno
@@ -2409,6 +2636,10 @@ def update_catalog_status(table: str, item_id: int, active: bool) -> dict | None
             "UPDATE catalogos.servicio SET activo = %s WHERE id = %s "
             "RETURNING id, nombre, activo"
         ),
+        "estados_especiales": (
+            "UPDATE catalogos.estados_especiales SET activo = %s WHERE id = %s "
+            "RETURNING id, codigo, descripcion, categoria, activo"
+        ),
     }
     if table not in statements:
         raise ValueError("Catálogo no válido para cambiar estado")
@@ -2439,6 +2670,42 @@ def delete_catalog_item(table: str, item_id: int) -> bool:
             deleted = cursor.rowcount > 0
         connection.commit()
     return deleted
+
+
+def delete_turnos_by_ids(turno_ids: list[int]) -> list[int]:
+    unique_ids = list(dict.fromkeys(turno_ids))
+    if not unique_ids:
+        raise ValueError("Selecciona al menos un turno.")
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id
+                FROM catalogos.turnos
+                WHERE id = ANY(%s)
+                ORDER BY id
+                FOR UPDATE
+                """,
+                (unique_ids,),
+            )
+            existing_ids = [row[0] for row in cursor.fetchall()]
+            if set(existing_ids) != set(unique_ids):
+                raise ValueError("Uno de los turnos seleccionados ya no está disponible.")
+
+            cursor.execute(
+                """
+                DELETE FROM catalogos.turnos
+                WHERE id = ANY(%s)
+                RETURNING id
+                """,
+                (unique_ids,),
+            )
+            deleted_ids = {row[0] for row in cursor.fetchall()}
+            if deleted_ids != set(unique_ids):
+                raise ValueError("No se pudieron eliminar todos los turnos seleccionados.")
+        connection.commit()
+    return existing_ids
 
 
 def fetch_records(month: int, year: int, module_number: int) -> list[dict]:

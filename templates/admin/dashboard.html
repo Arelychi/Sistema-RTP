@@ -42,7 +42,7 @@
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="admin-alerts" aria-live="polite">
+          <div class="admin-alerts" aria-live="polite" hidden>
             {% for category, message in messages %}
               <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
             {% endfor %}
@@ -95,6 +95,13 @@
                                 <button type="button" data-controller-filter-clear>Limpiar</button>
                               </div>
                               <details class="admin-route-filter-category" open>
+                                <summary>Rol mensual</summary>
+                                <div class="admin-route-filter-options">
+                                  <label><input type="checkbox" data-controller-filter-option="assignment" value="Asignado"><span>Asignado</span></label>
+                                  <label><input type="checkbox" data-controller-filter-option="assignment" value="No asignado"><span>No asignado</span></label>
+                                </div>
+                              </details>
+                              <details class="admin-route-filter-category" open>
                                 <summary>Género</summary>
                                 <div class="admin-route-filter-options">
                                   <label><input type="checkbox" data-controller-filter-option="gender" value="Femenino"><span>Femenino</span></label>
@@ -109,6 +116,7 @@
                                   <label><input type="checkbox" data-controller-filter-option="status" value="Inactivo"><span>Inactivos</span></label>
                                 </div>
                               </details>
+                              
                             </div>
                           </div>
                           {% if not is_read_only_account %}
@@ -123,41 +131,47 @@
                   </form>
                   {% endif %}
                   {% if group.controllers %}
-                    <div class="admin-controller-table {% if not is_read_only_account %}admin-controller-selectable{% endif %}" role="table" aria-label="Controladores del {{ group.module_name or 'Módulo ' ~ group.module_number }}">
-                    <div class="admin-controller-table-head" role="row">
+                    <div class="admin-route-table-wrap admin-controller-table-wrap">
+                    <table class="admin-controller-table{% if not is_read_only_account %} admin-controller-selectable{% endif %} admin-route-table" aria-label="Controladores del {{ group.module_name or 'Módulo ' ~ group.module_number }}">
+                    <thead>
+                    <tr class="admin-controller-table-head">
                       {% if not is_read_only_account %}
-                      <span class="admin-route-select-column" role="columnheader">
+                      <th class="admin-route-select-column">
                         <input type="checkbox" data-controller-select-all aria-label="Seleccionar todos los controladores visibles">
-                      </span>
+                      </th>
                       {% endif %}
-                      <span role="columnheader">Nombre del controlador</span>
-                      <span role="columnheader">Credencial</span>
-                      <span role="columnheader">Género</span>
-                      <span role="columnheader">Estatus</span>
-                      <span role="columnheader">Acciones</span>
-                    </div>
-                    <ul class="admin-controller-list" role="rowgroup">
+                      <th>Nombre del controlador</th>
+                      <th>Credencial</th>
+                      <th>Género</th>
+                      <th>Estatus</th>
+                      <th>Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody>
                       {% for controller in group.controllers %}
-                        <li class="admin-controller-item" role="row" data-admin-save-row="{{ controller.credencial }}" data-controller-id="{{ controller.id }}" data-controller-name="{{ controller.nombre }}" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}" data-controller-gender="{{ controller.sexo }}">
+                        <tr class="admin-controller-item" data-admin-filter-row data-admin-save-row="{{ controller.credencial }}" data-controller-id="{{ controller.id }}" data-controller-name="{{ controller.nombre }}" data-controller-monthly-days="{{ controller.monthly_assigned_days }}" data-controller-monthly-assignment="{{ 'Asignado' if controller.monthly_assigned_days > 0 else 'No asignado' }}" data-controller-month-name="{{ current_month_name }}" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}" data-controller-gender="{{ controller.sexo }}">
                           {% if not is_read_only_account %}
-                          <span class="admin-route-select-column" role="cell">
+                          <td class="admin-route-select-column">
                             <label class="admin-route-select-control" title="Seleccionar controlador para eliminar">
                               <input type="checkbox" data-controller-bulk-select value="{{ controller.id }}" aria-label="Seleccionar {{ controller.nombre }} para eliminar">
                             </label>
-                          </span>
+                          </td>
                           {% endif %}
-                          <div class="admin-controller-name" role="cell">
+                          <td class="admin-controller-name">
                             <strong>{{ controller.nombre }}</strong>
-                          </div>
-                          <div class="admin-controller-credential" role="cell">
+                            {% if controller.monthly_assigned_days > 0 %}
+                              <span class="admin-route-shared-module-badge admin-controller-monthly-assignment-badge" data-controller-assignment-badge tabindex="0" aria-label="El controlador tiene {{ controller.monthly_assigned_days }} días asignados (trabajo) en el mes de {{ current_month_name }}." aria-describedby="controller-assignment-tooltip">A</span>
+                            {% endif %}
+                          </td>
+                          <td class="admin-controller-credential">
                             <span>{{ controller.credencial }}</span>
-                          </div>
-                          <div class="admin-controller-gender" role="cell">
+                          </td>
+                          <td class="admin-controller-gender">
                             <span>{{ controller.sexo }}</span>
-                          </div>
+                          </td>
 
 
-                          <div class="admin-controller-status" role="cell">
+                          <td class="admin-controller-status">
 
                                 {% if not is_read_only_account %}
 
@@ -211,11 +225,11 @@
 
                                 {% endif %}
 
-                          </div>
+                          </td>
 
 
                           {% if not is_read_only_account %}
-                          <div class="admin-controller-actions" role="cell">
+                          <td class="admin-controller-actions">
                             <div class="admin-controller-individual-actions" data-controller-individual-actions>
                             <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_controllers_page', edit_id=controller.id) }}" aria-label="Editar {{ controller.nombre }}" title="Editar controlador">
                               <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
@@ -228,13 +242,14 @@
                               </button>
                             </form>
                             </div>
-                          </div>
+                          </td>
                           {% else %}
-                          <div class="admin-controller-actions" role="cell" aria-hidden="true"></div>
+                          <td class="admin-controller-actions" aria-hidden="true"></td>
                           {% endif %}
-                        </li>
+                        </tr>
                       {% endfor %}
-                    </ul>
+                    </tbody>
+                    </table>
                     </div>
                     {% include 'admin/_pagination.html' %}
                   {% else %}
@@ -342,6 +357,10 @@
 
   </main>
 
+  <div id="controller-assignment-tooltip" class="admin-controller-assignment-tooltip" data-controller-assignment-tooltip role="tooltip" hidden>
+    <span data-controller-assignment-tooltip-message></span>
+  </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const tabs = document.querySelectorAll('.admin-registry-tab:not(.controller-page-tab)');
@@ -364,6 +383,52 @@
       const controllerModuleCard = controllerModal?.querySelector('#controller-module-display');
       const controllerPageCount = document.querySelector('[data-controller-page-count]');
       const controllerModulePanels = document.querySelectorAll('[data-admin-module-panel][data-controller-module-count]');
+      const controllerAssignmentTooltip = document.querySelector('[data-controller-assignment-tooltip]');
+      const controllerAssignmentTooltipMessage = controllerAssignmentTooltip?.querySelector('[data-controller-assignment-tooltip-message]');
+
+      function hideControllerAssignmentTooltip() {
+        if (controllerAssignmentTooltip) controllerAssignmentTooltip.hidden = true;
+      }
+
+      function showControllerAssignmentTooltip(row, badge) {
+        if (!controllerAssignmentTooltip || !controllerAssignmentTooltipMessage) return;
+        const assignedDays = Number(row.dataset.controllerMonthlyDays);
+        const monthName = row.dataset.controllerMonthName;
+        if (!badge || !Number.isInteger(assignedDays) || assignedDays <= 0 || !monthName) {
+          return;
+        }
+        const dayLabel = assignedDays === 1 ? 'día asignado' : 'días asignados';
+        controllerAssignmentTooltipMessage.textContent =
+          `El controlador tiene ${assignedDays} ${dayLabel} (trabajo, incluido Módulo (MD)) en el mes de ${monthName}.`;
+        controllerAssignmentTooltip.hidden = false;
+        const badgeBounds = badge.getBoundingClientRect();
+        const tooltipBounds = controllerAssignmentTooltip.getBoundingClientRect();
+        const margin = 12;
+        const left = Math.min(
+          Math.max(margin, badgeBounds.left),
+          window.innerWidth - tooltipBounds.width - margin
+        );
+        let top = badgeBounds.bottom + 8;
+        if (top + tooltipBounds.height > window.innerHeight - margin) {
+          top = Math.max(margin, badgeBounds.top - tooltipBounds.height - 8);
+        }
+        controllerAssignmentTooltip.style.left = `${left}px`;
+        controllerAssignmentTooltip.style.top = `${top}px`;
+      }
+
+      document.querySelectorAll('[data-controller-assignment-badge]').forEach(function (badge) {
+        const row = badge.closest('.admin-controller-item');
+        if (!row) return;
+        badge.addEventListener('pointerenter', function () {
+          showControllerAssignmentTooltip(row, badge);
+        });
+        badge.addEventListener('pointerleave', hideControllerAssignmentTooltip);
+        badge.addEventListener('focus', function () {
+          showControllerAssignmentTooltip(row, badge);
+        });
+        badge.addEventListener('blur', hideControllerAssignmentTooltip);
+      });
+      window.addEventListener('scroll', hideControllerAssignmentTooltip, true);
 
       function setControllerPageCount(moduleId) {
         const modulePanel = Array.from(controllerModulePanels).find(function (panel) {
@@ -503,7 +568,7 @@
 
         function filterControllers() {
           const query = search?.value.trim().toLowerCase() || '';
-          const selected = { gender: [], status: [] };
+          const selected = { gender: [], status: [], assignment: [] };
           filterOptions.forEach(function (option) {
             if (option.checked) selected[option.dataset.controllerFilterOption].push(option.value);
           });
@@ -515,12 +580,14 @@
             const matchesGender = !selected.gender.length
               || selected.gender.some((value) => value.toLocaleLowerCase() === gender);
             const matchesStatus = !selected.status.length || selected.status.includes(row.dataset.controllerStatus);
-            row.dataset.controllerFilterMatch = String(matchesQuery && matchesGender && matchesStatus);
+            const matchesAssignment = !selected.assignment.length
+              || selected.assignment.includes(row.dataset.controllerMonthlyAssignment);
+            row.dataset.controllerFilterMatch = String(matchesQuery && matchesGender && matchesStatus && matchesAssignment);
           });
           updatePagination(true);
           updateBulkSelection();
 
-          const selectedCount = selected.gender.length + selected.status.length;
+          const selectedCount = selected.gender.length + selected.status.length + selected.assignment.length;
           if (filterCount) {
             filterCount.textContent = String(selectedCount);
             filterCount.hidden = selectedCount === 0;

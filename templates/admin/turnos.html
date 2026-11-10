@@ -33,7 +33,7 @@
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="admin-alerts" aria-live="polite">
+          <div class="admin-alerts" aria-live="polite" hidden>
             {% for category, message in messages %}
               <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
             {% endfor %}
@@ -209,6 +209,7 @@
               </div>
 
               <div class="admin-form-actions admin-turno-final-actions" hidden>
+                <button class="admin-secondary-button" type="button" data-turno-modal-close>Cancelar</button>
                 <button class="admin-secondary-button" type="button" data-turno-previous>Regresar</button>
                 <button class="admin-primary-button" type="submit" form="turno-form">
                   <span data-turno-save-label>{{ 'Actualizar turno' if editing_turno else 'Guardar turno' }}</span>
@@ -216,6 +217,7 @@
               </div>
 
               <div class="admin-form-actions admin-turno-step-actions">
+                <button class="admin-secondary-button" type="button" data-turno-modal-close>Cancelar</button>
                 <button class="admin-primary-button admin-turno-general-save" type="submit" form="turno-form">
                   <span data-turno-save-label>{{ 'Actualizar turno' if editing_turno else 'Guardar turno' }}</span>
                 </button>
@@ -235,7 +237,7 @@
               
 
               
-              <div class="admin-controller-toolbar" data-admin-toolbar data-admin-visible-count-target="turno-page-count" role="search">
+              <div class="admin-controller-toolbar admin-turnos-toolbar" data-admin-toolbar data-admin-ignore-module-filter data-admin-visible-count-target="turno-page-count" role="search">
                 <label class="controller-filter admin-controller-search">
                   <span class="controller-filter-label">Buscar</span>
                   <span class="controller-filter-field">
@@ -264,15 +266,24 @@
                   </div>
                 </div>
                 {% if not is_read_only_account %}
-                <button class="admin-primary-button admin-create-controller-button" type="button" data-turno-modal-open data-turno-create>
+                <button class="admin-route-cancel-selection" type="button" data-turno-cancel-selection hidden>Cancelar selección</button>
+                <button class="admin-primary-button admin-create-controller-button" type="button" data-turno-modal-open data-turno-create data-turno-bulk-delete-button>
                   Crear turno
                 </button>
                 {% endif %}
               </div>
+              {% if not is_read_only_account %}
+              <form class="admin-turno-bulk-delete-form" method="post" action="{{ url_for('admin_delete_selected_turnos') }}" data-turno-bulk-delete-form data-delete-confirm-form data-delete-kind="turnos seleccionados" data-delete-name="turnos seleccionados" data-delete-message="Se eliminarán los turnos seleccionados. Esta acción no se puede deshacer." hidden>
+                <div data-turno-bulk-delete-inputs></div>
+              </form>
+              {% endif %}
               <div class="admin-route-table-wrap">
-                <table class="admin-route-table">
+                <table class="admin-route-table admin-turno-table{% if not is_read_only_account %} admin-turno-selectable{% endif %}">
                   <thead>
                     <tr>
+                      {% if not is_read_only_account %}
+                      <th class="admin-turno-select-column"><input type="checkbox" data-turno-select-all aria-label="Seleccionar todos los turnos visibles"></th>
+                      {% endif %}
                       <th>Número</th>
                       <th>Hora inicio</th>
                       <th>Hora fin</th>
@@ -284,6 +295,7 @@
                   <tbody>
                     {% for turno in turnos %}
                       <tr
+                        data-turno-id="{{ turno.id }}"
                         data-admin-filter-row
                         data-admin-save-row="{{ turno.hora_inicio }}"
                         data-admin-save-hora-inicio="{{ turno.hora_inicio }}"
@@ -292,6 +304,9 @@
                         data-filter-status="{{ 'Activo' if turno.activo else 'Inactivo' }}"
                         data-filter-modules="{{ turno.module_ids|join(',') }}"
                         data-filter-module-statuses='{{ turno.module_statuses|tojson }}'>
+                        {% if not is_read_only_account %}
+                        <td class="admin-turno-select-column"><input type="checkbox" data-turno-bulk-select value="{{ turno.id }}" aria-label="Seleccionar turno {{ turno.numero }}"></td>
+                        {% endif %}
                         <td>{{ turno.numero }}</td>
                         <td>{{ turno.hora_inicio }}</td>
                         <td>{{ turno.hora_fin }}</td>
@@ -317,6 +332,7 @@
                           </div>
                         </td>
                         <td class="admin-controller-actions">
+                          <span data-turno-individual-actions>
                           <a class="admin-edit-button" data-admin-edit-trigger href="{{ url_for('admin_turnos_page', edit_id=turno.id) }}" aria-label="Editar turno {{ turno.numero }}" title="Editar turno">
                             <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
                             <span class="sr-only">Editar</span>
@@ -327,6 +343,7 @@
                               <span class="sr-only">Eliminar</span>
                             </button>
                           </form>
+                            </span>
                         </td>
                       </tr>
                     {% endfor %}
@@ -360,6 +377,89 @@
   {% include 'admin/_save_feedback.html' %}
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.admin-turnos-toolbar').forEach(function (toolbar) {
+        const group = toolbar.closest('.admin-module-group');
+        const table = group?.querySelector('.admin-turno-table');
+        const rows = Array.from(table?.querySelectorAll('tbody tr[data-turno-id]') || []);
+        const checkboxes = rows
+          .map((row) => row.querySelector('[data-turno-bulk-select]'))
+          .filter(Boolean);
+        const selectAll = table?.querySelector('[data-turno-select-all]');
+        const cancelButton = toolbar.querySelector('[data-turno-cancel-selection]');
+        const actionButton = toolbar.querySelector('[data-turno-create]');
+        const bulkDeleteForm = group?.querySelector('[data-turno-bulk-delete-form]');
+        const bulkDeleteInputs = bulkDeleteForm?.querySelector('[data-turno-bulk-delete-inputs]');
+        if (!bulkDeleteForm || !bulkDeleteInputs || !actionButton) return;
+
+        function setHidden(element, hidden) {
+          if (element && element.hidden !== hidden) element.hidden = hidden;
+        }
+
+        function updateBulkSelection() {
+          const selected = checkboxes.filter((checkbox) => checkbox.checked);
+          const selectionMode = selected.length > 0;
+          group.classList.toggle('is-turno-selection-mode', selectionMode);
+          toolbar.classList.toggle('is-turno-selection-mode', selectionMode);
+          rows.forEach(function (row) {
+            const checkbox = row.querySelector('[data-turno-bulk-select]');
+            const individualActions = row.querySelector('[data-turno-individual-actions]');
+            row.classList.toggle('is-bulk-selected', Boolean(checkbox?.checked));
+            setHidden(individualActions, selectionMode);
+          });
+          if (selectAll) {
+            const visible = checkboxes.filter((checkbox) => !checkbox.closest('[data-admin-filter-row]')?.hidden);
+            const visibleSelected = visible.filter((checkbox) => checkbox.checked);
+            selectAll.checked = visible.length > 0 && visibleSelected.length === visible.length;
+            selectAll.indeterminate = visibleSelected.length > 0 && visibleSelected.length < visible.length;
+            selectAll.disabled = visible.length === 0;
+          }
+          setHidden(cancelButton, !selectionMode);
+          actionButton.textContent = selectionMode ? 'Eliminar registros' : 'Crear turno';
+          actionButton.setAttribute('aria-label', selectionMode ? 'Eliminar turnos seleccionados' : 'Crear turno');
+          actionButton.classList.toggle('is-bulk-delete', selectionMode);
+        }
+
+        function submitBulkDelete() {
+          const selected = checkboxes.filter((checkbox) => checkbox.checked);
+          if (!selected.length) return;
+
+          bulkDeleteInputs.replaceChildren();
+          selected.forEach(function (checkbox) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'turno_ids';
+            input.value = checkbox.value;
+            bulkDeleteInputs.appendChild(input);
+          });
+          bulkDeleteForm.dataset.deleteMessage = `Se eliminarán ${selected.length} turno(s) seleccionado(s). Esta acción no se puede deshacer.`;
+          bulkDeleteForm.requestSubmit();
+        }
+
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkSelection));
+        selectAll?.addEventListener('change', function () {
+          checkboxes.forEach(function (checkbox) {
+            if (!checkbox.closest('[data-admin-filter-row]')?.hidden) checkbox.checked = selectAll.checked;
+          });
+          updateBulkSelection();
+        });
+        cancelButton?.addEventListener('click', function () {
+          checkboxes.forEach((checkbox) => { checkbox.checked = false; });
+          updateBulkSelection();
+        });
+        actionButton.addEventListener('click', function (event) {
+          if (!checkboxes.some((checkbox) => checkbox.checked)) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          submitBulkDelete();
+        });
+        new MutationObserver(updateBulkSelection).observe(table, {
+          attributes: true,
+          subtree: true,
+          attributeFilter: ['hidden'],
+        });
+        updateBulkSelection();
+      });
+
       const turnoModulePicker = document.querySelector('[data-turno-module-picker]');
       const turnoModuleMenu = document.querySelector('#turno-module-menu');
       const turnoSelectedModules = document.querySelector('#turno-selected-modules');

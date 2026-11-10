@@ -29,18 +29,20 @@
         <header class="analysis-topbar">
           
           <nav class="analysis-local-tabs" aria-label="Secciones de análisis">
-            <a class="is-active" href="{{ url_for('admin_analysis_page', month=month, year=year) }}" aria-current="page">Controladores</a>
-            <button type="button" disabled title="La sección de rutas se habilitará en una siguiente actualización">Rutas</button>
+            <a class="{% if active_tab == 'resumen' %}is-active{% endif %}" href="{{ url_for('admin_analysis_page', month=month, year=year, tab='resumen') }}" {% if active_tab == 'resumen' %}aria-current="page"{% endif %}>Resumen</a>
+            <a class="{% if active_tab == 'controladores' %}is-active{% endif %}" href="{{ url_for('admin_analysis_page', month=month, year=year, tab='controladores', credential=selected_worker.credential if selected_worker else None, module=selected_worker.module_number if selected_worker else None) }}" {% if active_tab == 'controladores' %}aria-current="page"{% endif %}>Controladores</a>
+            <a class="{% if active_tab == 'rutas' %}is-active{% endif %}" href="{{ url_for('admin_analysis_page', month=month, year=year, tab='rutas') }}" {% if active_tab == 'rutas' %}aria-current="page"{% endif %}>Rutas</a>
+            <a class="{% if active_tab == 'incidencias' %}is-active{% endif %}" href="{{ url_for('admin_analysis_page', month=month, year=year, tab='incidencias') }}" {% if active_tab == 'incidencias' %}aria-current="page"{% endif %}>Incidencias</a>
           </nav>
           <div class="analysis-period-control" aria-label="Periodo del análisis">
             {% if previous_period %}
-            <a href="{{ url_for('admin_analysis_page', month=previous_period[1], year=previous_period[0], credential=selected_worker.credential if selected_worker else None, module=selected_worker.module_number if selected_worker else None) }}" aria-label="Mes anterior">‹</a>
+            <a href="{{ url_for('admin_analysis_page', month=previous_period[1], year=previous_period[0], tab=active_tab, credential=selected_worker.credential if selected_worker else None, module=selected_worker.module_number if selected_worker else None) }}" aria-label="Mes anterior">‹</a>
             {% else %}
             <span aria-hidden="true">‹</span>
             {% endif %}
             <strong><span aria-hidden="true">▦</span> {{ month_label }} {{ year }}</strong>
             {% if next_period %}
-            <a href="{{ url_for('admin_analysis_page', month=next_period[1], year=next_period[0], credential=selected_worker.credential if selected_worker else None, module=selected_worker.module_number if selected_worker else None) }}" aria-label="Mes siguiente">›</a>
+            <a href="{{ url_for('admin_analysis_page', month=next_period[1], year=next_period[0], tab=active_tab, credential=selected_worker.credential if selected_worker else None, module=selected_worker.module_number if selected_worker else None) }}" aria-label="Mes siguiente">›</a>
             {% else %}
             <span aria-hidden="true">›</span>
             {% endif %}
@@ -52,175 +54,301 @@
           <div class="analysis-error" role="alert">{{ analysis_error }}</div>
           {% endif %}
 
-          <section class="analysis-overview-stats" aria-label="Resumen de controladores">
+          <section class="analysis-overview-stats" aria-label="Resumen del periodo">
             <article class="analysis-overview-card">
-              <div><span>Recuento total</span><span class="analysis-stat-icon is-neutral" aria-hidden="true">♙</span></div>
+              <div><span>Controladores registrados</span><span class="analysis-stat-icon is-neutral" aria-hidden="true">♙</span></div>
               <strong>{{ dashboard.registered_controllers }}</strong>
-              <small>Controladores registrados</small>
+              <small>En todos los módulos</small>
             </article>
             <article class="analysis-overview-card">
               <div><span>Controladores activos</span><span class="analysis-stat-icon is-green" aria-hidden="true">↗</span></div>
               <strong class="is-green-text">{{ dashboard.active_controllers }}</strong>
-              <small>En turno activo</small>
+              <small>Estado actual del catálogo</small>
             </article>
             <article class="analysis-overview-card">
-              <div><span>Inactivos / pausa</span><span class="analysis-stat-icon is-amber" aria-hidden="true">◷</span></div>
+              <div><span>Inactivos</span><span class="analysis-stat-icon is-amber" aria-hidden="true">◷</span></div>
               <strong>{{ dashboard.inactive_controllers }}</strong>
-              <small>Inactivos en el registro</small>
+              <small>Estado actual del catálogo</small>
             </article>
             <article class="analysis-overview-card">
-              <div><span>Controladores con rol</span><span class="analysis-stat-icon is-blue" aria-hidden="true">◉</span></div>
-              <strong class="is-blue-text">{{ dashboard.assigned_controllers }}</strong>
-              <small>Asignados en {{ month_label }} {{ year }}</small>
+              <div><span>Controladores con rol</span><span class="analysis-stat-icon is-green" aria-hidden="true">◉</span></div>
+              <strong class="is-green-text">{{ dashboard.assigned_controllers }}</strong>
+              <small>Personas asignadas en {{ month_label }} {{ year }}</small>
             </article>
           </section>
 
-          <section class="analysis-primary-grid" aria-label="Rutas y calendario del controlador seleccionado">
-            <article class="analysis-dashboard-card analysis-routes-chart-card">
-              <header class="analysis-card-heading">
-                <div>
-                  <h1>Rutas asignadas{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h1>
-                  <p>Días trabajados por ruta en el periodo seleccionado</p>
+          <section id="analysis-summary" class="analysis-tab-panel" {% if active_tab != 'resumen' %}hidden{% endif %}>
+            <div class="analysis-secondary-grid">
+              <article class="analysis-dashboard-card">
+                <header class="analysis-card-heading">
+                  <div><h1>Distribución general</h1><p>{{ monthly_status_total }} días con estado registrado en {{ month_label }} {{ year }}</p></div>
+                  <span class="analysis-badge is-neutral">Todos los módulos</span>
+                </header>
+                <div class="analysis-status-chart" aria-label="Días registrados por estado">
+                  {% for item in monthly_status_chart %}
+                  <div class="analysis-status-row">
+                    <span>{{ item.label }}</span>
+                    <div class="analysis-status-track"><i class="{{ item.class_name }}" style="width: {{ item.width }}%"></i></div>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                  {% endfor %}
                 </div>
-                {% if selected_worker %}<span class="analysis-badge is-blue">Módulo {{ selected_worker.module_number }}</span>{% endif %}
-              </header>
-              {% if route_points %}
-              <div class="analysis-route-chart-wrap">
-                <svg class="analysis-route-chart" viewBox="0 0 680 240" role="img" aria-label="Gráfica de días trabajados por ruta">
-                  {% for grid in [30, 70, 110, 150, 190] %}
-                  <line x1="42" y1="{{ grid }}" x2="638" y2="{{ grid }}" class="analysis-chart-grid-line"></line>
-                  {% endfor %}
-                  <text x="8" y="34" class="analysis-chart-axis-label">{{ route_max }}</text>
-                  <text x="25" y="194" class="analysis-chart-axis-label">0</text>
-                  <polyline points="{{ route_line }}" class="analysis-route-chart-line"></polyline>
-                  {% for point in route_points %}
-                  <circle cx="{{ point.x }}" cy="{{ point.y }}" r="4" class="analysis-route-chart-dot">
-                    <title>{{ point.label }}: {{ point.days }} días trabajados</title>
-                  </circle>
-                  <text x="{{ point.label_x }}" y="218" text-anchor="middle" class="analysis-chart-route-label">{{ point.label }}</text>
-                  {% endfor %}
-                </svg>
-              </div>
-              {% else %}
-              <p class="analysis-empty-state">{% if selected_worker %}Este controlador no tiene días trabajados en rutas para este periodo.{% else %}No hay controladores asignados a un rol mensual en este periodo.{% endif %}</p>
-              {% endif %}
-              <footer class="analysis-card-footer">
-                <span><i class="analysis-legend-dot is-blue"></i>Días trabajados</span>
-                <span>{{ month_label }} {{ year }}</span>
-              </footer>
-            </article>
+                <footer class="analysis-card-footer"><span>Los estados se cuentan por asignación diaria.</span><span>{{ dashboard.workers|length }} asignaciones persona/módulo</span></footer>
+              </article>
 
-            <article class="analysis-dashboard-card analysis-calendar-card">
-              <header class="analysis-card-heading">
-                <div>
-                  <h2>Días trabajados{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h2>
-                  <p>Asignaciones del rol mensual</p>
-                </div>
-                {% if selected_worker %}<span class="analysis-badge is-green">Módulo {{ selected_worker.module_number }}</span>{% endif %}
-              </header>
-              {% if selected_worker %}
-              <div class="analysis-calendar">
-                <div class="analysis-calendar-weekdays">
-                  {% for weekday in ['L', 'M', 'M', 'J', 'V', 'S', 'D'] %}<span>{{ weekday }}</span>{% endfor %}
-                </div>
-                {% for week in calendar_grid %}
-                <div class="analysis-calendar-week">
-                  {% for cell in week %}
-                    {% if cell %}
-                    <div class="analysis-calendar-day {{ cell.class_name }}" title="{{ cell.title }}">
-                      <span>{{ cell.day }}</span>
-                      {% if cell.label %}<small>{{ cell.label }}</small>{% endif %}
+              <article class="analysis-dashboard-card">
+                <header class="analysis-card-heading">
+                  <div><h2>Distribución por módulo</h2><p>Comparativo de días registrados por estado</p></div>
+                  <span class="analysis-badge is-neutral">{{ module_summary|length }} módulos</span>
+                </header>
+                {% if module_summary %}
+                <div class="analysis-module-summary-list">
+                  {% for module in module_summary %}
+                  <div class="analysis-module-summary-row">
+                    <div class="analysis-module-summary-heading">
+                      <strong>{{ module.name }}</strong>
+                      <span>{{ module.assigned }} con rol · {{ module.total }} días</span>
                     </div>
-                    {% else %}
-                    <div class="analysis-calendar-day is-empty" aria-hidden="true"></div>
-                    {% endif %}
+                    <div class="analysis-module-stacked-bar" role="img" aria-label="Distribución de estados para {{ module.name }}">
+                      {% for segment in module.segments %}
+                        {% if segment.value %}<i class="{{ segment.class_name }}" style="width: {{ segment.width }}%" title="{{ segment.label }}: {{ segment.value }}"></i>{% endif %}
+                      {% endfor %}
+                    </div>
+                    <div class="analysis-module-summary-values">
+                      {% for segment in module.segments %}
+                        {% if segment.value %}<span><i class="{{ segment.class_name }}"></i>{{ segment.label }} {{ segment.value }}</span>{% endif %}
+                      {% endfor %}
+                    </div>
+                  </div>
                   {% endfor %}
                 </div>
-                {% endfor %}
+                {% else %}
+                <p class="analysis-empty-state">No hay módulos disponibles.</p>
+                {% endif %}
+                <footer class="analysis-card-footer"><span>Los módulos sin datos aparecen con cero asignaciones.</span></footer>
+              </article>
+            </div>
+          </section>
+
+          <section id="analysis-controllers" class="analysis-tab-panel" {% if active_tab != 'controladores' %}hidden{% endif %}>
+            <section class="analysis-primary-grid" aria-label="Detalle mensual del controlador">
+              <article class="analysis-dashboard-card analysis-routes-chart-card">
+                <header class="analysis-card-heading">
+                  <div>
+                    <h1>Rutas asignadas{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h1>
+                    <p>Días trabajados por ruta en el periodo seleccionado</p>
+                  </div>
+                  {% if selected_worker %}<span class="analysis-badge is-green">Módulo {{ selected_worker.module_number }}</span>{% endif %}
+                </header>
+                {% if route_points %}
+                <div class="analysis-horizontal-bars" role="list" aria-label="Días trabajados por ruta">
+                  {% for point in route_points %}
+                  <div class="analysis-horizontal-bar-row" role="listitem">
+                    <span title="{{ point.label }}">{{ point.label }}</span>
+                    <div class="analysis-status-track"><i class="is-work" style="width: {{ point.width }}%"></i></div>
+                    <strong>{{ point.days }}</strong>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="analysis-empty-state">{% if selected_worker %}Este controlador no tiene días trabajados en rutas para este periodo.{% else %}Selecciona un controlador de la lista para consultar sus rutas.{% endif %}</p>
+                {% endif %}
+                <footer class="analysis-card-footer"><span><i class="analysis-legend-dot is-green"></i>Días trabajados</span><span>{{ month_label }} {{ year }}</span></footer>
+              </article>
+
+              <article class="analysis-dashboard-card analysis-calendar-card">
+                <header class="analysis-card-heading">
+                  <div>
+                    <h2>Días asignados{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h2>
+                    <p>Estados del rol mensual</p>
+                  </div>
+                  {% if selected_worker %}<span class="analysis-badge is-green">Módulo {{ selected_worker.module_number }}</span>{% endif %}
+                </header>
+                {% if selected_worker %}
+                <div class="analysis-calendar">
+                  <div class="analysis-calendar-weekdays">
+                    {% for weekday in ['L', 'M', 'M', 'J', 'V', 'S', 'D'] %}<span>{{ weekday }}</span>{% endfor %}
+                  </div>
+                  {% for week in calendar_grid %}
+                  <div class="analysis-calendar-week">
+                    {% for cell in week %}
+                      {% if cell %}
+                      <div class="analysis-calendar-day {{ cell.class_name }}" title="{{ cell.title }}">
+                        <span>{{ cell.day }}</span>
+                        {% if cell.label %}<small>{{ cell.label }}</small>{% endif %}
+                      </div>
+                      {% else %}
+                      <div class="analysis-calendar-day is-empty" aria-hidden="true"></div>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                  {% endfor %}
+                </div>
+                <footer class="analysis-card-footer"><span><i class="analysis-legend-dot is-green"></i>Días trabajados: <strong>{{ selected_worker.worked }}</strong></span><span>{{ month_label }} {{ year }}</span></footer>
+                {% else %}
+                <p class="analysis-empty-state">Selecciona un controlador de la lista para consultar su calendario y balance.</p>
+                {% endif %}
+              </article>
+            </section>
+
+            <section class="analysis-secondary-grid" aria-label="Personal y balance de estados">
+              <article class="analysis-dashboard-card analysis-workers-card">
+                <header class="analysis-card-heading">
+                  <div><h2>Controladores con rol</h2><p>Asignaciones registradas en el periodo</p></div>
+                  {% if selected_worker %}<span class="analysis-badge is-green">{{ selected_worker.name }} seleccionado(a)</span>{% endif %}
+                </header>
+                {% if dashboard.workers %}
+                <div class="analysis-workers-table-wrap">
+                  <table class="analysis-workers-table">
+                    <thead>
+                      <tr><th>Nombre</th><th>Cred.</th><th>Trab.</th><th>Desc.</th><th>Falta</th><th>Incap.</th><th>Perm.</th><th>Vac.</th><th>Fest.</th></tr>
+                    </thead>
+                    <tbody>
+                      {% for worker in dashboard.workers %}
+                      <tr class="{% if selected_worker and worker.credential == selected_worker.credential and worker.module_number == selected_worker.module_number %}is-selected{% endif %}">
+                        <td>
+                          <a href="{{ url_for('admin_analysis_page', month=month, year=year, tab='controladores', credential=worker.credential, module=worker.module_number) }}">
+                            <span class="analysis-worker-avatar">{{ worker.name[:1]|upper }}</span>
+                            <span class="analysis-worker-name">{{ worker.name }}<small>Módulo {{ worker.module_number }}</small></span>
+                          </a>
+                        </td>
+                        <td>{{ worker.credential }}</td>
+                        <td><strong>{{ worker.worked }}</strong></td>
+                        <td>{{ worker.rest }}</td>
+                        <td>{{ worker.absence }}</td>
+                        <td>{{ worker.incapacity }}</td>
+                        <td>{{ worker.permission }}</td>
+                        <td>{{ worker.vacation }}</td>
+                        <td>{{ worker.holiday }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="analysis-empty-state">No hay controladores asignados al rol mensual en {{ month_label }} {{ year }}.</p>
+                {% endif %}
+                <footer class="analysis-card-footer"><span>Selecciona un registro para ver su detalle.</span><span>{{ dashboard.workers|length }} asignaciones</span></footer>
+              </article>
+
+              <article class="analysis-dashboard-card analysis-balance-card">
+                <header class="analysis-card-heading">
+                  <div>
+                    <h2>Balance de estados{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h2>
+                    <p>Distribución de sus días registrados</p>
+                  </div>
+                  <span class="analysis-badge is-neutral">{{ month_label }} {{ year }}</span>
+                </header>
+                {% if selected_worker %}
+                <div class="analysis-status-chart" aria-label="Balance de días por tipo de estado">
+                  {% for item in status_chart %}
+                  <div class="analysis-status-row">
+                    <span>{{ item.label }}</span>
+                    <div class="analysis-status-track"><i class="{{ item.class_name }}" style="width: {{ item.width }}%"></i></div>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="analysis-empty-state">Selecciona un controlador para ver sus estados mensuales.</p>
+                {% endif %}
+                <footer class="analysis-card-footer"><span>Fuente: rol mensual y estados especiales</span><span class="analysis-sync-status"><i></i>Datos del análisis</span></footer>
+              </article>
+            </section>
+          </section>
+
+          <section id="analysis-routes" class="analysis-tab-panel" {% if active_tab != 'rutas' %}hidden{% endif %}>
+            <article class="analysis-dashboard-card">
+              <header class="analysis-card-heading">
+                <div><h1>Uso de rutas</h1><p>Días con asignación de trabajo por ruta y módulo</p></div>
+                <span class="analysis-badge is-neutral">{{ route_analytics|length }} combinaciones ruta/módulo</span>
+              </header>
+              {% if route_analytics %}
+              <div class="analysis-routes-summary-grid">
+                <section>
+                  <h2>Rutas con más días asignados</h2>
+                  <div class="analysis-horizontal-bars">
+                    {% for item in top_route_analytics %}
+                    <div class="analysis-horizontal-bar-row">
+                      <span title="{{ item.route }}">{{ item.route }}</span>
+                      <div class="analysis-status-track"><i class="is-work" style="width: {{ item.width }}%"></i></div>
+                      <strong>{{ item.days }}</strong>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </section>
+                <section class="analysis-routes-table-section">
+                  <h2>Detalle por módulo</h2>
+                  <div class="analysis-workers-table-wrap">
+                    <table class="analysis-routes-table">
+                      <thead><tr><th>Módulo</th><th>Ruta</th><th>Días</th><th>Controladores</th></tr></thead>
+                      <tbody>
+                        {% for item in route_analytics %}
+                        <tr><td>{{ item.module_name }}</td><td>{{ item.route }}</td><td><strong>{{ item.days }}</strong></td><td>{{ item.controllers }}</td></tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
               </div>
-              <footer class="analysis-card-footer">
-                <span><i class="analysis-legend-dot is-green"></i>Días laborados: <strong>{{ selected_worker.worked }}</strong></span>
-                <span>{{ month_label }} {{ year }}</span>
-              </footer>
               {% else %}
-              <p class="analysis-empty-state">Selecciona un controlador de la lista para consultar su calendario.</p>
+              <p class="analysis-empty-state">No hay asignaciones de trabajo en rutas para {{ month_label }} {{ year }}.</p>
               {% endif %}
+              <footer class="analysis-card-footer"><span>Solo se cuentan días con estado “Trabajado” y ruta registrada.</span><span>{{ month_label }} {{ year }}</span></footer>
             </article>
           </section>
 
-          <section class="analysis-secondary-grid" aria-label="Personal y balance de incidencias">
-            <article class="analysis-dashboard-card analysis-workers-card">
-              <header class="analysis-card-heading">
-                <div><h2>Lista de personal</h2><p>Controladores registrados en el rol mensual</p></div>
-                {% if selected_worker %}<span class="analysis-badge is-green">{{ selected_worker.name }} seleccionado(a)</span>{% endif %}
-              </header>
-              {% if dashboard.workers %}
-              <div class="analysis-workers-table-wrap">
-                <table class="analysis-workers-table">
-                  <thead>
-                    <tr><th>Nombre</th><th>Cred.</th><th>D. trab.</th><th>Incap.</th><th>Desc.</th><th>Vac.</th><th>Falt.</th></tr>
-                  </thead>
-                  <tbody>
-                    {% for worker in dashboard.workers %}
-                    <tr class="{% if selected_worker and worker.credential == selected_worker.credential and worker.module_number == selected_worker.module_number %}is-selected{% endif %}">
-                      <td>
-                        <a href="{{ url_for('admin_analysis_page', month=month, year=year, credential=worker.credential, module=worker.module_number) }}">
-                          <span class="analysis-worker-avatar">{{ worker.name[:1]|upper }}</span>
-                          <span class="analysis-worker-name">{{ worker.name }}<small>Módulo {{ worker.module_number }}</small></span>
-                        </a>
-                      </td>
-                      <td>{{ worker.credential }}</td>
-                      <td><strong>{{ worker.worked }}</strong></td>
-                      <td>{{ worker.incapacity }}</td>
-                      <td>{{ worker.rest }}</td>
-                      <td>{{ worker.vacation }}</td>
-                      <td>{{ worker.absence }}</td>
-                    </tr>
+          <section id="analysis-incidents" class="analysis-tab-panel" {% if active_tab != 'incidencias' %}hidden{% endif %}>
+            <section class="analysis-primary-grid" aria-label="Incidencias por día">
+              <article class="analysis-dashboard-card">
+                <header class="analysis-card-heading">
+                  <div><h1>Incidencias por día</h1><p>Conteo de faltas, incapacidades y permisos entre todos los módulos</p></div>
+                  <span class="analysis-badge is-neutral">{{ month_label }} {{ year }}</span>
+                </header>
+                <div class="analysis-calendar analysis-incidents-calendar">
+                  <div class="analysis-calendar-weekdays">
+                    {% for weekday in ['L', 'M', 'M', 'J', 'V', 'S', 'D'] %}<span>{{ weekday }}</span>{% endfor %}
+                  </div>
+                  {% for week in daily_calendar_grid %}
+                  <div class="analysis-calendar-week">
+                    {% for cell in week %}
+                      {% if cell %}
+                      <div class="analysis-calendar-day analysis-heatmap-day {{ cell.class_name }}" title="{{ cell.title }}">
+                        <span>{{ cell.day }}</span><small>{% if cell.has_data %}{{ cell.incidents }} inc.{% else %}—{% endif %}</small>
+                      </div>
+                      {% else %}
+                      <div class="analysis-calendar-day is-empty" aria-hidden="true"></div>
+                      {% endif %}
                     {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              {% else %}
-              <p class="analysis-empty-state">No hay controladores asignados al rol mensual en {{ month_label }} {{ year }}.</p>
-              {% endif %}
-              <footer class="analysis-card-footer">
-                <span><i class="analysis-legend-dot is-green"></i>Controladores en base</span>
-                <span>{{ dashboard.workers|length }} registros</span>
-              </footer>
-            </article>
+                  </div>
+                  {% endfor %}
+                </div>
+                <footer class="analysis-card-footer">
+                  <span><i class="analysis-legend-dot is-green"></i>Con trabajo, sin incidencias</span>
+                  <span><i class="analysis-legend-dot is-absence"></i>Con incidencias</span>
+                  <span>Sin datos no significa falta de cobertura</span>
+                </footer>
+              </article>
 
-            <article class="analysis-dashboard-card analysis-balance-card">
-              <header class="analysis-card-heading">
-                <div>
-                  <h2>Balance de incidencias{% if selected_worker %} — {{ selected_worker.name }}{% endif %}</h2>
-                  <p>Comparativa de asistencia, descansos y novedades del mes</p>
+              <article class="analysis-dashboard-card">
+                <header class="analysis-card-heading">
+                  <div><h2>Incidencias registradas</h2><p>Totales del periodo, sin contar vacaciones o festivos como incidencias</p></div>
+                  <span class="analysis-badge is-neutral">Total</span>
+                </header>
+                <div class="analysis-incident-cards">
+                  <div class="is-absence"><span>Faltas</span><strong>{{ monthly_incident_totals.absence }}</strong></div>
+                  <div class="is-incapacity"><span>Incapacidades</span><strong>{{ monthly_incident_totals.incapacity }}</strong></div>
+                  <div class="is-permission"><span>Permisos</span><strong>{{ monthly_incident_totals.permission }}</strong></div>
                 </div>
-                <span class="analysis-badge is-neutral">◷ {{ month_label }} {{ year }}</span>
-              </header>
-              {% if selected_worker %}
-              <div class="analysis-balance-summary">
-                <div class="is-work"><span>Trabajo</span><strong>{{ selected_worker.worked }}</strong></div>
-                <div class="is-vacation"><span>Vacaciones</span><strong>{{ selected_worker.vacation }}</strong></div>
-                <div class="is-rest"><span>Descanso</span><strong>{{ selected_worker.rest }}</strong></div>
-                <div class="is-absence"><span>Falta</span><strong>{{ selected_worker.absence }}</strong></div>
-              </div>
-              <div class="analysis-status-chart" role="img" aria-label="Balance de días por tipo de asignación">
-                {% for item in status_chart %}
-                <div class="analysis-status-row">
-                  <span>{{ item.label }}</span>
-                  <div class="analysis-status-track"><i class="{{ item.class_name }}" style="width: {{ item.width }}%"></i></div>
-                  <strong>{{ item.value }}</strong>
+                <h2 class="analysis-subheading">Códigos especiales</h2>
+                <div class="analysis-special-code-list">
+                  <div><span>C/D · Cambio de descanso</span><strong>{{ special_code_totals.change_of_rest }}</strong></div>
+                  <div><span>D/F · Descanso por festivo</span><strong>{{ special_code_totals.holiday_rest }}</strong></div>
+                  <div><span>SEFI</span><strong>{{ special_code_totals.sefi }}</strong></div>
                 </div>
-                {% endfor %}
-              </div>
-              {% else %}
-              <p class="analysis-empty-state">Selecciona un controlador para ver el balance de sus días trabajados, descansos y estados especiales.</p>
-              {% endif %}
-              <footer class="analysis-card-footer">
-                <span>Fuente: Rol mensual y estados especiales</span>
-                <span class="analysis-sync-status"><i></i>Datos del análisis</span>
-              </footer>
-            </article>
+                <p class="analysis-data-note">Los códigos especiales son un desglose de estados ya contabilizados; no deben sumarse de nuevo a los totales.</p>
+              </article>
+            </section>
           </section>
         </div>
       </section>

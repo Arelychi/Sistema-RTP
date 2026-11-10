@@ -193,6 +193,66 @@ def test_delete_users_by_ids_validates_selection_and_commits(monkeypatch):
     assert not invalid_connection.committed
 
 
+def test_delete_turnos_by_ids_validates_selection_and_commits(monkeypatch):
+    import app.db as db
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self.rows = rows
+            self.operations = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, query, params):
+            self.operations.append((query, params))
+
+        def fetchall(self):
+            return self.rows
+
+    class FakeConnection:
+        def __init__(self, rows):
+            self.fake_cursor = FakeCursor(rows)
+            self.committed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def cursor(self):
+            return self.fake_cursor
+
+        def commit(self):
+            self.committed = True
+
+    connection = FakeConnection([(42,), (43,)])
+    monkeypatch.setattr("app.db.get_connection", lambda: connection)
+
+    deleted = db.delete_turnos_by_ids([42, 43, 42])
+
+    assert deleted == [42, 43]
+    assert connection.committed
+    assert len(connection.fake_cursor.operations) == 2
+    assert "FOR UPDATE" in connection.fake_cursor.operations[0][0]
+    assert connection.fake_cursor.operations[0][1] == ([42, 43],)
+    assert connection.fake_cursor.operations[1][1] == ([42, 43],)
+
+    invalid_connection = FakeConnection([(42,)])
+    monkeypatch.setattr("app.db.get_connection", lambda: invalid_connection)
+    try:
+        db.delete_turnos_by_ids([42, 43])
+    except ValueError as error:
+        assert "ya no está disponible" in str(error)
+    else:
+        raise AssertionError("Expected missing selected turns to be rejected")
+    assert not invalid_connection.committed
+
+
 def test_module_login_opens_monthly_role(monkeypatch):
     monkeypatch.setattr("app.web.initialize_schema", lambda: None)
     monkeypatch.setattr(
@@ -221,6 +281,7 @@ def test_admin_controllers_page_is_available(monkeypatch):
         lambda: [{"id": 1, "nombre": "Módulo Uno"}],
     )
     monkeypatch.setattr("app.web.fetch_controllers", lambda: [])
+    monkeypatch.setattr("app.web.fetch_monthly_controller_workday_counts", lambda month, year: {})
     client = app.test_client()
     with client.session_transaction() as session:
         session['account'] = {
@@ -235,6 +296,11 @@ def test_admin_controllers_page_is_available(monkeypatch):
     assert b'Controladores registrados' in response.data
     assert b'href="/administrador/controladores"' in response.data
     assert b'class="admin-toast"' in response.data
+    dashboard_styles = client.get("/static/admin/dashboard.css")
+    assert dashboard_styles.status_code == 200
+    assert b"body.admin-page-body .admin-controller-toolbar .controller-filter-field {" in dashboard_styles.data
+    assert b"height: 44px;" in dashboard_styles.data
+    assert b"background-image: url(\"../imagenes/icons/busqueda.png\")" in dashboard_styles.data
     notification_script = client.get("/static/admin_notifications.js")
     assert notification_script.status_code == 200
     assert b"admin-module-changed" in notification_script.data
@@ -246,6 +312,16 @@ def test_admin_controllers_page_is_available(monkeypatch):
     module_tabs_script = client.get("/static/admin_tabs.js")
     assert module_tabs_script.status_code == 200
     assert b"changed: previousModuleId !== selectedModule" in module_tabs_script.data
+    delete_script = client.get("/static/admin_delete_confirmation.js")
+    assert delete_script.status_code == 200
+    assert b"admin-operation-start" in delete_script.data
+    assert b"Eliminando ${form.dataset.deleteKind" in delete_script.data
+    save_feedback_script = client.get("/static/admin_save_feedback.js")
+    assert save_feedback_script.status_code == 200
+    assert b"admin-operation-start" in save_feedback_script.data
+    assert b"window.requestAnimationFrame(function () {" in save_feedback_script.data
+    assert b"scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })" in save_feedback_script.data
+    assert b"[data-route-page-next], [data-admin-page-next]" in save_feedback_script.data
 
 
 def test_admin_controllers_table_has_reference_actions_and_delete_modal(monkeypatch):
@@ -264,8 +340,20 @@ def test_admin_controllers_table_has_reference_actions_and_delete_modal(monkeypa
                 "sexo": "Femenino",
                 "mod1": 1,
                 "active": True,
-            }
+            },
+            {
+                "id": 18,
+                "nombre": "Luis Sin Asignación",
+                "credencial": "67890",
+                "sexo": "Masculino",
+                "mod1": 1,
+                "active": True,
+            },
         ],
+    )
+    monkeypatch.setattr(
+        "app.web.fetch_monthly_controller_workday_counts",
+        lambda month, year: {("12345", 1): 20},
     )
     client = app.test_client()
     with client.session_transaction() as session:
@@ -278,16 +366,27 @@ def test_admin_controllers_table_has_reference_actions_and_delete_modal(monkeypa
     response = client.get("/administrador/controladores")
 
     assert response.status_code == 200
-    assert b'role="table" aria-label="Controladores del M\xc3\xb3dulo Uno"' in response.data
-    assert b'role="columnheader">Nombre del controlador</span>' in response.data
+    assert b'<table class="admin-controller-table admin-controller-selectable admin-route-table" aria-label="Controladores del M\xc3\xb3dulo Uno">' in response.data
+    assert b'<th>Nombre del controlador</th>' in response.data
     assert b'aria-label="Editar Ana Prueba"' in response.data
     assert b'aria-label="Eliminar Ana Prueba"' in response.data
     assert b'data-controller-delete-form' in response.data
     assert b'data-delete-confirm-form' in response.data
     assert b'data-delete-kind="controlador"' in response.data
-    assert b'class="admin-controller-table admin-controller-selectable"' in response.data
+    assert b'class="admin-controller-table admin-controller-selectable admin-route-table"' in response.data
     assert b'data-controller-select-all' in response.data
     assert b'data-controller-bulk-select value="17"' in response.data
+    assert b'data-controller-monthly-days="20"' in response.data
+    assert b'data-controller-monthly-assignment="Asignado"' in response.data
+    assert b'data-controller-monthly-assignment="No asignado"' in response.data
+    assert response.data.count(b'class="admin-route-shared-module-badge admin-controller-monthly-assignment-badge"') == 1
+    assert b'data-controller-assignment-badge tabindex="0"' in response.data
+    assert b'data-controller-filter-option="assignment" value="Asignado"' in response.data
+    assert b'data-controller-filter-option="assignment" value="No asignado"' in response.data
+    assert b'data-controller-month-name="' in response.data
+    assert b'data-controller-assignment-tooltip' in response.data
+    assert b"El controlador tiene ${assignedDays} ${dayLabel} (trabajo, incluido M\xc3\xb3dulo (MD))" in response.data
+    assert b"selected.assignment.includes(row.dataset.controllerMonthlyAssignment)" in response.data
     assert b'data-controller-cancel-selection hidden' in response.data
     assert b'data-controller-create-or-delete data-controller-modal-open>Crear controlador' in response.data
     assert b'data-controller-individual-actions' in response.data
@@ -334,6 +433,7 @@ def test_admin_users_page_is_available():
     assert response.status_code == 200
     assert b'Usuarios' in response.data
     assert b'Creaci\xc3\xb3n de controladores' not in response.data
+    assert b'class="admin-secondary-button" type="button" data-user-modal-close>Cancelar</button>' in response.data
 
 
 def test_admin_users_table_separates_user_contact_columns(monkeypatch):
@@ -425,6 +525,10 @@ def test_admin_users_table_separates_user_contact_columns(monkeypatch):
     assert b".admin-user-list .admin-user-item[hidden]" in user_styles.data
     assert b".admin-user-table tbody tr[hidden]" in user_styles.data
     assert b".admin-user-table.admin-user-selectable tbody tr.is-bulk-selected td" in user_styles.data
+    assert b"body.admin-users-page .admin-user-select-column {\n  display: table-cell;" in user_styles.data
+    assert b"body.admin-users-page .admin-users-toolbar > .admin-create-controller-button {\n  height: 42px;" in user_styles.data
+    assert b"body.admin-users-page .is-users-selection-mode .admin-controller-status .route-switch," in user_styles.data
+    assert b"body.admin-users-page .is-users-selection-mode .admin-controller-status .route-switch input:disabled + .route-status-badge" in user_styles.data
     assert "Se eliminarán ${userNames.length} usuario(s) seleccionado(s).".encode() in response.data
 
 
@@ -477,6 +581,9 @@ def test_admin_delete_selected_users_records_each_deletion(monkeypatch):
 
 
 def test_admin_routes_page_renders_dynamic_multiselect_filters(monkeypatch):
+    import json
+    import re
+
     monkeypatch.setattr("app.web.initialize_schema", lambda: None)
     monkeypatch.setattr(
         "app.web.request_modules",
@@ -499,6 +606,10 @@ def test_admin_routes_page_renders_dynamic_multiselect_filters(monkeypatch):
                 "mod1": 1,
                 "is_external": module_number == 2,
                 "tipos_descripcion": "Tipo suburbano",
+                "shared_modules": [
+                    {"id": 1, "nombre": "Módulo Uno"},
+                    {"id": 2, "nombre": "Módulo Dos"},
+                ],
             }
         ],
     )
@@ -533,11 +644,26 @@ def test_admin_routes_page_renders_dynamic_multiselect_filters(monkeypatch):
     assert b"Select a view" not in response.data
     assert response.data.count(b'<nav class="admin-route-pagination" data-admin-pagination') == 2
     assert b'data-route-link-open="1"' in response.data
+    assert response.data.count(b'class="admin-secondary-button" type="button" data-route-modal-close>Cancelar</button>') == 2
     assert b'imagenes/icons/vinculado.png' in response.data
     assert b'id="route-link-modal"' in response.data
     assert b'data-route-link-source="1"' in response.data
     assert b'data-route-link-source="2" data-route-link-module-name="M\xc3\xb3dulo Dos" hidden' in response.data
-    assert b'data-route-id="3" data-route-module="1" data-route-name="Centro" data-route-original="true"' in response.data
+    assert b'data-admin-save-loader' in response.data
+    assert b"Vinculando rutas..." in response.data
+    assert b"adminPendingRouteLinkFeedback" in response.data
+    assert b"routeIds: Array.from(selectedRoutes.keys())" in response.data
+    assert b'data-route-id="3" data-route-module="1" data-route-name="Centro" data-route-shared-modules=' in response.data
+    assert b'data-route-original="true"' in response.data
+    serialized_shared_modules = re.findall(
+        r"data-route-shared-modules='([^']*)'",
+        response.get_data(as_text=True),
+    )
+    assert any(
+        any(module["id"] == 2 and module["nombre"] == "Módulo Dos" for module in json.loads(value))
+        for value in serialized_shared_modules
+    )
+    assert b'id="route-sharing-tooltip"' in response.data
     assert b'class="admin-route-shared-module-badge" data-route-source-module="1" aria-label="Ruta compartida desde el m\xc3\xb3dulo 1">M1</span>' in response.data
     assert response.data.count(b'class="admin-route-shared-module-badge"') == 1
     assert b'id="controller-delete-modal"' in response.data
@@ -695,6 +821,14 @@ def test_admin_analysis_dashboard_uses_monthly_controller_data(monkeypatch):
                 "workers": [worker],
                 "selected_worker": worker,
                 "route_days": [{"route": "Ruta Centro", "days": 6}],
+                "route_days_by_module": [
+                    {
+                        "module_number": 2,
+                        "route": "Ruta Centro",
+                        "days": 6,
+                        "controllers": 1,
+                    }
+                ],
                 "calendar_days": [
                     {
                         "day": 1,
@@ -709,6 +843,32 @@ def test_admin_analysis_dashboard_uses_monthly_controller_data(monkeypatch):
                         "code": "C/D",
                         "route": "",
                         "shift": "",
+                    },
+                ],
+                "daily_summary": [
+                    {
+                        "day": 1,
+                        "assignments": 1,
+                        "worked": 1,
+                        "rest": 0,
+                        "absence": 0,
+                        "incapacity": 0,
+                        "permission": 0,
+                        "vacation": 0,
+                        "holiday": 0,
+                        "unprogrammed": 0,
+                    },
+                    {
+                        "day": 2,
+                        "assignments": 1,
+                        "worked": 0,
+                        "rest": 1,
+                        "absence": 0,
+                        "incapacity": 0,
+                        "permission": 0,
+                        "vacation": 0,
+                        "holiday": 0,
+                        "unprogrammed": 0,
                     },
                 ],
             }
@@ -730,12 +890,11 @@ def test_admin_analysis_dashboard_uses_monthly_controller_data(monkeypatch):
     assert dashboard_calls == [(10, 2026, "12345", 2)]
     html = response.data.decode()
     balance_card = html.split('class="analysis-dashboard-card analysis-balance-card"', 1)[1].split("</article>", 1)[0]
-    assert balance_card.count('class="analysis-status-row"') == 4
-    assert all(category in balance_card for category in ("Trabajo", "Vacaciones", "Descanso", "Falta"))
-    assert all(category not in balance_card for category in ("Incapacidades", "C/D · Cambio", "D/F · Descanso", "SEFI"))
-    assert b"ControlDesk" in response.data
+    assert balance_card.count('class="analysis-status-row"') == 7
+    assert all(category in balance_card for category in ("Trabajo", "Vacaciones", "Descanso", "Falta", "Incapacidad", "Permiso", "Festivo"))
+    assert b"An\xc3\xa1lisis | Administrador" in response.data
     assert b"Controladores" in response.data
-    assert b"Rutas</button>" in response.data
+    assert b">Rutas</a>" in response.data
     assert b"Controladores registrados" in response.data
     assert b"17" in response.data
     assert b"Ruta Centro" in response.data
@@ -744,6 +903,18 @@ def test_admin_analysis_dashboard_uses_monthly_controller_data(monkeypatch):
     assert b'class="analysis-calendar-day is-work"' in response.data
     assert b'class="analysis-calendar-day is-rest-change"' in response.data
     assert b"C/D \xc2\xb7 Cambio de descanso" in response.data
+    assert b'id="analysis-summary"' in response.data
+    assert b'id="analysis-incidents"' in response.data
+    assert b'class="analysis-calendar-day analysis-heatmap-day has-work"' in response.data
+    assert b'class="analysis-calendar-day analysis-heatmap-day has-no-work"' in response.data
+
+    routes_response = client.get(
+        "/administrador/analisis?month=10&year=2026&tab=rutas"
+    )
+    assert routes_response.status_code == 200
+    assert b'href="/administrador/analisis?month=10&amp;year=2026&amp;tab=rutas" aria-current="page">Rutas</a>' in routes_response.data
+    assert b"Detalle por m\xc3\xb3dulo" in routes_response.data
+    assert b"Ruta Centro" in routes_response.data
     assert b'class="admin-module-tabs"' in response.data
     assert b'class="admin-sidebar"' in response.data
     assert b'type="search"' not in response.data
@@ -780,6 +951,25 @@ def test_admin_monthly_role_form_exposes_special_state_category(monkeypatch):
     assert b'value="falta"' in response.data
     assert b'value="vacaciones"' in response.data
     assert b'value="incapacidad"' in response.data
+    assert b'class="admin-form-grid admin-special-state-fields-grid"' in response.data
+    assert b'class="admin-turno-active-field admin-route-field admin-controller-field admin-controller-module-field admin-special-state-active-field"' in response.data
+    assert b'class="admin-controller-module-display admin-special-state-active-display"' in response.data
+    assert b"specialStateActiveDisplay.classList.toggle('is-inactive', !specialStateActive.checked)" in response.data
+    special_states_response = client.get("/administrador/rol-mensual?tab=estados")
+    assert special_states_response.status_code == 200
+    assert b'data-route-status-action' in special_states_response.data
+    assert b'name="estado" value="Activo"' in special_states_response.data
+    assert b'Cambiar estado del estado especial' in special_states_response.data
+    assert b'aria-label="Editar estado especial D/F"' in special_states_response.data
+    assert b'aria-label="Eliminar estado especial D/F"' in special_states_response.data
+    assert b'imagenes/icons/lapiz.png' in special_states_response.data
+    assert b'imagenes/icons/eliminar.png' in special_states_response.data
+    dashboard_styles = client.get("/static/admin/dashboard.css")
+    assert dashboard_styles.status_code == 200
+    assert b"#special-state-form-modal .admin-special-state-fields-grid {\n  display: grid;" in dashboard_styles.data
+    assert b"#special-state-form-modal .admin-controller-module-display.is-inactive" in dashboard_styles.data
+    assert b"#special-status-section .admin-route-table td.admin-controller-actions .admin-edit-button," in dashboard_styles.data
+    assert b"#special-status-section .admin-route-table td.admin-controller-actions .admin-delete-button:hover {" in dashboard_styles.data
     assert b'Descanso por festivo' in response.data
     assert b'<th>Categor\xc3\xada</th>' in response.data
     assert b'admin-module-header admin-routes-page-header admin-role-page-header route-tab-active' in response.data
@@ -793,12 +983,57 @@ def test_admin_monthly_role_form_exposes_special_state_category(monkeypatch):
     assert b'admin_registry_toolbar.js' in response.data
     assert b'id="controller-delete-modal"' in response.data
     assert b'data-delete-kind="estado especial"' in response.data
+    assert b'data-special-state-modal-open' in response.data
+    assert b'id="special-state-form-modal"' in response.data
+    assert b'class="admin-form-shell"' in response.data
+    assert b'data-special-state-modal-close>Cancelar</button>' in response.data
+    assert b'data-special-state-submit>Guardar estado</button>' in response.data
     tabs_header_start = response.data.index(b'class="admin-module-header admin-routes-page-header admin-role-page-header')
     monthly_section_start = response.data.index(b'id="monthly-role-section"')
     special_section_start = response.data.index(b'id="special-status-section"')
     assert tabs_header_start < monthly_section_start < special_section_start
     assert response.data.count(b'role="tablist" aria-label="Secciones de rol mensual"') == 1
     assert b'<iframe' not in response.data
+
+    edit_response = client.get("/administrador/rol-mensual?edit_estado_id=3")
+    assert edit_response.status_code == 200
+    assert b'id="special-state-form-modal" role="dialog" aria-modal="true"' in edit_response.data
+    assert b'<h2 id="special-state-form-title">Editar estado especial</h2>' in edit_response.data
+    assert b'name="estado_id" value="3"' in edit_response.data
+
+
+def test_special_state_status_toggle_validates_and_updates(monkeypatch):
+    updated = []
+    monkeypatch.setattr("app.web.initialize_schema", lambda: None)
+    monkeypatch.setattr(
+        "app.web.update_catalog_status",
+        lambda catalog, item_id, active: updated.append((catalog, item_id, active))
+        or {"id": item_id, "activo": active},
+    )
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["account"] = {
+            "username": "administrador",
+            "module_number": None,
+            "is_admin": True,
+        }
+
+    response = client.post(
+        "/administrador/estados-especiales/3/estado",
+        data={"estado": "Inactivo"},
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/administrador/rol-mensual?tab=estados")
+    assert updated == [("estados_especiales", 3, False)]
+
+    response = client.post(
+        "/administrador/estados-especiales/3/estado",
+        data={"estado": "desconocido"},
+    )
+
+    assert response.status_code == 302
+    assert updated == [("estados_especiales", 3, False)]
 
 
 def test_admin_monthly_role_uses_shared_module_aware_schedule(monkeypatch):
@@ -821,6 +1056,7 @@ def test_admin_monthly_role_uses_shared_module_aware_schedule(monkeypatch):
     assert b'data-module="2"' in response.data
     assert b'data-admin-module="1"' in response.data
     assert b'data-admin-module="2"' in response.data
+    assert b'id="monthly-role-count">0</strong>' in response.data
     assert b'class="schedule-toolbar card"' in response.data
     assert b'class="schedule-grid"' in response.data
     assert b'class="card schedule-table-card"' in response.data
@@ -842,6 +1078,9 @@ def test_admin_monthly_role_uses_shared_module_aware_schedule(monkeypatch):
     assert b'/api/modulos/${moduleNumber}/controladores' in script_response.data
     assert b'&module_number=${moduleNumber}' in script_response.data
     assert b'module_number: activeModuleNumber' in script_response.data
+    assert b'monthlyRoleCount.textContent = String(grouped.length)' in script_response.data
+    dashboard_styles = client.get("/static/admin/dashboard.css")
+    assert b'.admin-embedded-role .month-controls {' in dashboard_styles.data
 
 
 def test_admin_embedded_schedule_has_assignment_modal(monkeypatch):
@@ -860,15 +1099,45 @@ def test_admin_embedded_schedule_has_assignment_modal(monkeypatch):
     assert b'id="open-schedule-assignment"' in response.data
     assert b'Crear asignaci\xc3\xb3n' in response.data
     assert b'imagenes/icons/mas.png' in response.data
-    assert b'id="schedule-assignment-modal" class="schedule-assignment-modal" hidden' in response.data
+    assert b'id="schedule-assignment-modal" class="admin-controller-modal schedule-assignment-modal" role="dialog" aria-modal="true"' in response.data
+    assert b'class="admin-controller-modal-dialog schedule-assignment-dialog"' in response.data
+    assert b'class="admin-form-shell schedule-assignment-shell"' in response.data
+    assert b'class="schedule-grid-toggle"' not in response.data
+    assert b'id="create-record"' not in response.data
+    assert b'id="day-edit-actions"' not in response.data
+    assert b'id="form-message"' not in response.data
+    assert b'class="admin-form-actions schedule-assignment-actions"' in response.data
+    assert b'id="schedule-assignment-cancel" class="admin-secondary-button" type="button">Cancelar</button>' in response.data
+    assert b'form="schedule-form">Guardar asignaci\xc3\xb3n</button>' in response.data
+    assert b'id="cancel-edit-button"' not in response.data
+    assert b'id="clear-days" class="admin-secondary-button calendar-clear-button"' in response.data
     assert b'id="schedule-grid" class="schedule-grid"' in response.data
-    assert b'class="schedule-table-heading"' in response.data
+    form_start = response.data.index(b'<form id="schedule-form"')
+    form_end = response.data.index(b'</form>', form_start)
+    footer_start = response.data.index(b'class="admin-form-actions schedule-assignment-actions"')
+    assert form_start < form_end < footer_start
+    assert b'class="schedule-table-heading"' not in response.data
+    assert b'id="monthly-role-period"' not in response.data
+    assert b'class="admin-controller-toolbar admin-role-schedule-toolbar"' in response.data
+    assert b'id="schedule-status-filter"' in response.data
+    assert b'class="record-count admin-role-schedule-record-count"' not in response.data
+    assert b'id="save-all-records"' not in response.data
     assert b'card-heading-controlador' not in response.data
 
     regular_response = client.get("/modulo/1/rol")
     assert regular_response.status_code == 200
     assert b'id="schedule-assignment-modal"' not in regular_response.data
     assert b'id="open-schedule-assignment"' not in regular_response.data
+    assert b'id="cancel-edit-button"' in regular_response.data
+    assert b'id="save-all-records"' in regular_response.data
+    assert b'class="schedule-grid-toggle"' in regular_response.data
+    assert b'id="create-record"' in regular_response.data
+    assert b'id="day-edit-actions"' in regular_response.data
+    assert b'id="form-message"' in regular_response.data
+    assert b'id="clear-days" class="text-button"' in regular_response.data
+    assert b'class="schedule-table-heading"' not in regular_response.data
+    assert b'id="monthly-role-period"' in regular_response.data
+    assert b'id="record-count"' in regular_response.data
     assert b'id="schedule-grid" class="schedule-grid"' in regular_response.data
 
 
@@ -979,17 +1248,25 @@ def test_admin_modules_page_has_creation_modal_without_module_filter(monkeypatch
     assert b'data-admin-type-filter' not in response.data
     assert b'data-module-modal-cancel' in response.data
     assert b'data-module-save-button' in response.data
-    assert b'<span>Nombre</span>\n                  <span>Direcci\xc3\xb3n</span>\n                  <span>Latitud</span>\n                  <span>Longitud</span>' in response.data
-    assert b'<strong class="admin-module-name">M\xc3\xb3dulo Centro</strong>' in response.data
+    assert b"<th>Nombre</th>" in response.data
+    assert b"<th>Direcci\xc3\xb3n</th>" in response.data
+    assert b"<th>Latitud</th>" in response.data
+    assert b"<th>Longitud</th>" in response.data
+    assert b'<td class="admin-module-name"><strong>M\xc3\xb3dulo Centro</strong></td>' in response.data
     assert b'data-admin-pagination' in response.data
-    assert b'<span class="admin-module-address">Calle principal</span>' in response.data
-    assert b'<span class="admin-module-coordinate">19.4</span>' in response.data
-    assert b'<span class="admin-module-coordinate">-99.1</span>' in response.data
+    assert b'<td class="admin-module-address">Calle principal</td>' in response.data
+    assert b'<td class="admin-module-coordinate">19.4</td>' in response.data
+    assert b'<td class="admin-module-coordinate">-99.1</td>' in response.data
     assert b'id="controller-delete-modal"' in response.data
     assert b'data-delete-kind="m\xc3\xb3dulo"' in response.data
     assert response.data.count(b'class="admin-controller-action-icon"') == 2
     assert b'aria-label="Editar m\xc3\xb3dulo M\xc3\xb3dulo Centro"' in response.data
     assert b'aria-label="Eliminar m\xc3\xb3dulo M\xc3\xb3dulo Centro"' in response.data
+    dashboard_styles = client.get("/static/admin/dashboard.css")
+    assert dashboard_styles.status_code == 200
+    assert b".admin-modules-page .admin-modules-table td.admin-controller-actions {\n  display: table-cell;\n  width: 1%;" in dashboard_styles.data
+    assert b"body.admin-modules-page .admin-modules-table .admin-controller-actions .admin-edit-button:hover .admin-controller-action-icon" in dashboard_styles.data
+    assert b"body.admin-modules-page .admin-modules-table .admin-controller-actions .admin-delete-button:hover .admin-controller-action-icon" in dashboard_styles.data
 
 
 def test_admin_turnos_page_uses_delete_confirmation_modal(monkeypatch):
@@ -1018,10 +1295,14 @@ def test_admin_turnos_page_uses_delete_confirmation_modal(monkeypatch):
             "module_number": None,
             "is_admin": True,
         }
+        session["_flashes"] = [("success", "Turno registrado correctamente.")]
 
     response = client.get("/administrador/turnos")
 
     assert response.status_code == 200
+    assert b'<div class="admin-alerts" aria-live="polite" hidden>' in response.data
+    assert b'<div class="admin-alert admin-alert-success">Turno registrado correctamente.</div>' in response.data
+    assert b'data-admin-toast' in response.data
     assert b'id="controller-delete-modal"' in response.data
     assert b'data-delete-kind="turno" data-delete-name="2"' in response.data
     assert b'admin_delete_confirmation.js' in response.data
@@ -1029,12 +1310,47 @@ def test_admin_turnos_page_uses_delete_confirmation_modal(monkeypatch):
     assert b'data-route-filter-option="turnoType" value="general"' in response.data
     assert b'data-route-filter-option="turnoType" value="especifico"' in response.data
     assert b'data-filter-turno-type="general"' in response.data
+    assert b'data-admin-ignore-module-filter' in response.data
+    assert b'data-turno-select-all' in response.data
+    assert b'data-turno-bulk-select value="42"' in response.data
+    assert b'data-turno-cancel-selection hidden' in response.data
+    assert b'data-turno-bulk-delete-button' in response.data
+    assert response.data.count(b'class="admin-secondary-button" type="button" data-turno-modal-close>Cancelar</button>') == 2
     assert b'data-admin-pagination' in response.data
     assert b'id="turno-page-count"' in response.data
     assert b'data-admin-visible-count-target="turno-page-count"' in response.data
     filter_script = client.get("/static/admin_registry_toolbar.js")
     assert b"selectedRouteFilters.turnoType.includes(row.dataset.filterTurnoType)" in filter_script.data
     assert b"visibleCount.textContent = String(matchingRowCount)" in filter_script.data
+
+
+def test_admin_delete_selected_turnos_renumbers_and_reports_count(monkeypatch):
+    deleted = []
+    renumbered = []
+    monkeypatch.setattr("app.web.initialize_schema", lambda: None)
+    monkeypatch.setattr(
+        "app.web.delete_turnos_by_ids",
+        lambda turno_ids: deleted.append(turno_ids) or [42, 43],
+    )
+    monkeypatch.setattr("app.web.renumber_turnos_by_start", lambda: renumbered.append(True))
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["account"] = {
+            "username": "administrador",
+            "module_number": None,
+            "is_admin": True,
+        }
+
+    response = client.post(
+        "/administrador/turnos/eliminar-seleccionados",
+        data={"turno_ids": ["42", "43", "42"]},
+    )
+
+    assert response.status_code == 302
+    assert deleted == [[42, 43]]
+    assert renumbered == [True]
+    with client.session_transaction() as session:
+        assert ("success", "2 turno(s) eliminado(s) correctamente.") in session["_flashes"]
 
 
 def test_turno_edit_preserves_number_when_form_omits_it(monkeypatch):

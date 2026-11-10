@@ -6,72 +6,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='tipografia.css') }}">
   <title>Rutas | Administrador</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
-  <style>
-    .admin-routes-page-header .route-page-tabs {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .admin-routes-page-header .route-page-tabs .admin-registry-tab {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      width: 100%;
-      text-align: left;
-    }
-
-    .admin-route-tab-meta {
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-left: auto;
-      min-width: 0;
-    }
-
-    .admin-route-tab-meta .admin-module-header-strong {
-      display: inline-flex;
-      width: 26px;
-      height: 26px;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background: var(--admin-teal-soft, rgba(15, 159, 145, 0.12));
-      color: var(--admin-teal, #0f9f91);
-      font-size: 0.72rem;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .admin-route-tab-meta .admin-module-header-strong strong {
-      font-size: inherit;
-      font-weight: inherit;
-    }
-
-    .admin-route-tab-meta .admin-connection {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 6px 10px;
-      border: 1px solid rgba(15, 159, 145, 0.18);
-      border-radius: 999px;
-      background: rgba(15, 159, 145, 0.12);
-      color: var(--admin-teal, #0f9f91);
-      font-size: 0.66rem;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-
-    .admin-route-tab-meta .admin-connection-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--admin-teal, #0f9f91);
-      box-shadow: 0 0 0 4px rgba(15, 159, 145, 0.12);
-    }
-  </style>
 </head>
 <body class="admin-page-body admin-routes-page">
   <main class="admin-dashboard-layout">
@@ -99,7 +33,7 @@
         
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="admin-alerts" aria-live="polite">
+          <div class="admin-alerts" aria-live="polite" hidden>
             {% for category, message in messages %}
               <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
             {% endfor %}
@@ -151,8 +85,8 @@
                     </label>
                     
                     <div class="admin-form-actions">
-                      <button class="admin-primary-button" type="submit">{{ 'Actualizar tipo' if editing_tipo_ruta else 'Guardar tipo' }}</button>
                       <button class="admin-secondary-button" type="button" data-catalog-modal-close>Cancelar</button>
+                      <button class="admin-primary-button" type="submit">{{ 'Actualizar tipo' if editing_tipo_ruta else 'Guardar tipo' }}</button>
                     </div>
                   </form>
                 </div>
@@ -243,8 +177,8 @@
                     </label>
                     
                     <div class="admin-form-actions">
-                      <button class="admin-primary-button" type="submit">{{ 'Actualizar servicio' if editing_servicio else 'Guardar servicio' }}</button>
                       <button class="admin-secondary-button" type="button" data-catalog-modal-close>Cancelar</button>
+                      <button class="admin-primary-button" type="submit">{{ 'Actualizar servicio' if editing_servicio else 'Guardar servicio' }}</button>
                     </div>
                   </form>
                 </div>
@@ -386,6 +320,7 @@
                 </label>
                 </div>
                 <div class="admin-form-actions admin-route-step-actions">
+                  <button class="admin-secondary-button" type="button" data-route-modal-close>Cancelar</button>
                   <button class="admin-primary-button" type="button" data-route-next>Siguiente</button>
                 </div>
               </div>
@@ -427,6 +362,7 @@
               </div>
 
               <div class="admin-form-actions admin-route-form-actions">
+                <button class="admin-secondary-button" type="button" data-route-modal-close>Cancelar</button>
                 <button class="admin-secondary-button" type="button" data-route-previous>Regresar</button>
                 <button class="admin-primary-button" type="submit">
                   {{ 'Actualizar ruta' if editing_route else 'Guardar ruta' }}
@@ -598,7 +534,7 @@
                         </thead>
                         <tbody>
                           {% for route in group.routes %}
-                            <tr data-admin-filter-row data-admin-save-ruta="{{ route.ruta }}" data-admin-save-origen="{{ route.origen }}" data-admin-save-destino="{{ route.destino }}" data-admin-save-row="{{ route.ruta }}" data-route-id="{{ route.id }}" data-route-module="{{ route.mod1 }}" data-route-name="{{ route.ruta }}" data-route-original="{{ 'false' if route.is_external else 'true' }}" data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Originales' }}" data-filter-service="{{ route.servicio }}" data-filter-route-type="{{ route.tipos_descripcion or 'Sin tipo' }}">
+                            <tr data-admin-filter-row data-admin-save-ruta="{{ route.ruta }}" data-admin-save-origen="{{ route.origen }}" data-admin-save-destino="{{ route.destino }}" data-admin-save-row="{{ route.ruta }}" data-route-id="{{ route.id }}" data-route-module="{{ route.mod1 }}" data-route-name="{{ route.ruta }}" data-route-shared-modules='{{ route.shared_modules|default([], true)|tojson }}' data-route-original="{{ 'false' if route.is_external else 'true' }}" data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Originales' }}" data-filter-service="{{ route.servicio }}" data-filter-route-type="{{ route.tipos_descripcion or 'Sin tipo' }}">
                               {% if not is_read_only_account %}
                               <td class="admin-route-select-column">
                                 <label class="admin-route-select-control" title="Seleccionar ruta para eliminar">
@@ -700,6 +636,11 @@
       </section>
     </div>
   </main>
+  <div class="admin-route-sharing-tooltip" id="route-sharing-tooltip" data-route-sharing-tooltip role="tooltip" hidden>
+    <strong data-route-sharing-tooltip-route></strong>
+    <span>Compartida con:</span>
+    <ul data-route-sharing-tooltip-modules></ul>
+  </div>
   {% include 'admin/_delete_confirmation_modal.html' %}
   {% include 'admin/_save_feedback.html' %}
 
@@ -732,8 +673,73 @@
       const routeLinkSearch = routeLinkModal?.querySelector('[data-route-link-search]');
       const routeLinkSubmit = routeLinkModal?.querySelector('[data-route-link-submit]');
       const routeLinkError = routeLinkModal?.querySelector('[data-route-link-error]');
+      const routeSharingTooltip = document.querySelector('[data-route-sharing-tooltip]');
+      const routeSharingTooltipRoute = routeSharingTooltip?.querySelector('[data-route-sharing-tooltip-route]');
+      const routeSharingTooltipModules = routeSharingTooltip?.querySelector('[data-route-sharing-tooltip-modules]');
       const selectedRoutes = new Map();
       let routeLinkSourceModule = '';
+      function hideRouteSharingTooltip() {
+        if (!routeSharingTooltip) return;
+        routeSharingTooltip.hidden = true;
+      }
+      function showRouteSharingTooltip(row) {
+        if (!routeSharingTooltip || !routeSharingTooltipRoute || !routeSharingTooltipModules) return;
+        let sharedModules;
+        try {
+          sharedModules = JSON.parse(row.dataset.routeSharedModules || '[]');
+        } catch (error) {
+          console.error('No se pudieron leer los módulos compartidos de la ruta.', error);
+          return;
+        }
+        if (!Array.isArray(sharedModules)) {
+          console.error('La lista de módulos compartidos de la ruta no tiene un formato válido.');
+          return;
+        }
+        const sourceModuleId = String(row.dataset.routeModule || '');
+        const targetModules = sharedModules.filter(function (module) {
+          return module && String(module.id) !== sourceModuleId && typeof module.nombre === 'string';
+        });
+        routeSharingTooltipRoute.textContent = row.dataset.routeName || 'Ruta';
+        routeSharingTooltipModules.replaceChildren();
+        if (targetModules.length) {
+          targetModules.forEach(function (module) {
+            const item = document.createElement('li');
+            item.textContent = `M${module.id} · ${module.nombre}`;
+            routeSharingTooltipModules.appendChild(item);
+          });
+        } else {
+          const item = document.createElement('li');
+          item.textContent = 'No está compartida con otros módulos.';
+          routeSharingTooltipModules.appendChild(item);
+        }
+        routeSharingTooltip.hidden = false;
+        const rowBounds = row.getBoundingClientRect();
+        const tooltipBounds = routeSharingTooltip.getBoundingClientRect();
+        const margin = 12;
+        const left = Math.min(
+          Math.max(margin, rowBounds.left),
+          window.innerWidth - tooltipBounds.width - margin
+        );
+        let top = rowBounds.bottom + 8;
+        if (top + tooltipBounds.height > window.innerHeight - margin) {
+          top = Math.max(margin, rowBounds.top - tooltipBounds.height - 8);
+        }
+        routeSharingTooltip.style.left = `${left}px`;
+        routeSharingTooltip.style.top = `${top}px`;
+      }
+      document.querySelectorAll('#routes-section .admin-route-table tbody tr[data-route-id]').forEach(function (row) {
+        row.addEventListener('pointerenter', function () {
+          showRouteSharingTooltip(row);
+        });
+        row.addEventListener('pointerleave', hideRouteSharingTooltip);
+        row.addEventListener('focusin', function () {
+          showRouteSharingTooltip(row);
+        });
+        row.addEventListener('focusout', function (event) {
+          if (!row.contains(event.relatedTarget)) hideRouteSharingTooltip();
+        });
+      });
+      window.addEventListener('scroll', hideRouteSharingTooltip, true);
       function submitBulkDelete(modulePanel) {
         const form = modulePanel?.querySelector('[data-route-bulk-delete-form]');
         const inputs = form?.querySelector('[data-route-bulk-delete-inputs]');
@@ -1028,12 +1034,27 @@
         routeLinkViewport?.scrollBy({ left: routeLinkViewport.clientWidth, behavior: 'smooth' });
       });
       routeLinkForm?.addEventListener('submit', function (event) {
-        if (selectedRoutes.size) return;
-        event.preventDefault();
-        if (routeLinkError) {
-          routeLinkError.textContent = 'Selecciona al menos una ruta para vincular.';
-          routeLinkError.hidden = false;
+        if (!selectedRoutes.size) {
+          event.preventDefault();
+          if (routeLinkError) {
+            routeLinkError.textContent = 'Selecciona al menos una ruta para vincular.';
+            routeLinkError.hidden = false;
+          }
+          return;
         }
+        try {
+          sessionStorage.setItem('adminPendingRouteLinkFeedback', JSON.stringify({
+            routeIds: Array.from(selectedRoutes.keys()),
+            moduleId: String(routeLinkTarget?.value || ''),
+            path: window.location.pathname,
+            createdAt: Date.now()
+          }));
+        } catch (error) {
+          console.error('No se pudo guardar el contexto de las rutas vinculadas.', error);
+        }
+        document.dispatchEvent(new CustomEvent('admin-operation-start', {
+          detail: { label: 'Vinculando rutas...' }
+        }));
       });
 
       function showRouteStep(stepNumber) {

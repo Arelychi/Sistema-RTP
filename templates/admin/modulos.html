@@ -31,7 +31,7 @@
       <section class="admin-main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
-            <div class="admin-alerts" aria-live="polite">
+            <div class="admin-alerts" aria-live="polite" hidden>
               {% for category, message in messages %}
                 <div class="admin-alert admin-alert-{{ category }}">{{ message }}</div>
               {% endfor %}
@@ -113,21 +113,24 @@
               </div>
               {% if modules %}
                 <div class="admin-modules-table-wrap">
-                <div class="admin-controller-table-head admin-modules-table-head" aria-hidden="true">
-                  <span>Nombre</span>
-                  <span>Dirección</span>
-                  <span>Latitud</span>
-                  <span>Longitud</span>
-                  <span></span>
-                </div>
-                <ul class="admin-user-list">
+                <table class="admin-route-table admin-modules-table">
+                  <thead>
+                    <tr class="admin-modules-table-head">
+                      <th>Nombre</th>
+                      <th>Dirección</th>
+                      <th>Latitud</th>
+                      <th>Longitud</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                   {% for module in modules %}
-                    <li class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ module.nombre }}" data-admin-save-nombre="{{ module.nombre }}" data-filter-type="{{ module.id }}">
-                      <strong class="admin-module-name">{{ module.nombre }}</strong>
-                      <span class="admin-module-address">{{ module.direccion }}</span>
-                      <span class="admin-module-coordinate">{{ module.latitud }}</span>
-                      <span class="admin-module-coordinate">{{ module.longitud }}</span>
-                      <div class="admin-controller-actions">
+                    <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ module.nombre }}" data-admin-save-nombre="{{ module.nombre }}" data-filter-type="{{ module.id }}">
+                      <td class="admin-module-name"><strong>{{ module.nombre }}</strong></td>
+                      <td class="admin-module-address">{{ module.direccion }}</td>
+                      <td class="admin-module-coordinate">{{ module.latitud }}</td>
+                      <td class="admin-module-coordinate">{{ module.longitud }}</td>
+                      <td class="admin-controller-actions">
                         {% if not is_read_only_account %}
                         <button class="admin-edit-button module-edit-button" type="button" data-module-id="{{ module.id }}" data-module-name="{{ module.nombre }}" data-module-address="{{ module.direccion or '' }}" data-module-latitude="{{ module.latitud or '' }}" data-module-longitude="{{ module.longitud or '' }}" aria-label="Editar módulo {{ module.nombre }}" title="Editar módulo">
                           <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
@@ -140,10 +143,11 @@
                           </button>
                         </form>
                         {% endif %}
-                      </div>
-                    </li>
+                      </td>
+                    </tr>
                   {% endfor %}
-                </ul>
+                  </tbody>
+                </table>
                 </div>
                 {% include 'admin/_pagination.html' %}
               {% else %}

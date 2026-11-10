@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', function () {
     pendingForm = null;
     modal.hidden = true;
     confirmedForm = form;
+    document.dispatchEvent(new CustomEvent('admin-operation-start', {
+      detail: { label: form.dataset.deleteLoadingLabel || `Eliminando ${form.dataset.deleteKind || 'registros'}...` }
+    }));
     form.requestSubmit();
   });
 

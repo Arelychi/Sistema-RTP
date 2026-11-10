@@ -104,7 +104,7 @@ El archivo `.env` está excluido de Git para evitar publicar credenciales.
 
 ## Datos analíticos
 
-La programación mensual consolidada se almacena en el esquema `programacion`.
+La programación mensual consolidada se almacena en `schedule_records`.
 Al inicializar la aplicación se prepara el esquema `analisis`, que contiene:
 
 - `analisis.trabajador_dia`: un registro limpio por trabajador y fecha.
@@ -112,6 +112,13 @@ Al inicializar la aplicación se prepara el esquema `analisis`, que contiene:
 - `analisis.analisis_trabajadores`: resumen mensual por trabajador, incluyendo sexo y estado activo.
 - `analisis.analisis_rutas`: resumen mensual por ruta y módulo, incluyendo rutas sin uso.
 
-Estas tablas se reconstruyen desde `schedule_records` al iniciar la aplicación,
-después de guardar el rol mensual completo y al guardar o eliminar un registro individual,
-por lo que Power BI puede consumirlas sin interpretar los JSON diarios ni los códigos operativos.
+Estas tablas se reconstruyen desde `schedule_records` al iniciar la aplicación.
+Al guardar el rol mensual completo o un registro individual, solo se actualizan las
+tablas analíticas del mes y módulo afectados; el resto del historial se conserva sin
+reprocesarse. Los datos quedan preparados para la página HTML de análisis.
+
+Si existe la tabla antigua `programacion.registros`, al iniciar se migran sus registros
+a `schedule_records`. Los registros que coinciden con otro del mismo controlador,
+módulo y periodo se conservan en `programacion.registros_legacy_conflicts` para no
+sobrescribir la programación actual; la tabla antigua se elimina después de completar
+la migración.
