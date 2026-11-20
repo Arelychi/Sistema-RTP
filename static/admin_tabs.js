@@ -19,10 +19,23 @@ document.addEventListener('DOMContentLoaded', function () {
     '7': '#e5074c'
   };
 
-  function updateSharedRouteBadgeColors() {
+  function setModuleBadgeColor(badge, moduleNumber) {
+    badge.style.setProperty('--route-shared-module-color', moduleColors[moduleNumber] || '#183b59');
+  }
+
+  function updateModuleBadgeColors() {
     document.querySelectorAll('.admin-route-shared-module-badge[data-route-source-module]').forEach(function (badge) {
-      const sourceModule = badge.dataset.routeSourceModule;
-      badge.style.setProperty('--route-shared-module-color', moduleColors[sourceModule] || '#183b59');
+      setModuleBadgeColor(badge, badge.dataset.routeSourceModule);
+    });
+    document.querySelectorAll('.admin-history-module-color-badge[data-history-module-number]').forEach(function (badge) {
+      setModuleBadgeColor(badge, badge.dataset.historyModuleNumber);
+    });
+    document.querySelectorAll('template[data-history-detail-template]').forEach(function (detailTemplate) {
+      detailTemplate.content
+        .querySelectorAll('.admin-history-module-color-badge[data-history-module-number]')
+        .forEach(function (badge) {
+          setModuleBadgeColor(badge, badge.dataset.historyModuleNumber);
+        });
     });
   }
 
@@ -84,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }));
     updateHeaderModuleIndicator();
-    updateSharedRouteBadgeColors();
+    updateModuleBadgeColors();
   }
 
   function selectModule(moduleNumber, navigate) {

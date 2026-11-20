@@ -17,6 +17,7 @@ from app.config import settings
 from app.db import (
     MAX_MODULES,
     authenticate_user,
+    clear_history_for_module,
     complete_password_reset,
     create_catalog_item,
     create_controller,
@@ -29,7 +30,6 @@ from app.db import (
     delete_route,
     delete_catalog_item,
     delete_user,
-    delete_module,
     delete_routes_from_module,
     delete_controllers_from_module,
     delete_users_by_ids,
@@ -44,6 +44,7 @@ from app.db import (
     fetch_shared_modules,
     fetch_shared_module_statuses,
     get_monthly_role_activation,
+    fetch_turno_modules,
     fetch_turno_modules_map,
     fetch_turno_module_status_map,
     fetch_turno_module_statuses_map,
@@ -57,6 +58,7 @@ from app.db import (
     fetch_password_reset_token,
     get_connection,
     initialize_schema,
+    manage_module_data,
     normalize_display_text,
     refresh_analysis_tables,
     update_admin_route,
@@ -76,6 +78,7 @@ from app.db import (
     update_module_route_status,
     unlink_route_from_module,
     upsert_record,
+    upsert_records_atomically,
     save_month_records,
     set_monthly_role_activation,
     set_turno_modules,
@@ -238,15 +241,865 @@ def requested_module_number(account: dict, payload: dict | None = None) -> int |
 def record_history(
     account: dict,
     description: str,
-    module_number: int | None = None,
+    module_number: int | list[int] | None = None,
     action: str = "registro",
     detail: str | None = None,
-) -> None:
+    section: str = "general",
+    before: dict | None = None,
+    after: dict | None = None,
+) -> bool:
     try:
         initialize_schema()
-        create_history_entry(account.get("username", "desconocido"), module_number, description, action, detail)
+        create_history_entry(
+            account.get("username", "desconocido"),
+            module_number,
+            description,
+            action,
+            detail,
+            section,
+            before,
+            after,
+        )
+        return True
     except Exception:
         app.logger.exception("No fue posible registrar una entrada del historial")
+        return False
+
+
+def format_history_value(value, module_names: dict[str, str], field: str = "") -> str:
+    if value is None or value == "":
+        return "—"
+    if isinstance(value, bool):
+        return "Activo" if value else "Inactivo"
+    if isinstance(value, list):
+        return ", ".join(
+            format_history_value(item, module_names, field) for item in value
+        ) or "—"
+    if isinstance(value, dict):
+        return "; ".join(
+            f"{key}: {format_history_value(item, module_names, key)}"
+            for key, item in value.items()
+            if key != "_field_order"
+        ) or "—"
+    if isinstance(value, int) and field.startswith("Módulo") and str(value) in module_names:
+        return module_names[str(value)]
+    return str(value)
+
+
+def format_history_route_lines(value: object) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    if not value:
+        return ["—"]
+
+    route_lines = []
+    for route in value:
+        if (
+            not isinstance(route, dict)
+            or route.get("Ruta") is None
+            or route.get("Módulo de origen") is None
+        ):
+            return None
+        route_lines.append(
+            f"{route['Ruta']} - Módulo de origen {route['Módulo de origen']}"
+        )
+    return route_lines
+
+
+def module_badge_number(module_id: int, module_name: str | None) -> str:
+    if module_name:
+        match = re.fullmatch(r"m[oó]dulo\s+(\d+)", module_name.strip(), re.IGNORECASE)
+        if match:
+            return str(int(match.group(1)))
+    return str(module_id)
+
+
+def history_snapshot(fields: dict[str, object]) -> dict:
+    return {"_field_order": list(fields), **fields}
+
+
+def history_user_type_label(user_type: str) -> str:
+    return {
+        "usuario": "Usuario",
+        "admin": "Administrador",
+        "consultor": "Consultor (solo lectura)",
+    }.get(user_type, user_type)
+
+
+def history_turno_snapshot(
+    turno: dict,
+    modules: list[int],
+    module_statuses: dict[int, bool],
+) -> dict:
+    return history_snapshot({
+        "Número": turno["numero"],
+        "Tipo de turno": "General" if turno["alcance"] == "general" else "Específico",
+        "Hora de inicio": str(turno["hora_inicio"]),
+        "Hora de fin": str(turno["hora_fin"]),
+        "Módulos disponibles": [
+            {"Módulo": module_id, "Estado": module_statuses.get(module_id, True)}
+            for module_id in modules
+        ],
+        "Estado": turno["activo"],
+    })
+
+
+def history_turno_time_label(turno: dict | None) -> str:
+    if turno is None:
+        return "turno"
+    return f"turno de {turno['hora_inicio']} a {turno['hora_fin']}"
+
+
+def history_snapshot_fields(
+    snapshot: object,
+    form_order: list[str] | None = None,
+) -> list[tuple[str, object]]:
+    if not isinstance(snapshot, dict):
+        return []
+    fields = {
+        key: value
+        for key, value in snapshot.items()
+        if key not in {"_field_order", "_assignment_edited_days"}
+    }
+    order = snapshot.get("_field_order")
+    if isinstance(order, list):
+        field_names = [field for field in order if field in fields]
+    elif form_order:
+        field_names = [field for field in form_order if field in fields]
+        field_names.extend(field for field in fields if field not in field_names)
+    else:
+        field_names = list(fields)
+    return [(field, fields[field]) for field in field_names]
+
+
+def history_form_field_order(description: str) -> list[str] | None:
+    movement = description.casefold()
+    if "estado especial" in movement:
+        return ["Código", "Descripción", "Categoría", "Estado"]
+    if "tipo de ruta" in movement:
+        return ["Descripción", "Estado"]
+    if "servicio" in movement:
+        return ["Nombre", "Estado"]
+    if "ruta" in movement:
+        return [
+            "Ruta",
+            "Tipo",
+            "Origen",
+            "Destino",
+            "Servicio",
+            "Módulo de origen",
+            "Módulos vinculados",
+            "Módulos compartidos",
+            "Módulos",
+            "Estado",
+        ]
+    if "controlador" in movement:
+        return ["Nombre", "Credencial", "Sexo", "Módulo", "Estado"]
+    if "usuario" in movement:
+        return [
+            "Usuario",
+            "Tipo de usuario",
+            "Tipo",
+            "Correo electrónico",
+            "Correo",
+            "Teléfono",
+            "Módulo",
+            "Estado",
+        ]
+    if "turno" in movement:
+        return [
+            "Número",
+            "Tipo de turno",
+            "Alcance",
+            "Hora de inicio",
+            "Hora de fin",
+            "Módulos disponibles",
+            "Módulos",
+            "Estado",
+        ]
+    if "módulo" in movement:
+        return ["Nombre del módulo", "Nombre", "Dirección", "Latitud", "Longitud"]
+    return None
+
+
+def display_history_movement(description: str) -> str:
+    if description.endswith(")") and " (de " in description:
+        return description.rsplit(" (de ", 1)[0]
+    return description
+
+
+def history_entry_category(description: str) -> str:
+    if not description.endswith(")") or " (de " not in description:
+        return ""
+    section = description.rsplit(" (de ", 1)[1][:-1].casefold()
+    return {
+        "controladores": "controladores",
+        "rutas": "rutas",
+        "tipos de rutas": "tipos",
+        "servicios": "servicios",
+        "usuarios": "usuarios",
+        "turnos": "turnos",
+        "módulos": "modulos",
+        "estados especiales": "estados_especiales",
+    }.get(section, "")
+
+
+def history_module_status_groups(
+    field: str,
+    value: object,
+) -> list[dict[str, object]] | None:
+    module_fields = {
+        "Módulos vinculados",
+        "Módulos disponibles",
+        "Módulos compartidos",
+    }
+    if field not in module_fields:
+        return None
+    if not isinstance(value, list) or not value:
+        return None
+
+    modules_by_status: dict[str, list[str]] = {"Activo": [], "Inactivo": []}
+    for item in value:
+        if (
+            not isinstance(item, dict)
+            or item.get("Módulo") is None
+            or "Estado" not in item
+        ):
+            return None
+
+        module_value = item["Módulo"]
+        if isinstance(module_value, bool) or not isinstance(module_value, (int, str)):
+            return None
+        module_number = str(module_value).strip()
+        if not module_number.isdigit():
+            return None
+
+        status = item["Estado"]
+        if isinstance(status, bool):
+            status_label = "Activo" if status else "Inactivo"
+        elif isinstance(status, str):
+            normalized_status = status.strip().casefold()
+            if normalized_status in {"activo", "active"}:
+                status_label = "Activo"
+            elif normalized_status in {"inactivo", "inactive"}:
+                status_label = "Inactivo"
+            else:
+                return None
+        else:
+            return None
+
+        modules_by_status[status_label].append(str(int(module_number)))
+
+    return [
+        {
+            "status": status,
+            "status_class": f"is-{status.casefold()}",
+            "modules": modules_by_status[status],
+        }
+        for status in ("Activo", "Inactivo")
+    ]
+
+
+def _decode_assignment_snapshot_value(value: object, default: object) -> object:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return default
+    return value if value is not None else default
+
+
+def _assignment_snapshot_records(snapshot: object) -> list[dict]:
+    if not isinstance(snapshot, dict):
+        return []
+    if "Asignaciones" in snapshot:
+        records = _decode_assignment_snapshot_value(snapshot.get("Asignaciones"), [])
+    elif "Credencial" in snapshot:
+        records = [snapshot]
+    else:
+        return []
+    if isinstance(records, dict):
+        records = [records]
+    if not isinstance(records, list):
+        return []
+    return [record for record in records if isinstance(record, dict)]
+
+
+def _assignment_history_period(
+    movement: object,
+    records: list[dict],
+) -> tuple[int, int] | None:
+    match = re.search(
+        r"(?<!\d)(\d{1,2})\s*/\s*(\d{4})(?!\d)",
+        str(movement or ""),
+    )
+    period_values = []
+    if match:
+        period_values.append((match.group(1), match.group(2)))
+    period_values.extend(
+        (
+            record.get("month", record.get("Mes")),
+            record.get("year", record.get("Año")),
+        )
+        for record in records
+    )
+    for raw_month, raw_year in period_values:
+        try:
+            month = int(raw_month)
+            year = int(raw_year)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= month <= 12 and 1 <= year <= 9999:
+            return month, year
+    return None
+
+
+def _assignment_snapshot_days(value: object, days_in_month: int) -> set[int]:
+    raw_days = _decode_assignment_snapshot_value(value, [])
+    if not isinstance(raw_days, (list, tuple, set)):
+        return set()
+    days = set()
+    for raw_day in raw_days:
+        try:
+            day = int(raw_day)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= day <= days_in_month:
+            days.add(day)
+    return days
+
+
+def _normalize_assignment_snapshot_record(
+    record: dict,
+    days_in_month: int,
+) -> dict:
+    raw_assignments = _decode_assignment_snapshot_value(
+        record.get("Asignaciones diarias"), {}
+    )
+    if not isinstance(raw_assignments, dict):
+        raw_assignments = {}
+    assignments = {}
+    for raw_day, raw_code in raw_assignments.items():
+        try:
+            day = int(raw_day)
+        except (TypeError, ValueError):
+            continue
+        code = str(raw_code or "").strip().upper()
+        if 1 <= day <= days_in_month and code:
+            assignments[day] = code
+
+    raw_details = _decode_assignment_snapshot_value(record.get("Detalles diarios"), {})
+    if not isinstance(raw_details, dict):
+        raw_details = {}
+    daily_details = {}
+    for raw_day, raw_detail in raw_details.items():
+        try:
+            day = int(raw_day)
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= day <= days_in_month or not isinstance(raw_detail, dict):
+            continue
+        detail = {}
+        for field in ("route", "shift", "nomenclature", "code"):
+            raw_value = raw_detail.get(field)
+            if raw_value is None:
+                continue
+            value = str(raw_value).strip()
+            if value:
+                detail[field] = value.upper() if field in {"nomenclature", "code"} else value
+        daily_details[day] = detail
+
+    return {
+        "controller": str(record.get("Controlador") or "").strip(),
+        "credential": str(record.get("Credencial") or "").strip(),
+        "shift": str(record.get("Turno") or "").strip(),
+        "route": str(record.get("Ruta") or "").strip(),
+        "nomenclature": str(record.get("Nomenclatura") or "").strip().upper(),
+        "work_days": _assignment_snapshot_days(
+            record.get("Días de trabajo"), days_in_month
+        ),
+        "rest_days": _assignment_snapshot_days(
+            record.get("Días de descanso"), days_in_month
+        ),
+        "assignments": assignments,
+        "daily_details": daily_details,
+    }
+
+
+def _assignment_detail_values(record: dict, field: str) -> list[str]:
+    values = []
+    for day in sorted(record["daily_details"]):
+        value = record["daily_details"][day].get(field)
+        if value and value not in values:
+            values.append(value)
+    if not values and record[field]:
+        values.append(record[field])
+    return values
+
+
+def _assignment_detail_pairs(record: dict) -> list[dict[str, str]]:
+    pairs = []
+    for day in sorted(record["daily_details"]):
+        detail = record["daily_details"][day]
+        route = detail.get("route") or record["route"]
+        nomenclature = detail.get("nomenclature") or record["nomenclature"]
+        if not route and not nomenclature:
+            continue
+        pair = {"route": route or "—", "nomenclature": nomenclature}
+        if pair not in pairs:
+            pairs.append(pair)
+    if not pairs and (record["route"] or record["nomenclature"]):
+        pairs.append({
+            "route": record["route"] or "—",
+            "nomenclature": record["nomenclature"],
+        })
+    return pairs
+
+
+def _assignment_comparison_rows(
+    previous_values: list,
+    current_values: list,
+    empty_value: object,
+) -> list[dict]:
+    if not previous_values and not current_values:
+        return [{"before": empty_value, "after": empty_value, "after_changed": False}]
+    row_count = max(len(previous_values), len(current_values))
+    rows = []
+    for index in range(row_count):
+        previous = previous_values[index] if index < len(previous_values) else None
+        current = current_values[index] if index < len(current_values) else None
+        rows.append({
+            "before": previous,
+            "after": current,
+            "after_changed": (
+                current is not None
+                and current != empty_value
+                and current not in previous_values
+            ),
+        })
+    return rows
+
+
+def _assignment_snapshot_signature(record: dict) -> tuple:
+    return (
+        record["controller"],
+        record["credential"],
+        record["shift"],
+        record["route"],
+        record["nomenclature"],
+        tuple(sorted(record["work_days"])),
+        tuple(sorted(record["rest_days"])),
+        tuple(sorted(record["assignments"].items())),
+        tuple(
+            sorted(
+                (day, tuple(sorted(detail.items())))
+                for day, detail in record["daily_details"].items()
+            )
+        ),
+    )
+
+
+def _assignment_day_state(record: dict, day: int) -> dict:
+    detail = record["daily_details"].get(day, {})
+    code = detail.get("code") or record["assignments"].get(day, "")
+    status = (
+        "vacation" if code == "V"
+        else "work" if day in record["work_days"]
+        else "rest" if day in record["rest_days"]
+        else "assigned" if code
+        else "empty"
+    )
+    if code:
+        label = code
+    elif status == "rest":
+        label = "D"
+    elif status == "work":
+        label = f'{record["nomenclature"]}{record["shift"]}'.strip() or "—"
+    else:
+        label = "—"
+
+    if status == "rest":
+        description = "Descanso"
+    elif status == "empty":
+        description = "Sin asignación"
+    else:
+        description_parts = []
+        if status == "vacation":
+            description_parts.append("Vacaciones")
+        route = detail.get("route") or record["route"]
+        shift = detail.get("shift") or record["shift"]
+        if route:
+            description_parts.append(route)
+        if shift:
+            description_parts.append(f"Turno {shift}")
+        if code:
+            description_parts.append(f"Código {code}")
+        elif label != "—":
+            description_parts.append(f"Asignación {label}")
+        description = " · ".join(description_parts) or "Sin asignación"
+    return {"label": label, "status": status, "detail": description}
+
+
+def _assignment_day_change_signature(record: dict, day: int) -> tuple:
+    detail = record["daily_details"].get(day, {})
+    state = _assignment_day_state(record, day)
+    return (
+        state["status"],
+        detail.get("code") or record["assignments"].get(day, ""),
+        detail.get("route", ""),
+        detail.get("shift", ""),
+        detail.get("nomenclature", ""),
+    )
+
+
+def _assignment_calendar_cells(
+    record: dict,
+    days_in_month: int,
+    first_weekday: int,
+    changed_days: set[int],
+) -> list[dict]:
+    cells = [{"blank": True} for _ in range(first_weekday)]
+    for day in range(1, days_in_month + 1):
+        cells.append({
+            "blank": False,
+            "day": day,
+            **_assignment_day_state(record, day),
+            "changed": day in changed_days,
+        })
+    return cells
+
+
+def prepare_assignment_history_comparisons(
+    before: object,
+    after: object,
+    movement: object,
+) -> list[dict]:
+    previous_records = _assignment_snapshot_records(before)
+    current_records = _assignment_snapshot_records(after)
+    period = _assignment_history_period(
+        movement, [*previous_records, *current_records]
+    )
+    if period is None:
+        return []
+    month, year = period
+    first_weekday, days_in_month = monthrange(year, month)
+    previous_by_credential = {
+        str(record.get("Credencial") or "").strip(): record
+        for record in previous_records
+        if str(record.get("Credencial") or "").strip()
+    }
+
+    comparisons = []
+    for current in current_records:
+        credential = str(current.get("Credencial") or "").strip()
+        previous = previous_by_credential.get(credential)
+        if not credential or previous is None:
+            continue
+        previous_record = _normalize_assignment_snapshot_record(
+            previous, days_in_month
+        )
+        current_record = _normalize_assignment_snapshot_record(
+            current, days_in_month
+        )
+        if (
+            _assignment_snapshot_signature(previous_record)
+            == _assignment_snapshot_signature(current_record)
+        ):
+            continue
+
+        if "_assignment_edited_days" in current:
+            changed_days = _assignment_snapshot_days(
+                current["_assignment_edited_days"], days_in_month
+            )
+            for day in range(1, days_in_month + 1):
+                previous_status = _assignment_day_state(previous_record, day)["status"]
+                current_status = _assignment_day_state(current_record, day)["status"]
+                if previous_status != "empty" and current_status == "empty":
+                    changed_days.add(day)
+        else:
+            changed_days = set()
+            for day in range(1, days_in_month + 1):
+                if (
+                    _assignment_day_change_signature(previous_record, day)
+                    != _assignment_day_change_signature(current_record, day)
+                ):
+                    changed_days.add(day)
+        shifts_before = _assignment_detail_values(previous_record, "shift")
+        shifts_after = _assignment_detail_values(current_record, "shift")
+        route_pairs_before = _assignment_detail_pairs(previous_record)
+        route_pairs_after = _assignment_detail_pairs(current_record)
+        comparisons.append({
+            "month": month,
+            "year": year,
+            "period_label": f"{MONTH_NAMES_ES[month - 1].capitalize()} {year}",
+            "weekdays": ("L", "M", "M", "J", "V", "S", "D"),
+            "controller": current_record["controller"] or previous_record["controller"],
+            "credential": credential,
+            "shifts_before": shifts_before,
+            "shifts_after": shifts_after,
+            "shift_rows": _assignment_comparison_rows(
+                shifts_before, shifts_after, "—"
+            ),
+            "routes_before": _assignment_detail_values(previous_record, "route"),
+            "routes_after": _assignment_detail_values(current_record, "route"),
+            "nomenclatures_before": _assignment_detail_values(
+                previous_record, "nomenclature"
+            ),
+            "nomenclatures_after": _assignment_detail_values(
+                current_record, "nomenclature"
+            ),
+            "route_rows": _assignment_comparison_rows(
+                route_pairs_before,
+                route_pairs_after,
+                {"route": "—", "nomenclature": ""},
+            ),
+            "before_cells": _assignment_calendar_cells(
+                previous_record, days_in_month, first_weekday, changed_days
+            ),
+            "after_cells": _assignment_calendar_cells(
+                current_record, days_in_month, first_weekday, changed_days
+            ),
+        })
+    return comparisons
+
+
+def prepare_assignment_history_registrations(
+    after: object,
+    movement: object,
+) -> list[dict]:
+    records = _assignment_snapshot_records(after)
+    period = _assignment_history_period(movement, records)
+    if period is None:
+        return []
+    month, year = period
+    first_weekday, days_in_month = monthrange(year, month)
+    calendars = []
+    for record in records:
+        normalized_record = _normalize_assignment_snapshot_record(
+            record, days_in_month
+        )
+        credential = normalized_record["credential"]
+        if not credential:
+            continue
+        calendars.append({
+            "month": month,
+            "year": year,
+            "period_label": f"{MONTH_NAMES_ES[month - 1].capitalize()} {year}",
+            "weekdays": ("L", "M", "M", "J", "V", "S", "D"),
+            "controller": normalized_record["controller"],
+            "credential": credential,
+            "cells": _assignment_calendar_cells(
+                normalized_record, days_in_month, first_weekday, set()
+            ),
+        })
+    return calendars
+
+
+def prepare_assignment_history_deletions(
+    before: object,
+    movement: object,
+) -> list[dict]:
+    records = _assignment_snapshot_records(before)
+    period = _assignment_history_period(movement, records)
+    if period is None:
+        return []
+    month, year = period
+    first_weekday, days_in_month = monthrange(year, month)
+    calendars = []
+    for record in records:
+        normalized_record = _normalize_assignment_snapshot_record(
+            record, days_in_month
+        )
+        credential = normalized_record["credential"]
+        if not credential:
+            continue
+        cells = _assignment_calendar_cells(
+            normalized_record, days_in_month, first_weekday, set()
+        )
+        for cell in cells:
+            if not cell["blank"]:
+                cell["deleted"] = cell["status"] != "empty"
+        calendars.append({
+            "month": month,
+            "year": year,
+            "period_label": f"{MONTH_NAMES_ES[month - 1].capitalize()} {year}",
+            "weekdays": ("L", "M", "M", "J", "V", "S", "D"),
+            "controller": normalized_record["controller"],
+            "credential": credential,
+            "cells": cells,
+        })
+    return calendars
+
+
+def prepare_history_entries(
+    entries: list[dict],
+    module_names: dict[str, str],
+    route_type_names: dict[str, str] | None = None,
+    section: str | None = None,
+) -> list[dict]:
+    prepared = []
+    for entry in entries:
+        before = entry.get("datos_anteriores")
+        after = entry.get("datos_nuevos")
+        comparison_rows = []
+        is_route_link_entry = (
+            entry.get("accion") == "vinculacion"
+            and isinstance(after, dict)
+            and "Módulo de destino" in after
+            and "Rutas vinculadas" in after
+        )
+        form_order = history_form_field_order(entry.get("modificacion", ""))
+        is_route_entry = form_order is not None and {"Ruta", "Tipo"}.issubset(form_order)
+
+        def display_value(field: str, value: object) -> object:
+            if not is_route_entry or field != "Tipo" or isinstance(value, bool):
+                return value
+            if isinstance(value, int):
+                type_id = str(value)
+            elif isinstance(value, str) and value.strip().isdigit():
+                type_id = value.strip()
+            else:
+                return value
+            return (route_type_names or {}).get(type_id, value)
+
+        before_fields = history_snapshot_fields(before, form_order)
+        after_fields = history_snapshot_fields(after, form_order)
+        if before_fields and after_fields:
+            previous_values = {
+                field: display_value(field, value) for field, value in before_fields
+            }
+            new_values = {
+                field: display_value(field, value) for field, value in after_fields
+            }
+            fields = list(dict.fromkeys([*previous_values, *new_values]))
+            for field in fields:
+                row = {
+                    "field": field,
+                    "before": format_history_value(previous_values.get(field), module_names, field),
+                    "after": format_history_value(new_values.get(field), module_names, field),
+                    "changed": previous_values.get(field) != new_values.get(field),
+                }
+                before_module_groups = history_module_status_groups(
+                    field, previous_values.get(field)
+                )
+                after_module_groups = history_module_status_groups(
+                    field, new_values.get(field)
+                )
+                if before_module_groups is not None or after_module_groups is not None:
+                    row["before_module_groups"] = before_module_groups
+                    row["after_module_groups"] = after_module_groups
+                comparison_rows.append(row)
+        action = entry.get("accion")
+        assignment_comparisons = (
+            prepare_assignment_history_comparisons(
+                before, after, entry.get("modificacion", "")
+            )
+            if section == "asignaciones" and action == "edicion"
+            else []
+        )
+        assignment_calendars = (
+            prepare_assignment_history_registrations(
+                after, entry.get("modificacion", "")
+            )
+            if section == "asignaciones" and action == "registro"
+            else []
+        )
+        assignment_deletions = (
+            prepare_assignment_history_deletions(
+                before, entry.get("modificacion", "")
+            )
+            if section == "asignaciones" and action == "eliminacion"
+            else []
+        )
+        is_module_deletion = (
+            action == "eliminacion"
+            and entry.get("modificacion", "").casefold().startswith("eliminó módulo ")
+        )
+        detail_snapshot = before if action in {"eliminacion", "desvinculacion"} else after
+        detail_fields = history_snapshot_fields(detail_snapshot, form_order)
+        if is_module_deletion:
+            detail_fields = [
+                (field, value)
+                for field, value in detail_fields
+                if field not in {
+                    "Registros analíticos eliminados",
+                    "Registros históricos de migración eliminados",
+                }
+            ]
+        if not detail_fields and not is_module_deletion:
+            detail_fields = after_fields or before_fields
+        detail_rows = []
+        for field, value in detail_fields:
+            value = display_value(field, value)
+            route_lines = None
+            if (
+                is_route_link_entry and field == "Rutas vinculadas"
+            ) or (
+                action in {"eliminacion", "desvinculacion"} and field == "Rutas"
+            ) or (
+                is_module_deletion and field == "Rutas compartidas desvinculadas"
+            ):
+                route_lines = format_history_route_lines(value)
+            row = {"field": field}
+            if route_lines is not None:
+                row["value_lines"] = route_lines
+            elif is_module_deletion and isinstance(value, list):
+                row["value_lines"] = [
+                    format_history_value(item, module_names, field)
+                    for item in value
+                ] or ["—"]
+            elif is_module_deletion and isinstance(value, dict):
+                row["value_lines"] = [
+                    f"{key}: {format_history_value(item, module_names, key)}"
+                    for key, item in value.items()
+                    if key != "_field_order"
+                ] or ["—"]
+            else:
+                row["value"] = format_history_value(value, module_names, field)
+            module_groups = history_module_status_groups(field, value)
+            if module_groups is not None:
+                row["module_groups"] = module_groups
+            detail_rows.append(row)
+        description = entry.get("descripcion")
+        if description and not detail_rows:
+            detail_rows.append({
+                "field": "Detalle",
+                "value": format_history_value(description, module_names, "Detalle"),
+            })
+        prepared.append({
+            **entry,
+            "history_category": history_entry_category(entry.get("modificacion", "")),
+            "movimiento_visible": display_history_movement(entry.get("modificacion", "")),
+            "comparison_rows": comparison_rows,
+            "detail_rows": detail_rows,
+            "assignment_comparisons": assignment_comparisons,
+            "assignment_calendars": assignment_calendars,
+            "assignment_deletions": assignment_deletions,
+        })
+    return prepared
+
+
+def assignment_history_snapshot(
+    record: dict | None,
+    edited_days: list[int] | None = None,
+) -> dict | None:
+    if record is None:
+        return None
+
+    snapshot = history_snapshot({
+        "Controlador": record.get("name"),
+        "Credencial": record.get("credential"),
+        "Turno": record.get("shift"),
+        "Ruta": record.get("route"),
+        "Nomenclatura": record.get("nomenclature"),
+        "Días de trabajo": _decode_assignment_snapshot_value(record.get("work_days"), []),
+        "Días de descanso": _decode_assignment_snapshot_value(record.get("rest_days"), []),
+        "Asignaciones diarias": _decode_assignment_snapshot_value(record.get("daily_assignments"), {}),
+        "Detalles diarios": _decode_assignment_snapshot_value(record.get("daily_details"), {}),
+    })
+    if edited_days is not None:
+        snapshot["_assignment_edited_days"] = sorted(set(edited_days))
+    return snapshot
 
 
 def record_code_map(record: dict | None) -> dict[str, list[int]]:
@@ -483,12 +1336,83 @@ def admin_history_page():
     account = session.get("account")
     if not account_can_view_admin(account):
         return redirect(url_for("connection_status"))
+    modules = []
+    history_error = None
+    try:
+        modules = request_modules()
+        general_entries = fetch_history_entries(section="general")
+        assignment_entries = fetch_history_entries(section="asignaciones")
+        module_names = {str(module["id"]): module["nombre"] for module in modules}
+        history_entries = [*general_entries, *assignment_entries]
+        has_route_type = any(
+            {"Ruta", "Tipo"}.issubset(
+                history_form_field_order(entry.get("modificacion", "")) or []
+            )
+            for entry in history_entries
+        )
+        route_type_names = (
+            {
+                str(item["id"]): item["descripcion"]
+                for item in fetch_catalog_items("tipos_rutas")
+            }
+            if has_route_type
+            else {}
+        )
+        general_entries = prepare_history_entries(
+            general_entries, module_names, route_type_names, section="general"
+        )
+        assignment_entries = prepare_history_entries(
+            assignment_entries, module_names, route_type_names, section="asignaciones"
+        )
+    except Exception:
+        app.logger.exception("No fue posible cargar las entradas del historial")
+        general_entries = []
+        assignment_entries = []
+        history_error = "No fue posible cargar el historial. Intenta actualizar la página."
+    return render_template(
+        "admin/historial.html",
+        account=account,
+        modules=modules,
+        module_names=module_names if not history_error else {},
+        general_entries=general_entries,
+        assignment_entries=assignment_entries,
+        history_error=history_error,
+    )
+
+
+@app.post("/administrador/historial/vaciar")
+def admin_clear_history():
+    account = session.get("account")
+    if not account or not account.get("is_admin"):
+        return redirect(url_for("connection_status"))
+    try:
+        module_number = int(request.form.get("module_number", ""))
+    except (TypeError, ValueError):
+        flash("Selecciona un módulo válido para vaciar su historial.", "error")
+        return redirect(url_for("admin_history_page"))
+
     try:
         initialize_schema()
-        entries = fetch_history_entries()
+        module = next(
+            (item for item in request_modules() if item["id"] == module_number),
+            None,
+        )
+        if module is None:
+            flash("El módulo seleccionado no es válido.", "error")
+            return redirect(url_for("admin_history_page"))
+        cleared_count = clear_history_for_module(module_number)
+        if cleared_count:
+            flash(
+                f"Se vació el historial de {module['nombre']}. "
+                f"Se limpiaron {cleared_count} movimientos.",
+                "success",
+            )
+        else:
+            flash(f"No había movimientos para vaciar en {module['nombre']}.", "success")
     except Exception:
-        entries = []
-    return render_template("admin/historial.html", account=account, entries=entries)
+        app.logger.exception("No fue posible vaciar el historial del módulo")
+        flash("No fue posible vaciar el historial del módulo.", "error")
+    return redirect(url_for("admin_history_page"))
 
 
 @app.route("/administrador/rol-mensual/<int:module_number>/estado", methods=["GET", "POST"])
@@ -514,12 +1438,16 @@ def admin_monthly_role_status(module_number: int):
     active = request.form.get("activo") == "true"
     try:
         initialize_schema()
+        previous_active = get_monthly_role_activation(module_number, month, year)
         result = set_monthly_role_activation(module_number, month, year, active)
         record_history(
             account,
             f"{'Activó' if active else 'Desactivó'} el mes {month:02d}/{year}",
             module_number,
-            "activacion",
+            "edicion",
+            f"Mes: {month:02d}/{year}; Estado: {'Activo' if result else 'Inactivo'}",
+            before={"Estado del mes": previous_active},
+            after={"Estado del mes": result},
         )
         return jsonify({"activo": result})
     except Exception as error:
@@ -666,14 +1594,53 @@ def admin_create_module():
     try:
         initialize_schema()
         if module_id:
-            if update_module(int(module_id), nombre, direccion, latitud, longitud) is None:
+            previous_module = next(
+                (item for item in fetch_modules() if item["id"] == int(module_id)),
+                None,
+            )
+            updated_module = update_module(int(module_id), nombre, direccion, latitud, longitud)
+            if updated_module is None:
                 flash("No se encontró el módulo para actualizar.", "error")
             else:
+                record_history(
+                    account,
+                    f"Editó módulo {updated_module['nombre']} (de Módulos)",
+                    int(module_id),
+                    "edicion",
+                    f"Nombre: {updated_module['nombre']}; Dirección: {updated_module['direccion']}; Latitud: {updated_module['latitud']}; Longitud: {updated_module['longitud']}",
+                    before=history_snapshot({
+                        "Nombre del módulo": previous_module["nombre"],
+                        "Dirección": previous_module["direccion"],
+                        "Latitud": previous_module["latitud"],
+                        "Longitud": previous_module["longitud"],
+                    }) if previous_module else None,
+                    after=history_snapshot({
+                        "Nombre del módulo": updated_module["nombre"],
+                        "Dirección": updated_module["direccion"],
+                        "Latitud": updated_module["latitud"],
+                        "Longitud": updated_module["longitud"],
+                    }),
+                )
                 flash("Módulo actualizado correctamente.", "success")
-        elif create_module(nombre, direccion, latitud, longitud) is None:
-            flash("Ya existen los veinte módulos disponibles.", "error")
         else:
-            flash("Módulo creado correctamente.", "success")
+            created_module = create_module(nombre, direccion, latitud, longitud)
+            if created_module is None:
+                flash("Ya existen los veinte módulos disponibles.", "error")
+            else:
+                record_history(
+                    account,
+                    f"Registró módulo {created_module['nombre']} (de Módulos)",
+                    int(created_module["id"]),
+                    "registro",
+                    f"Nombre: {created_module['nombre']}; Dirección: {created_module['direccion']}; Latitud: {created_module['latitud']}; Longitud: {created_module['longitud']}",
+                    after=history_snapshot({
+                        "Nombre del módulo": created_module["nombre"],
+                        "Dirección": created_module["direccion"],
+                        "Latitud": created_module["latitud"],
+                        "Longitud": created_module["longitud"],
+                    }),
+                )
+                flash("Módulo creado correctamente.", "success")
     except Exception:
         flash("No se pudo guardar el módulo. Verifica que el nombre no esté repetido.", "error")
     return redirect(url_for("admin_modules_page"))
@@ -684,17 +1651,58 @@ def admin_delete_module(module_id: int):
     account = session.get("account")
     if not account or not account.get("is_admin"):
         return redirect(url_for("connection_status"))
+    action = request.form.get("action", "")
+    admin_password = request.form.get("admin_password", "")
+    if action not in {"clear", "delete"}:
+        flash("Selecciona una acción válida para el módulo.", "error")
+        return redirect(url_for("admin_modules_page"))
+    if not admin_password:
+        flash("La contraseña del administrador es obligatoria.", "error")
+        return redirect(url_for("admin_modules_page"))
+
+    try:
+        verified_admin = authenticate_user(
+            str(account.get("username", "")),
+            admin_password,
+        )
+    except Exception:
+        app.logger.exception("No fue posible verificar la contraseña del administrador")
+        flash("No se pudo verificar la contraseña del administrador.", "error")
+        return redirect(url_for("admin_modules_page"))
+    if (
+        not verified_admin
+        or not verified_admin.get("is_admin")
+        or verified_admin.get("username") != account.get("username")
+    ):
+        flash("La contraseña del administrador es incorrecta.", "error")
+        return redirect(url_for("admin_modules_page"))
+
     try:
         initialize_schema()
-        result = delete_module(module_id)
-        if result == "in_use":
-            flash("No se puede eliminar un módulo que tiene datos asociados.", "error")
-        elif result == "deleted":
-            flash("Módulo eliminado correctamente.", "success")
+        result = manage_module_data(
+            module_id,
+            action,
+            str(account.get("username", "desconocido")),
+        )
+        if result["status"] == "missing":
+            flash("No se encontró el módulo seleccionado.", "error")
+        elif result["status"] == "last_module":
+            flash("No se puede eliminar el último módulo registrado.", "error")
+        elif action == "clear":
+            flash(
+                f"Se vació la información de {result['module']['nombre']}; "
+                "el detalle quedó guardado en el historial de ese módulo.",
+                "success",
+            )
         else:
-            flash("No se encontró el módulo para eliminar.", "error")
+            flash(
+                f"Se eliminó el módulo {result['module']['nombre']}; "
+                "el movimiento quedó registrado en el historial de los demás módulos.",
+                "success",
+            )
     except Exception:
-        flash("No se pudo eliminar el módulo.", "error")
+        app.logger.exception("No fue posible procesar la acción del módulo %s", module_id)
+        flash("No fue posible completar la acción del módulo.", "error")
     return redirect(url_for("admin_modules_page"))
 
 
@@ -712,14 +1720,20 @@ def admin_routes_page():
     try:
         initialize_schema()
         modules = request_modules()
-        grouped_routes = [
-            {
+        module_names_by_id = {module["id"]: module["nombre"] for module in modules}
+        grouped_routes = []
+        for module in modules:
+            routes = fetch_routes(module["id"])
+            for route in routes:
+                route["mod1_badge_number"] = module_badge_number(
+                    route["mod1"],
+                    module_names_by_id.get(route["mod1"]),
+                )
+            grouped_routes.append({
                 "module_number": module["id"],
                 "module_name": module["nombre"],
-                "routes": fetch_routes(module["id"]),
-            }
-            for module in modules
-        ]
+                "routes": routes,
+            })
         tipos_rutas = fetch_catalog_items("tipos_rutas")
         servicios = fetch_catalog_items("servicio")
     except Exception:
@@ -1096,11 +2110,65 @@ def admin_create_route():
         initialize_schema()
         if route_id:
             previously_shared = set(fetch_shared_modules(int(route_id)))
+            previous_shared_statuses = fetch_shared_module_statuses(int(route_id))
+            with get_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = %s",
+                        (int(route_id),),
+                    )
+                    previous_route = cursor.fetchone()
+            previous_primary = previous_route[5] if previous_route else None
             saved = update_admin_route(int(route_id), {**payload, "mod1": module_number})
             if saved is None:
                 flash("No se encontró la ruta para actualizar.", "error")
                 return redirect(url_for("admin_routes_page"))
             else:
+                record_history(
+                    account,
+                    f"Editó ruta {saved.get('ruta', payload['ruta'])} (de Rutas)",
+                    sorted({
+                        module_number,
+                        *previously_shared,
+                        *shared_modules,
+                        *([previous_primary] if previous_primary else []),
+                    }),
+                    "edicion",
+                    f"Ruta: {saved.get('ruta', payload['ruta'])}; Origen: {saved.get('origen', payload['origen'])}; Destino: {saved.get('destino', payload['destino'])}; Servicio: {saved.get('servicio', payload['servicio'])}; Estado: {saved.get('estado', payload['estado'])}; Módulos compartidos: {', '.join(map(str, shared_modules)) or 'ninguno'}",
+                    before=history_snapshot({
+                        "Ruta": previous_route[0],
+                        "Tipo": previous_route[6],
+                        "Origen": previous_route[1],
+                        "Destino": previous_route[2],
+                        "Servicio": previous_route[3],
+                        "Estado": previous_route[4],
+                        "Módulos vinculados": [
+                            {"Módulo": previous_primary, "Estado": previous_route[4]},
+                            *[
+                                {"Módulo": shared_id, "Estado": previous_shared_statuses[shared_id]}
+                                for shared_id in sorted(previously_shared)
+                            ],
+                        ],
+                    }) if previous_route else None,
+                    after=history_snapshot({
+                        "Ruta": saved.get("ruta", payload["ruta"]),
+                        "Tipo": saved.get("tipos"),
+                        "Origen": saved.get("origen", payload["origen"]),
+                        "Destino": saved.get("destino", payload["destino"]),
+                        "Servicio": saved.get("servicio", payload["servicio"]),
+                        "Estado": saved.get("estado", payload["estado"]),
+                        "Módulos vinculados": [
+                            {"Módulo": module_number, "Estado": saved.get("estado", payload["estado"])},
+                            *[
+                                {
+                                    "Módulo": shared_id,
+                                    "Estado": shared_module_statuses.get(shared_id, saved.get("estado", payload["estado"])),
+                                }
+                                for shared_id in sorted(shared_modules)
+                            ],
+                        ],
+                    }),
+                )
                 flash("Ruta actualizada correctamente.", "success")
             for shared_module in previously_shared - set(shared_modules):
                 unlink_route_from_module(int(saved["id"]), shared_module)
@@ -1111,16 +2179,50 @@ def admin_create_route():
                 f"Registró ruta {saved.get('ruta', payload['ruta'])} (de Rutas)",
                 module_number,
                 "registro",
-                f"Ruta: {saved.get('ruta', payload['ruta'])}; Origen: {saved.get('origen', payload['origen'])}; Destino: {saved.get('destino', payload['destino'])}; Servicio: {saved.get('servicio', payload['servicio'])}",
+                f"Ruta: {saved.get('ruta', payload['ruta'])}; Origen: {saved.get('origen', payload['origen'])}; Destino: {saved.get('destino', payload['destino'])}; Servicio: {saved.get('servicio', payload['servicio'])}; Estado: {saved.get('estado', payload['estado'])}; Módulos compartidos: {', '.join(map(str, shared_modules)) or 'ninguno'}",
+                after=history_snapshot({
+                    "Ruta": saved.get("ruta", payload["ruta"]),
+                    "Tipo": saved.get("tipos", payload["tipos"]),
+                    "Origen": saved.get("origen", payload["origen"]),
+                    "Destino": saved.get("destino", payload["destino"]),
+                    "Servicio": saved.get("servicio", payload["servicio"]),
+                    "Módulo de origen": module_number,
+                    "Módulos compartidos": [
+                        {
+                            "Módulo": shared_module,
+                            "Estado": shared_module_statuses.get(shared_module, saved.get("estado", payload["estado"])),
+                        }
+                        for shared_module in sorted(shared_modules)
+                    ],
+                    "Estado": saved.get("estado", payload["estado"]),
+                }),
             )
             flash("Ruta creada correctamente.", "success")
+        linked_modules = []
         for shared_module in shared_modules:
-            link_route_to_module(
+            linked_route = link_route_to_module(
                 int(saved["id"]),
                 shared_module,
                 shared_module_statuses.get(shared_module),
             )
+            linked_modules.append(linked_route["modulo_id"])
+        newly_linked_modules = sorted(set(linked_modules) - (previously_shared if route_id else set()))
+        if newly_linked_modules:
+            record_history(
+                account,
+                f"Vinculó ruta {saved.get('ruta', payload['ruta'])} a otros módulos (de Rutas)",
+                newly_linked_modules,
+                "vinculacion",
+                f"Ruta: {saved.get('ruta', payload['ruta'])}; Módulos vinculados: {', '.join(map(str, newly_linked_modules))}",
+                after=history_snapshot({
+                    "Ruta": saved.get("ruta", payload["ruta"]),
+                    "Origen": saved.get("origen", payload["origen"]),
+                    "Módulo de origen": saved.get("mod1", module_number),
+                    "Módulos compartidos": newly_linked_modules,
+                }),
+            )
     except Exception:
+        app.logger.exception("No se pudo guardar la ruta")
         flash("No se pudo guardar la ruta. Verifica los datos.", "error")
     return redirect(url_for("admin_routes_page"))
 
@@ -1148,7 +2250,42 @@ def admin_link_routes():
         if target_module not in available_modules:
             flash("El módulo de destino no está disponible.", "error")
             return redirect(url_for("admin_routes_page"))
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = ANY(%s) ORDER BY ruta",
+                    (route_ids,),
+                )
+                route_details = cursor.fetchall()
         linked_count = link_routes_to_module(route_ids, target_module)
+        if linked_count:
+            route_summary = ", ".join(f"{route[1]} (#{route[0]})" for route in route_details)
+            route_snapshots = [
+                history_snapshot({
+                    "Ruta": route[1],
+                    "Tipo": route[7],
+                    "Origen": route[2],
+                    "Destino": route[3],
+                    "Servicio": route[4],
+                    "Módulo de origen": route[6],
+                    "Módulos compartidos": sorted(
+                        set(fetch_shared_modules(route[0])) | {target_module}
+                    ),
+                    "Estado": route[5],
+                })
+                for route in route_details
+            ]
+            record_history(
+                account,
+                f"Vinculó {linked_count} ruta(s) al módulo {target_module} (de Rutas)",
+                target_module,
+                "vinculacion",
+                f"Rutas vinculadas: {route_summary or ', '.join(map(str, route_ids))}; Módulo de destino: {target_module}",
+                after=history_snapshot({
+                    "Módulo de destino": target_module,
+                    "Rutas vinculadas": route_snapshots,
+                }),
+            )
         flash(f"{linked_count} ruta(s) vinculada(s) correctamente.", "success")
     except ValueError as error:
         flash(str(error), "error")
@@ -1165,7 +2302,38 @@ def admin_delete_route(route_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
-        flash("Ruta eliminada correctamente." if delete_route(route_id) else "No se encontró la ruta para eliminar.", "success")
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = %s",
+                    (route_id,),
+                )
+                route = cursor.fetchone()
+        shared_modules = fetch_shared_modules(route_id) if route else []
+        route_modules = [route[5], *shared_modules] if route else []
+        if route is None:
+            flash("No se encontró la ruta para eliminar.", "error")
+        elif delete_route(route_id):
+            record_history(
+                account,
+                f"Eliminó ruta {route[0]} (de Rutas)",
+                sorted(set(route_modules)),
+                "eliminacion",
+                f"Ruta: {route[0]}",
+                before=history_snapshot({
+                    "Ruta": route[0],
+                    "Tipo": route[6],
+                    "Origen": route[1],
+                    "Destino": route[2],
+                    "Servicio": route[3],
+                    "Módulo de origen": route[5],
+                    "Módulos compartidos": shared_modules,
+                    "Estado": route[4],
+                }) if route else None,
+            )
+            flash("Ruta eliminada correctamente.", "success")
+        else:
+            flash("No se encontró la ruta para eliminar.", "error")
     except Exception:
         flash("No se pudo eliminar la ruta.", "error")
     return redirect(url_for("admin_routes_page"))
@@ -1190,7 +2358,38 @@ def admin_delete_selected_routes():
 
     try:
         initialize_schema()
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = ANY(%s) ORDER BY id",
+                    (route_ids,),
+                )
+                routes_before_delete = cursor.fetchall()
+        route_snapshots = []
+        for route in routes_before_delete:
+            route_snapshots.append(history_snapshot({
+                "Ruta": route[1],
+                "Tipo": route[7],
+                "Origen": route[2],
+                "Destino": route[3],
+                "Servicio": route[4],
+                "Módulo de origen": route[6],
+                "Módulos compartidos": fetch_shared_modules(route[0]),
+                "Estado": route[5],
+            }))
         result = delete_routes_from_module(route_ids, module_number)
+        if result["deleted_originals"] or result["unlinked_shared"]:
+            record_history(
+                account,
+                f"Eliminó {result['deleted_originals']} ruta(s) y desvinculó {result['unlinked_shared']} ruta(s) compartida(s) (de Rutas)",
+                module_number,
+                "eliminacion",
+                f"IDs de rutas: {', '.join(map(str, route_ids))}",
+                before=history_snapshot({
+                    "Módulo afectado": module_number,
+                    "Rutas": route_snapshots,
+                }),
+            )
         messages = []
         if result["deleted_originals"]:
             messages.append(f'{result["deleted_originals"]} ruta(s) original(es) eliminada(s)')
@@ -1218,10 +2417,62 @@ def admin_toggle_route_status(route_id: int):
 
     try:
         initialize_schema()
+        shared_modules = fetch_shared_modules(route_id)
+        shared_statuses = fetch_shared_module_statuses(route_id)
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = %s",
+                    (route_id,),
+                )
+                previous_route = cursor.fetchone()
         updated_route = update_route_status(route_id, requested_status)
         if updated_route is None:
             flash("No se encontró la ruta para actualizar.", "error")
         else:
+            route_name = str(previous_route[0]).strip()
+            route_label = (
+                route_name
+                if route_name.casefold().startswith("ruta ")
+                else f"Ruta {route_name}"
+            )
+            record_history(
+                account,
+                f"{route_label} {requested_status.lower()} (de Rutas)",
+                sorted({updated_route["mod1"], *shared_modules}),
+                "edicion",
+                f"Estado: {requested_status}",
+                before=history_snapshot({
+                    "Ruta": previous_route[0],
+                    "Tipo": previous_route[6],
+                    "Origen": previous_route[1],
+                    "Destino": previous_route[2],
+                    "Servicio": previous_route[3],
+                    "Estado": previous_route[4],
+                    "Módulos vinculados": [
+                        {"Módulo": previous_route[5], "Estado": previous_route[4]},
+                        *[
+                            {"Módulo": shared_id, "Estado": shared_statuses[shared_id]}
+                            for shared_id in sorted(shared_modules)
+                        ],
+                    ],
+                }) if previous_route else None,
+                after=history_snapshot({
+                    "Ruta": previous_route[0],
+                    "Tipo": previous_route[6],
+                    "Origen": previous_route[1],
+                    "Destino": previous_route[2],
+                    "Servicio": previous_route[3],
+                    "Estado": updated_route["estado"],
+                    "Módulos vinculados": [
+                        {"Módulo": updated_route["mod1"], "Estado": updated_route["estado"]},
+                        *[
+                            {"Módulo": shared_id, "Estado": shared_statuses[shared_id]}
+                            for shared_id in sorted(shared_modules)
+                        ],
+                    ],
+                }) if previous_route else None,
+            )
             flash(f"Ruta {requested_status.lower()} correctamente.", "success")
     except Exception:
         flash("No se pudo cambiar el estado de la ruta.", "error")
@@ -1239,10 +2490,58 @@ def admin_toggle_shared_route_status(route_id: int, module_number: int):
         return redirect(url_for("admin_routes_page"))
     try:
         initialize_schema()
+        shared_statuses = fetch_shared_module_statuses(route_id)
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = %s",
+                    (route_id,),
+                )
+                previous_route = cursor.fetchone()
         updated_route = update_module_route_status(route_id, module_number, requested_status)
         if updated_route is None:
             flash("No se encontró la ruta compartida.", "error")
         else:
+            record_history(
+                account,
+                f"Ruta compartida {route_id} {requested_status.lower()} en el módulo {module_number} (de Rutas)",
+                module_number,
+                "edicion",
+                f"ID de la ruta: {route_id}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Ruta": previous_route[0],
+                    "Tipo": previous_route[6],
+                    "Origen": previous_route[1],
+                    "Destino": previous_route[2],
+                    "Servicio": previous_route[3],
+                    "Estado": previous_route[4],
+                    "Módulos vinculados": [
+                        {"Módulo": previous_route[5], "Estado": previous_route[4]},
+                        *[
+                            {"Módulo": shared_id, "Estado": shared_statuses[shared_id]}
+                            for shared_id in sorted(shared_statuses)
+                        ],
+                    ],
+                }) if previous_route else None,
+                after=history_snapshot({
+                    "Ruta": previous_route[0],
+                    "Tipo": previous_route[6],
+                    "Origen": previous_route[1],
+                    "Destino": previous_route[2],
+                    "Servicio": previous_route[3],
+                    "Estado": previous_route[4],
+                    "Módulos vinculados": [
+                        {"Módulo": previous_route[5], "Estado": previous_route[4]},
+                        *[
+                            {
+                                "Módulo": shared_id,
+                                "Estado": requested_status if shared_id == module_number else shared_statuses[shared_id],
+                            }
+                            for shared_id in sorted(shared_statuses)
+                        ],
+                    ],
+                }) if previous_route else None,
+            )
             flash(f"Ruta compartida {requested_status.lower()} correctamente.", "success")
     except Exception:
         flash("No se pudo cambiar el estado de la ruta compartida.", "error")
@@ -1259,7 +2558,38 @@ def admin_unlink_shared_route(route_id: int, module_number: int):
         return redirect(url_for("admin_routes_page"))
     try:
         initialize_schema()
+        shared_statuses = fetch_shared_module_statuses(route_id)
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ruta, origen, destino, servicio, estado, mod1, tipos FROM catalogos.rutas WHERE id = %s",
+                    (route_id,),
+                )
+                route = cursor.fetchone()
         if unlink_route_from_module(route_id, module_number):
+            record_history(
+                account,
+                f"Desvinculó ruta {route_id} del módulo {module_number} (de Rutas)",
+                module_number,
+                "desvinculacion",
+                f"ID de la ruta: {route_id}; Módulo: {module_number}",
+                before=history_snapshot({
+                    "Ruta": route[0],
+                    "Tipo": route[6],
+                    "Origen": route[1],
+                    "Destino": route[2],
+                    "Servicio": route[3],
+                    "Módulo de origen": route[5],
+                    "Módulos compartidos": [
+                        {
+                            "Módulo": shared_id,
+                            "Estado": shared_statuses[shared_id],
+                        }
+                        for shared_id in sorted(shared_statuses)
+                    ],
+                    "Estado": route[4],
+                }) if route else None,
+            )
             flash("Ruta desvinculada del módulo correctamente.", "success")
         else:
             flash("No se encontró la ruta compartida.", "error")
@@ -1363,6 +2693,10 @@ def admin_create_turno():
     }
     if alcance == "general":
         module_statuses = {module_number: True for module_number in selected_modules}
+    module_summary = ", ".join(
+        f"{module} ({'Activo' if module_statuses[module] else 'Inactivo'})"
+        for module in selected_modules
+    )
     if any(module_number not in range(1, MAX_MODULES + 1) for module_number in selected_modules):
         flash("Selecciona módulos válidos para el turno.", "error")
         return redirect(url_for("admin_turnos_page"))
@@ -1394,17 +2728,52 @@ def admin_create_turno():
     try:
         initialize_schema()
         if turno_id:
+            previous_turno = next(
+                (item for item in fetch_catalog_items("turnos") if item["id"] == int(turno_id)),
+                None,
+            )
             updated_turno = update_catalog_item("turnos", int(turno_id), payload)
             if updated_turno is None:
                 flash("No se encontró el turno para actualizar.", "error")
                 return redirect(url_for("admin_turnos_page"))
+            previous_modules = fetch_turno_modules_map([int(turno_id)]).get(int(turno_id), [])
+            previous_module_statuses = fetch_turno_module_statuses_map([int(turno_id)]).get(int(turno_id), {})
             set_turno_modules(int(turno_id), selected_modules, module_statuses)
             renumber_turnos_by_start()
+            record_history(
+                account,
+                f"Editó {history_turno_time_label(updated_turno)} (de Turnos)",
+                sorted(set(previous_modules) | set(selected_modules)),
+                "edicion",
+                f"Horario: {hora_inicio}-{hora_fin}; Alcance: {alcance}; Estado: {'Activo' if updated_turno['activo'] else 'Inactivo'}; Módulos: {module_summary}",
+                before=history_turno_snapshot(
+                    previous_turno,
+                    previous_modules,
+                    previous_module_statuses,
+                ) if previous_turno else None,
+                after=history_turno_snapshot(
+                    updated_turno,
+                    selected_modules,
+                    module_statuses,
+                ),
+            )
             flash("Turno actualizado correctamente.", "success")
         else:
             created_turno = create_catalog_item("turnos", payload)
             set_turno_modules(created_turno["id"], selected_modules, module_statuses)
             renumber_turnos_by_start()
+            record_history(
+                account,
+                f"Registró {history_turno_time_label(created_turno)} (de Turnos)",
+                selected_modules,
+                "registro",
+                f"Horario: {hora_inicio}-{hora_fin}; Alcance: {alcance}; Estado: {'Activo' if created_turno['activo'] else 'Inactivo'}; Módulos: {module_summary}",
+                after=history_turno_snapshot(
+                    created_turno,
+                    selected_modules,
+                    module_statuses,
+                ),
+            )
             flash("Turno registrado correctamente.", "success")
     except Exception:
         app.logger.exception("No se pudo guardar el turno %s", current_turno_id or "nuevo")
@@ -1420,7 +2789,28 @@ def admin_delete_turno(turno_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        turno = next(
+            (item for item in fetch_catalog_items("turnos") if item["id"] == turno_id),
+            None,
+        )
+        turno_modules = fetch_turno_modules_map([turno_id]).get(turno_id, [])
+        turno_module_statuses = fetch_turno_module_statuses_map([turno_id]).get(turno_id, {})
         if delete_catalog_item("turnos", turno_id):
+            record_history(
+                account,
+                f"Eliminó {history_turno_time_label(turno)} (de Turnos)",
+                turno_modules,
+                "eliminacion",
+                (
+                    f"Horario: {turno['hora_inicio']} a {turno['hora_fin']}"
+                    if turno else "Horario no disponible"
+                ),
+                before=history_turno_snapshot(
+                    turno,
+                    turno_modules,
+                    turno_module_statuses,
+                ) if turno else None,
+            )
             flash("Turno eliminado correctamente.", "success")
         else:
             flash("No se encontró el turno para eliminar.", "error")
@@ -1448,8 +2838,32 @@ def admin_delete_selected_turnos():
 
     try:
         initialize_schema()
+        turno_modules = fetch_turno_modules_map(turno_ids)
+        turno_module_statuses = fetch_turno_module_statuses_map(turno_ids)
+        turnos_by_id = {
+            turno["id"]: turno
+            for turno in fetch_catalog_items("turnos")
+            if turno["id"] in turno_ids
+        }
         deleted_ids = delete_turnos_by_ids(turno_ids)
         renumber_turnos_by_start()
+        for deleted_id in deleted_ids:
+            deleted_turno = turnos_by_id.get(deleted_id)
+            record_history(
+                account,
+                f"Eliminó {history_turno_time_label(deleted_turno)} (de Turnos)",
+                turno_modules.get(deleted_id, []),
+                "eliminacion",
+                (
+                    f"Horario: {deleted_turno['hora_inicio']} a {deleted_turno['hora_fin']}"
+                    if deleted_turno else "Horario no disponible"
+                ),
+                before=history_turno_snapshot(
+                    deleted_turno,
+                    turno_modules.get(deleted_id, []),
+                    turno_module_statuses.get(deleted_id, {}),
+                ) if deleted_turno else None,
+            )
         flash(f"{len(deleted_ids)} turno(s) eliminado(s) correctamente.", "success")
     except ValueError as error:
         flash(str(error), "error")
@@ -1470,10 +2884,34 @@ def admin_toggle_turno_status(turno_id: int):
         return redirect(url_for("admin_turnos_page"))
     try:
         initialize_schema()
+        turno_modules = fetch_turno_modules_map([turno_id]).get(turno_id, [])
+        turno_module_statuses = fetch_turno_module_statuses_map([turno_id]).get(turno_id, {})
+        previous_turno = next(
+            (item for item in fetch_catalog_items("turnos") if item["id"] == turno_id),
+            None,
+        )
         updated_shift = update_shift_status(turno_id, requested_status == "Activo")
         if updated_shift is None:
             flash("No se encontró el turno para actualizar.", "error")
         else:
+            status_verb = "Activó" if requested_status == "Activo" else "Desactivó"
+            record_history(
+                account,
+                f"{status_verb} {history_turno_time_label(previous_turno)} (de Turnos)",
+                turno_modules,
+                "edicion",
+                f"Estado: {requested_status}",
+                before=history_turno_snapshot(
+                    previous_turno,
+                    turno_modules,
+                    turno_module_statuses,
+                ) if previous_turno else None,
+                after=history_turno_snapshot(
+                    {**previous_turno, "activo": updated_shift["active"]},
+                    turno_modules,
+                    turno_module_statuses,
+                ) if previous_turno else None,
+            )
             flash(f"Turno {requested_status.lower()} correctamente.", "success")
     except Exception:
         flash("No se pudo cambiar el estado del turno.", "error")
@@ -1491,11 +2929,41 @@ def admin_toggle_turno_module_status(turno_id: int, module_id: int):
         return redirect(url_for("admin_turnos_page"))
     try:
         initialize_schema()
+        turno = next(
+            (item for item in fetch_catalog_items("turnos") if item["id"] == turno_id),
+            None,
+        )
+        turno_modules = fetch_turno_modules_map([turno_id]).get(turno_id, [])
+        module_statuses = fetch_turno_module_statuses_map([turno_id]).get(turno_id, {})
+        previous_module_status = module_statuses.get(module_id)
         updated = update_turno_module_status(
             turno_id,
             module_id,
             requested_status == "Activo",
         )
+        if updated:
+            status_verb = "Activó" if requested_status == "Activo" else "Desactivó"
+            record_history(
+                account,
+                (
+                    f"{status_verb} {history_turno_time_label(turno)} "
+                    f"en el módulo {module_id} (de Turnos)"
+                ),
+                module_id,
+                "edicion",
+                (
+                    f"Horario: {turno['hora_inicio']} a {turno['hora_fin']}; "
+                    f"Módulo: {module_id}; Estado: {requested_status}"
+                    if turno else f"Módulo: {module_id}; Estado: {requested_status}"
+                ),
+                before=history_turno_snapshot(turno, turno_modules, module_statuses)
+                if turno else None,
+                after=history_turno_snapshot(
+                    turno,
+                    turno_modules,
+                    {**module_statuses, module_id: requested_status == "Activo"},
+                ) if turno else None,
+            )
         flash(
             f"Turno {requested_status.lower()} en el módulo correctamente."
             if updated else "No se encontró la asignación del turno en el módulo.",
@@ -1537,9 +3005,37 @@ def admin_create_tipo_ruta():
         try:
             initialize_schema()
             if estado_id:
-                update_catalog_item("estados_especiales", int(estado_id), payload)
+                previous_estado = next(
+                    (item for item in fetch_catalog_items("estados_especiales") if item["id"] == int(estado_id)),
+                    None,
+                )
+                saved_estado = update_catalog_item("estados_especiales", int(estado_id), payload)
+                history_action = "edicion"
+                history_verb = "Editó"
             else:
-                create_catalog_item("estados_especiales", payload)
+                saved_estado = create_catalog_item("estados_especiales", payload)
+                history_action = "registro"
+                history_verb = "Registró"
+            if saved_estado is not None:
+                record_history(
+                    account,
+                    f"{history_verb} estado especial {saved_estado['codigo']} (de Estados especiales)",
+                    None,
+                    history_action,
+                    f"Código: {saved_estado['codigo']}; Descripción: {saved_estado['descripcion']}; Categoría: {saved_estado['categoria']}; Estado: {'Activo' if saved_estado['activo'] else 'Inactivo'}",
+                    before=history_snapshot({
+                        "Código": previous_estado["codigo"],
+                        "Descripción": previous_estado["descripcion"],
+                        "Categoría": previous_estado["categoria"],
+                        "Estado": previous_estado["activo"],
+                    }) if estado_id and previous_estado else None,
+                    after=history_snapshot({
+                        "Código": saved_estado["codigo"],
+                        "Descripción": saved_estado["descripcion"],
+                        "Categoría": saved_estado["categoria"],
+                        "Estado": saved_estado["activo"],
+                    }),
+                )
             try:
                 refresh_analysis_tables()
             except Exception:
@@ -1569,16 +3065,49 @@ def admin_create_tipo_ruta():
         if not nombre:
             flash("El nombre del servicio es obligatorio.", "error")
             return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
+        if not valid_controller_name(nombre):
+            flash("El nombre del servicio solo puede contener letras y espacios.", "error")
+            return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
         try:
             initialize_schema()
             if servicio_id:
+                previous_servicio = next(
+                    (item for item in fetch_catalog_items("servicio") if item["id"] == int(servicio_id)),
+                    None,
+                )
                 updated_servicio = update_catalog_item("servicio", int(servicio_id), {"nombre": nombre, "activo": activo})
                 if updated_servicio is None:
                     flash("No se encontró el servicio para actualizar.", "error")
                 else:
+                    record_history(
+                        account,
+                        f"Editó servicio {updated_servicio['nombre']} (de Servicios)",
+                        None,
+                        "edicion",
+                        f"Nombre: {updated_servicio['nombre']}; Estado: {'Activo' if updated_servicio['activo'] else 'Inactivo'}",
+                        before=history_snapshot({
+                            "Nombre": previous_servicio["nombre"],
+                            "Estado": previous_servicio["activo"],
+                        }) if previous_servicio else None,
+                        after=history_snapshot({
+                            "Nombre": updated_servicio["nombre"],
+                            "Estado": updated_servicio["activo"],
+                        }),
+                    )
                     flash("Servicio actualizado correctamente.", "success")
             else:
-                create_catalog_item("servicio", {"nombre": nombre, "activo": activo})
+                created_servicio = create_catalog_item("servicio", {"nombre": nombre, "activo": activo})
+                record_history(
+                    account,
+                    f"Registró servicio {created_servicio['nombre']} (de Servicios)",
+                    None,
+                    "registro",
+                    f"Nombre: {created_servicio['nombre']}; Estado: {'Activo' if created_servicio['activo'] else 'Inactivo'}",
+                    after=history_snapshot({
+                        "Nombre": created_servicio["nombre"],
+                        "Estado": created_servicio["activo"],
+                    }),
+                )
                 flash("Servicio registrado correctamente.", "success")
         except Exception:
             flash("No se pudo guardar el servicio. Verifica que el nombre no esté repetido.", "error")
@@ -1593,19 +3122,52 @@ def admin_create_tipo_ruta():
     if not descripcion:
         flash("La descripción del tipo de ruta es obligatoria.", "error")
         return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
+    if not valid_controller_name(descripcion):
+        flash("La descripción del tipo de ruta solo puede contener letras y espacios.", "error")
+        return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
 
     payload = {"descripcion": descripcion, "activo": activo}
 
     try:
         initialize_schema()
         if tipo_id:
+            previous_tipo = next(
+                (item for item in fetch_catalog_items("tipos_rutas") if item["id"] == int(tipo_id)),
+                None,
+            )
             updated_tipo = update_catalog_item("tipos_rutas", int(tipo_id), payload)
             if updated_tipo is None:
                 flash("No se encontró el tipo de ruta para actualizar.", "error")
                 return redirect(url_for("admin_routes_page", catalog_tab=catalog_tab))
+            record_history(
+                account,
+                f"Editó tipo de ruta {updated_tipo['descripcion']} (de Tipos de rutas)",
+                None,
+                "edicion",
+                f"Descripción: {updated_tipo['descripcion']}; Estado: {'Activo' if updated_tipo['activo'] else 'Inactivo'}",
+                before=history_snapshot({
+                    "Descripción": previous_tipo["descripcion"],
+                    "Estado": previous_tipo["activo"],
+                }) if previous_tipo else None,
+                after=history_snapshot({
+                    "Descripción": updated_tipo["descripcion"],
+                    "Estado": updated_tipo["activo"],
+                }),
+            )
             flash("Tipo de ruta actualizado correctamente.", "success")
         else:
-            create_catalog_item("tipos_rutas", payload)
+            created_tipo = create_catalog_item("tipos_rutas", payload)
+            record_history(
+                account,
+                f"Registró tipo de ruta {created_tipo['descripcion']} (de Tipos de rutas)",
+                None,
+                "registro",
+                f"Descripción: {created_tipo['descripcion']}; Estado: {'Activo' if created_tipo['activo'] else 'Inactivo'}",
+                after=history_snapshot({
+                    "Descripción": created_tipo["descripcion"],
+                    "Estado": created_tipo["activo"],
+                }),
+            )
             flash("Tipo de ruta registrado correctamente.", "success")
     except Exception:
         flash("No se pudo guardar el tipo de ruta. Verifica que la descripción no esté repetida.", "error")
@@ -1620,7 +3182,22 @@ def admin_delete_tipo_ruta(tipo_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        tipo_ruta = next(
+            (item for item in fetch_catalog_items("tipos_rutas") if item["id"] == tipo_id),
+            None,
+        )
         if delete_catalog_item("tipos_rutas", tipo_id):
+            record_history(
+                account,
+                f"Eliminó tipo de ruta {tipo_id} (de Tipos de rutas)",
+                None,
+                "eliminacion",
+                f"ID del tipo de ruta: {tipo_id}",
+                before=history_snapshot({
+                    "Descripción": tipo_ruta["descripcion"],
+                    "Estado": tipo_ruta["activo"],
+                }) if tipo_ruta else None,
+            )
             flash("Tipo de ruta eliminado correctamente.", "success")
         else:
             flash("No se encontró el tipo de ruta para eliminar.", "error")
@@ -1640,7 +3217,27 @@ def admin_toggle_tipo_ruta_status(tipo_id: int):
         return redirect(url_for("admin_routes_page", catalog_tab="tipos"))
     try:
         initialize_schema()
+        previous_tipo = next(
+            (item for item in fetch_catalog_items("tipos_rutas") if item["id"] == tipo_id),
+            None,
+        )
         updated = update_catalog_status("tipos_rutas", tipo_id, requested_status == "Activo")
+        if updated is not None:
+            record_history(
+                account,
+                f"Tipo de ruta {updated['descripcion']} {requested_status.lower()} (de Tipos de rutas)",
+                None,
+                "edicion",
+                f"Descripción: {updated['descripcion']}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Descripción": previous_tipo["descripcion"],
+                    "Estado": previous_tipo["activo"],
+                }) if previous_tipo else None,
+                after=history_snapshot({
+                    "Descripción": updated["descripcion"],
+                    "Estado": updated["activo"],
+                }),
+            )
         flash(
             f"Tipo de ruta {requested_status.lower()} correctamente."
             if updated else "No se encontró el tipo de ruta para actualizar.",
@@ -1658,7 +3255,24 @@ def admin_delete_estado_especial(estado_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        estado = next(
+            (item for item in fetch_catalog_items("estados_especiales") if item["id"] == estado_id),
+            None,
+        )
         if delete_catalog_item("estados_especiales", estado_id):
+            record_history(
+                account,
+                f"Eliminó estado especial {estado_id} (de Estados especiales)",
+                None,
+                "eliminacion",
+                f"ID del estado especial: {estado_id}",
+                before=history_snapshot({
+                    "Código": estado["codigo"],
+                    "Descripción": estado["descripcion"],
+                    "Categoría": estado["categoria"],
+                    "Estado": estado["activo"],
+                }) if estado else None,
+            )
             try:
                 refresh_analysis_tables()
             except Exception:
@@ -1690,11 +3304,35 @@ def admin_toggle_estado_especial_status(estado_id: int):
         return redirect(url_for("admin_monthly_role_page", tab="estados"))
     try:
         initialize_schema()
+        previous_estado = next(
+            (item for item in fetch_catalog_items("estados_especiales") if item["id"] == estado_id),
+            None,
+        )
         updated = update_catalog_status(
             "estados_especiales",
             estado_id,
             requested_status == "Activo",
         )
+        if updated is not None:
+            record_history(
+                account,
+                f"Estado especial {updated['codigo']} {requested_status.lower()} (de Estados especiales)",
+                None,
+                "edicion",
+                f"Código: {updated['codigo']}; Categoría: {updated['categoria']}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Código": previous_estado["codigo"],
+                    "Descripción": previous_estado["descripcion"],
+                    "Categoría": previous_estado["categoria"],
+                    "Estado": previous_estado["activo"],
+                }) if previous_estado else None,
+                after=history_snapshot({
+                    "Código": updated["codigo"],
+                    "Descripción": updated["descripcion"],
+                    "Categoría": updated["categoria"],
+                    "Estado": updated["activo"],
+                }),
+            )
         flash(
             f"Estado especial {requested_status.lower()} correctamente."
             if updated else "No se encontró el estado especial para actualizar.",
@@ -1712,7 +3350,22 @@ def admin_delete_servicio(servicio_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        servicio = next(
+            (item for item in fetch_catalog_items("servicio") if item["id"] == servicio_id),
+            None,
+        )
         if delete_catalog_item("servicio", servicio_id):
+            record_history(
+                account,
+                f"Eliminó servicio {servicio_id} (de Servicios)",
+                None,
+                "eliminacion",
+                f"ID del servicio: {servicio_id}",
+                before=history_snapshot({
+                    "Nombre": servicio["nombre"],
+                    "Estado": servicio["activo"],
+                }) if servicio else None,
+            )
             flash("Servicio eliminado correctamente.", "success")
         else:
             flash("No se encontró el servicio para eliminar.", "error")
@@ -1732,7 +3385,27 @@ def admin_toggle_servicio_status(servicio_id: int):
         return redirect(url_for("admin_routes_page", catalog_tab="servicios"))
     try:
         initialize_schema()
+        previous_servicio = next(
+            (item for item in fetch_catalog_items("servicio") if item["id"] == servicio_id),
+            None,
+        )
         updated = update_catalog_status("servicio", servicio_id, requested_status == "Activo")
+        if updated is not None:
+            record_history(
+                account,
+                f"Servicio {updated['nombre']} {requested_status.lower()} (de Servicios)",
+                None,
+                "edicion",
+                f"Nombre: {updated['nombre']}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Nombre": previous_servicio["nombre"],
+                    "Estado": previous_servicio["activo"],
+                }) if previous_servicio else None,
+                after=history_snapshot({
+                    "Nombre": updated["nombre"],
+                    "Estado": updated["activo"],
+                }),
+            )
         flash(
             f"Servicio {requested_status.lower()} correctamente."
             if updated else "No se encontró el servicio para actualizar.",
@@ -1766,6 +3439,13 @@ def admin_create_controller():
     try:
         initialize_schema()
         if controller_id:
+            with get_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT nombre, credencial, sexo, mod1, active FROM catalogos.controladores WHERE id = %s",
+                        (int(controller_id),),
+                    )
+                    previous_controller = cursor.fetchone()
             updated_controller = update_controller(int(controller_id), payload)
             if updated_controller is None:
                 flash("No se encontró el controlador para actualizar.", "error")
@@ -1775,7 +3455,21 @@ def admin_create_controller():
                 f"Editó controlador {updated_controller['credencial']} (de Controladores)",
                 updated_controller["mod1"],
                 "edicion",
-                f"Nombre: {updated_controller['nombre']}; Credencial: {updated_controller['credencial']}; Sexo: {updated_controller['sexo']}",
+                f"Nombre: {updated_controller['nombre']}; Credencial: {updated_controller['credencial']}; Sexo: {updated_controller['sexo']}; Estado: {'Activo' if updated_controller['active'] else 'Inactivo'}",
+                before=history_snapshot({
+                    "Nombre": previous_controller[0],
+                    "Credencial": previous_controller[1],
+                    "Sexo": previous_controller[2],
+                    "Módulo": previous_controller[3],
+                    "Estado": previous_controller[4],
+                }) if previous_controller else None,
+                after=history_snapshot({
+                    "Nombre": updated_controller["nombre"],
+                    "Credencial": updated_controller["credencial"],
+                    "Sexo": updated_controller["sexo"],
+                    "Módulo": updated_controller["mod1"],
+                    "Estado": updated_controller["active"],
+                }),
             )
             flash("Controlador actualizado correctamente.", "success")
         else:
@@ -1785,7 +3479,14 @@ def admin_create_controller():
                 f"Registró controlador {payload['credencial']} (de Controladores)",
                 payload["mod1"],
                 "registro",
-                f"Nombre: {created_controller.get('nombre', payload['nombre'])}; Credencial: {payload['credencial']}; Sexo: {payload['sexo']}",
+                f"Nombre: {created_controller.get('nombre', payload['nombre'])}; Credencial: {payload['credencial']}; Sexo: {payload['sexo']}; Estado: {'Activo' if created_controller.get('active', payload['active']) else 'Inactivo'}",
+                after=history_snapshot({
+                    "Nombre": created_controller.get("nombre", payload["nombre"]),
+                    "Credencial": created_controller.get("credencial", payload["credencial"]),
+                    "Sexo": created_controller.get("sexo", payload["sexo"]),
+                    "Módulo": created_controller.get("mod1", payload["mod1"]),
+                    "Estado": created_controller.get("active", payload["active"]),
+                }),
             )
             flash("Controlador registrado correctamente.", "success")
     except Exception:
@@ -1805,7 +3506,7 @@ def admin_delete_controller(controller_id: int):
         with get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT nombre, credencial, sexo, mod1 FROM catalogos.controladores WHERE id = %s",
+                    "SELECT nombre, credencial, sexo, mod1, active FROM catalogos.controladores WHERE id = %s",
                     (controller_id,),
                 )
                 controller = cursor.fetchone()
@@ -1817,6 +3518,13 @@ def admin_delete_controller(controller_id: int):
                     controller[3],
                     "eliminacion",
                     f"Nombre: {controller[0]}; Credencial: {controller[1]}; Sexo: {controller[2]}",
+                    before=history_snapshot({
+                        "Nombre": controller[0],
+                        "Credencial": controller[1],
+                        "Sexo": controller[2],
+                        "Módulo": controller[3],
+                        "Estado": controller[4],
+                    }),
                 )
             flash("Controlador eliminado correctamente.", "success")
         else:
@@ -1853,6 +3561,13 @@ def admin_delete_selected_controllers():
                 controller["mod1"],
                 "eliminacion",
                 f"Nombre: {controller['nombre']}; Credencial: {controller['credencial']}; Sexo: {controller['sexo']}",
+                before=history_snapshot({
+                    "Nombre": controller["nombre"],
+                    "Credencial": controller["credencial"],
+                    "Sexo": controller["sexo"],
+                    "Módulo": controller["mod1"],
+                    "Estado": controller.get("active", True),
+                }),
             )
         flash(f"{len(controllers)} controlador(es) eliminado(s) correctamente.", "success")
     except ValueError as error:
@@ -1874,10 +3589,38 @@ def admin_toggle_controller_status(controller_id: int):
         return redirect(url_for("admin_controllers_page"))
     try:
         initialize_schema()
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT nombre, credencial, sexo, mod1, active FROM catalogos.controladores WHERE id = %s",
+                    (controller_id,),
+                )
+                previous_controller = cursor.fetchone()
         updated_controller = update_controller_status(controller_id, requested_status == "Activo")
         if updated_controller is None:
             flash("No se encontró el controlador para actualizar.", "error")
         else:
+            record_history(
+                account,
+                f"Controlador {previous_controller[1]} {requested_status.lower()} (de Controladores)",
+                previous_controller[3] if previous_controller else None,
+                "edicion",
+                f"ID del controlador: {controller_id}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Nombre": previous_controller[0],
+                    "Credencial": previous_controller[1],
+                    "Sexo": previous_controller[2],
+                    "Módulo": previous_controller[3],
+                    "Estado": previous_controller[4],
+                }) if previous_controller else None,
+                after=history_snapshot({
+                    "Nombre": previous_controller[0],
+                    "Credencial": previous_controller[1],
+                    "Sexo": previous_controller[2],
+                    "Módulo": previous_controller[3],
+                    "Estado": updated_controller["active"],
+                }) if previous_controller else None,
+            )
             flash(f"Controlador {requested_status.lower()} correctamente.", "success")
     except Exception:
         flash("No se pudo cambiar el estado del controlador.", "error")
@@ -1906,10 +3649,21 @@ def admin_create_user():
             flash("Selecciona un módulo válido.", "error")
             return redirect(url_for("admin_users_page"))
     user_id = request.form.get("user_id")
+    users_page_url = (
+        url_for("admin_users_page", edit_user_id=user_id)
+        if user_id
+        else url_for("admin_users_page")
+    )
 
     if not username:
         flash("El nombre de usuario es obligatorio.", "error")
         return redirect(url_for("admin_users_page"))
+    if correo and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", correo):
+        flash("Ingresa un correo electrónico válido.", "error")
+        return redirect(users_page_url)
+    if telefono and not re.fullmatch(r"[0-9]{10}", telefono):
+        flash("El teléfono debe contener exactamente 10 dígitos.", "error")
+        return redirect(users_page_url)
     if tipo_usuario == "usuario" and module_number not in range(1, MAX_MODULES + 1):
         flash("Selecciona un módulo válido.", "error")
         return redirect(url_for("admin_users_page"))
@@ -1929,18 +3683,81 @@ def admin_create_user():
             "active": request.form.get("activo") == "on",
         }
         if user_id:
+            with get_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT username, correo, telefono, module_number, is_admin, tipo_usuario, active FROM seguridad.usuarios WHERE id = %s",
+                        (int(user_id),),
+                    )
+                    previous_user = cursor.fetchone()
             if password:
                 payload["password_hash"] = generate_password_hash(password)
             updated_user = update_user(int(user_id), payload)
             if updated_user is None:
                 flash("No se encontró el usuario para actualizar.", "error")
                 return redirect(url_for("admin_users_page"))
+            user_type = {
+                "usuario": "Supervisor",
+                "admin": "Administrador",
+                "consultor": "Consultor",
+            }.get(updated_user["tipo_usuario"], updated_user["tipo_usuario"])
+            record_history(
+                account,
+                f"Editó usuario {updated_user['username']} (de Usuarios)",
+                updated_user["module_number"],
+                "edicion",
+                f"Tipo: {user_type}; Estado: {'Activo' if updated_user['active'] else 'Inactivo'}",
+                before=history_snapshot({
+                    "Usuario": previous_user[0],
+                    "Tipo de usuario": history_user_type_label(previous_user[5]),
+                    "Correo electrónico": previous_user[1],
+                    "Teléfono": previous_user[2],
+                    "Módulo": previous_user[3],
+                    "Estado": previous_user[6],
+                }) if previous_user else None,
+                after=history_snapshot({
+                    "Usuario": updated_user["username"],
+                    "Tipo de usuario": history_user_type_label(updated_user["tipo_usuario"]),
+                    "Correo electrónico": updated_user.get("correo"),
+                    "Teléfono": updated_user.get("telefono"),
+                    "Módulo": updated_user.get("module_number"),
+                    "Estado": updated_user["active"],
+                }),
+            )
+            if password:
+                record_history(
+                    account,
+                    f"Cambió la contraseña del usuario {updated_user['username']}",
+                    updated_user["module_number"],
+                    "contrasena",
+                    "La contraseña del usuario fue actualizada por un administrador.",
+                )
             flash("Usuario actualizado correctamente.", "success")
         else:
-            create_user({
+            created_user = create_user({
                 **payload,
                 "password_hash": generate_password_hash(password),
             })
+            user_type = {
+                "usuario": "Supervisor",
+                "admin": "Administrador",
+                "consultor": "Consultor",
+            }.get(created_user["tipo_usuario"], created_user["tipo_usuario"])
+            record_history(
+                account,
+                f"Registró usuario {created_user['username']} (de Usuarios)",
+                created_user["module_number"],
+                "registro",
+                f"Tipo: {user_type}; Estado: {'Activo' if created_user['active'] else 'Inactivo'}",
+                after=history_snapshot({
+                    "Usuario": created_user["username"],
+                    "Tipo de usuario": history_user_type_label(created_user["tipo_usuario"]),
+                    "Correo electrónico": created_user.get("correo"),
+                    "Teléfono": created_user.get("telefono"),
+                    "Módulo": created_user.get("module_number"),
+                    "Estado": created_user["active"],
+                }),
+            )
             flash("Usuario creado correctamente.", "success")
     except Exception:
         flash("No se pudo guardar el usuario. Verifica que los datos no estén repetidos.", "error")
@@ -1959,7 +3776,38 @@ def admin_toggle_user_status(user_id: int):
         return redirect(url_for("admin_users_page"))
     try:
         initialize_schema()
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT username, correo, telefono, module_number, tipo_usuario, active FROM seguridad.usuarios WHERE id = %s",
+                    (user_id,),
+                )
+                previous_user = cursor.fetchone()
         updated = update_user_status(user_id, requested_status == "Activo")
+        if updated is not None:
+            record_history(
+                account,
+                f"Usuario {previous_user[0]} {requested_status.lower()} (de Usuarios)",
+                updated.get("module_number"),
+                "edicion",
+                f"ID del usuario: {user_id}; Estado: {requested_status}",
+                before=history_snapshot({
+                    "Usuario": previous_user[0],
+                    "Tipo de usuario": history_user_type_label(previous_user[4]),
+                    "Correo electrónico": previous_user[1],
+                    "Teléfono": previous_user[2],
+                    "Módulo": previous_user[3],
+                    "Estado": previous_user[5],
+                }) if previous_user else None,
+                after=history_snapshot({
+                    "Usuario": previous_user[0],
+                    "Tipo de usuario": history_user_type_label(previous_user[4]),
+                    "Correo electrónico": previous_user[1],
+                    "Teléfono": previous_user[2],
+                    "Módulo": updated["module_number"],
+                    "Estado": updated["active"],
+                }) if previous_user else None,
+            )
         flash(
             f"Usuario {requested_status.lower()} correctamente."
             if updated else "No se encontró el usuario para actualizar.",
@@ -1977,7 +3825,29 @@ def admin_delete_user(user_id: int):
         return redirect(url_for("connection_status"))
     try:
         initialize_schema()
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT username, correo, telefono, module_number, tipo_usuario, active FROM seguridad.usuarios WHERE id = %s",
+                    (user_id,),
+                )
+                user = cursor.fetchone()
         if delete_user(user_id):
+            record_history(
+                account,
+                f"Eliminó usuario {user[0] if user else user_id} (de Usuarios)",
+                user[3] if user else None,
+                "eliminacion",
+                f"ID del usuario: {user_id}",
+                before=history_snapshot({
+                    "Usuario": user[0],
+                    "Tipo de usuario": history_user_type_label(user[4]),
+                    "Correo electrónico": user[1],
+                    "Teléfono": user[2],
+                    "Módulo": user[3],
+                    "Estado": user[5],
+                }) if user else None,
+            )
             flash("Usuario eliminado correctamente.", "success")
         else:
             flash("No se encontró el usuario para eliminar.", "error")
@@ -2017,6 +3887,14 @@ def admin_delete_selected_users():
                 user["module_number"],
                 "eliminacion",
                 f"Tipo: {user_type}",
+                before=history_snapshot({
+                    "Usuario": user["username"],
+                    "Tipo de usuario": history_user_type_label(user["tipo_usuario"]),
+                    "Correo electrónico": user.get("correo"),
+                    "Teléfono": user.get("telefono"),
+                    "Módulo": user.get("module_number"),
+                    "Estado": user.get("active"),
+                }),
             )
         flash(f"{len(users)} usuario(s) eliminado(s) correctamente.", "success")
     except ValueError as error:
@@ -2062,6 +3940,17 @@ def module_controllers(module_number: int):
     try:
         initialize_schema()
         return jsonify(fetch_controllers(module_number, active_only=True))
+    except Exception as error:
+        return jsonify(error=str(error)), 500
+
+
+@app.get("/api/modulos/<int:module_number>/turnos")
+def module_turnos(module_number: int):
+    if not module_authorized(module_number):
+        return jsonify(error="No autorizado."), 403
+    try:
+        initialize_schema()
+        return jsonify(fetch_catalog_items("turnos", module_number))
     except Exception as error:
         return jsonify(error=str(error)), 500
 
@@ -2191,6 +4080,104 @@ def more_dashboard(module_number: int):
     if not account or account.get("is_admin") or account.get("module_number") != module_number:
         return redirect(url_for("connection_status"))
     return render_template("turnos.html", module_number=module_number, account=account)
+
+
+@app.post("/api/turnos/<int:turno_id>/descartar")
+def discard_assigned_turno(turno_id: int):
+    account = session.get("account")
+    module_number = account.get("module_number") if account else None
+    if (
+        not account
+        or account.get("is_admin")
+        or account.get("tipo_usuario") == "consultor"
+        or type(module_number) is not int
+        or module_number < 1
+    ):
+        return jsonify(error="No autorizado."), 403
+    try:
+        initialize_schema()
+        turno = next(
+            (
+                item
+                for item in fetch_catalog_items("turnos", module_number)
+                if item["id"] == turno_id and item["activo"]
+            ),
+            None,
+        )
+        if turno is None:
+            return jsonify(error="El turno ya no está disponible para este módulo."), 409
+        recorded = record_history(
+            account,
+            f"Descartó turno {turno['numero']} (de Turnos)",
+            module_number,
+            "descarto",
+            (
+                f"Turno: {turno['numero']}; Inicio: {turno['hora_inicio']}; "
+                f"Fin: {turno['hora_fin']}"
+            ),
+            before=history_turno_snapshot(
+                turno, [module_number], {module_number: True}
+            ),
+        )
+        if not recorded:
+            return jsonify(error="No se pudo registrar el turno descartado."), 500
+        return jsonify(ok=True)
+    except Exception:
+        app.logger.exception(
+            "No se pudo registrar el descarte del turno %s para el módulo %s",
+            turno_id,
+            module_number,
+        )
+        return jsonify(error="No se pudo registrar el turno descartado."), 500
+
+
+@app.post("/api/turnos/<int:turno_id>/agregar")
+def add_assigned_turno(turno_id: int):
+    account = session.get("account")
+    module_number = account.get("module_number") if account else None
+    if (
+        not account
+        or account.get("is_admin")
+        or account.get("tipo_usuario") == "consultor"
+        or type(module_number) is not int
+        or module_number < 1
+    ):
+        return jsonify(error="No autorizado."), 403
+    try:
+        initialize_schema()
+        turno = next(
+            (
+                item
+                for item in fetch_catalog_items("turnos", module_number)
+                if item["id"] == turno_id and item["activo"]
+            ),
+            None,
+        )
+        if turno is None:
+            return jsonify(error="El turno ya no está disponible para este módulo."), 409
+        recorded = record_history(
+            account,
+            f"Agregó turno {turno['numero']} (de Turnos)",
+            module_number,
+            "agrego",
+            (
+                f"Turno: {turno['numero']}; Inicio: {turno['hora_inicio']}; "
+                f"Fin: {turno['hora_fin']}"
+            ),
+            after=history_turno_snapshot(
+                turno, [module_number], {module_number: True}
+            ),
+        )
+        if not recorded:
+            return jsonify(error="No se pudo registrar el turno agregado."), 500
+        return jsonify(ok=True)
+    except Exception:
+        app.logger.exception(
+            "No se pudo registrar el turno %s agregado para el módulo %s",
+            turno_id,
+            module_number,
+        )
+        return jsonify(error="No se pudo registrar el turno agregado."), 500
 
 
 CATALOG_FIELDS = {
@@ -2380,6 +4367,13 @@ def controller_item(controller_id: int):
         if account.get("is_admin") and not payload.get("mod1"):
             mod1 = 1
 
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT nombre, credencial, sexo, mod1, active FROM catalogos.controladores WHERE id = %s",
+                    (controller_id,),
+                )
+                previous_controller = cursor.fetchone()
         updated = update_controller(controller_id, {
             "nombre": str(payload["nombre"]).strip(),
             "credencial": str(payload["credencial"]).strip(),
@@ -2394,6 +4388,20 @@ def controller_item(controller_id: int):
             updated["mod1"],
             "edicion",
             f"Nombre: {updated['nombre']}; Credencial: {updated['credencial']}; Sexo: {updated['sexo']}",
+            before={
+                "Nombre": previous_controller[0],
+                "Credencial": previous_controller[1],
+                "Sexo": previous_controller[2],
+                "Módulo": previous_controller[3],
+                "Estado": previous_controller[4],
+            } if previous_controller else None,
+            after={
+                "Nombre": updated["nombre"],
+                "Credencial": updated["credencial"],
+                "Sexo": updated["sexo"],
+                "Módulo": updated["mod1"],
+                "Estado": updated["active"],
+            },
         )
         return jsonify(updated)
     except Exception as error:
@@ -2428,6 +4436,265 @@ def records():
     return jsonify(records_for(month, year, module_number))
 
 
+def _record_json_field(record: dict, field: str, expected_type: type, fallback):
+    value = record.get(field)
+    if value is None:
+        return fallback
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"El campo {field} de una asignación no es válido.") from error
+    if not isinstance(value, expected_type):
+        raise ValueError(f"El campo {field} de una asignación no es válido.")
+    return value
+
+
+def _record_assignment_code(record: dict, day: int) -> str:
+    day_key = str(day)
+    details = _record_json_field(record, "daily_details", dict, {})
+    assignments = _record_json_field(record, "daily_assignments", dict, {})
+    detail = details.get(day_key)
+    code = detail.get("code") if isinstance(detail, dict) else None
+    return str(code or assignments.get(day_key) or "").strip().upper()
+
+
+def _record_day_list(record: dict, field: str) -> set[int]:
+    days = _record_json_field(record, field, list, [])
+    try:
+        return {int(day) for day in days}
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"El campo {field} de una asignación no es válido.") from error
+
+
+def _copy_assignment_record(record: dict) -> dict:
+    snapshot = copy(record)
+    snapshot["work_days"] = sorted(_record_day_list(record, "work_days"))
+    snapshot["rest_days"] = sorted(_record_day_list(record, "rest_days"))
+    snapshot["daily_assignments"] = dict(
+        _record_json_field(record, "daily_assignments", dict, {})
+    )
+    snapshot["daily_details"] = dict(
+        _record_json_field(record, "daily_details", dict, {})
+    )
+    return snapshot
+
+
+def _prepare_assignment_transfers(
+    raw_transfers,
+    previous_records: list[dict],
+    submitted_records: list[dict],
+    days_in_month: int,
+    default_target_credential: str | None = None,
+) -> tuple[list[dict], dict | None]:
+    if raw_transfers is None or raw_transfers == []:
+        return [], None
+    if not isinstance(raw_transfers, list):
+        raise ValueError("La lista de transferencias no es válida.")
+
+    previous_by_credential = {
+        str(record.get("credential", "")).strip(): record
+        for record in previous_records
+    }
+    submitted_by_credential = {}
+    for record in submitted_records:
+        if not isinstance(record, dict):
+            raise ValueError("Uno de los registros enviados no es válido.")
+        credential = str(record.get("credential", "")).strip()
+        if not credential or credential in submitted_by_credential:
+            raise ValueError("Los registros enviados contienen credenciales inválidas o duplicadas.")
+        submitted_by_credential[credential] = record
+
+    source_before = {}
+    source_after = {}
+    target_before = {}
+    target_after = {}
+    events = []
+    seen_transfers = set()
+
+    for raw_transfer in raw_transfers:
+        if not isinstance(raw_transfer, dict):
+            raise ValueError("Una transferencia de código no es válida.")
+        try:
+            day = int(raw_transfer.get("day"))
+        except (TypeError, ValueError) as error:
+            raise ValueError("El día de una transferencia no es válido.") from error
+        if isinstance(raw_transfer.get("day"), bool) or day < 1 or day > days_in_month:
+            raise ValueError("El día de una transferencia no pertenece al mes seleccionado.")
+
+        source_credential = str(raw_transfer.get("source_credential", "")).strip()
+        target_credential = str(
+            raw_transfer.get("target_credential") or default_target_credential or ""
+        ).strip()
+        code = str(raw_transfer.get("code", "")).strip().upper()
+        if not source_credential or not target_credential or not code:
+            raise ValueError("Faltan datos de una transferencia de código.")
+        if source_credential == target_credential:
+            raise ValueError("El titular actual y el nuevo deben ser distintos.")
+        transfer_key = (source_credential, target_credential, day)
+        if transfer_key in seen_transfers:
+            raise ValueError("La misma asignación no se puede transferir dos veces.")
+        seen_transfers.add(transfer_key)
+
+        source = previous_by_credential.get(source_credential)
+        target = submitted_by_credential.get(target_credential)
+        if source is None or target is None:
+            raise ValueError("La asignación cambió; vuelve a cargar el rol mensual.")
+        if _record_assignment_code(source, day) != code:
+            raise ValueError("El código ya no pertenece al titular actual; vuelve a cargar el rol mensual.")
+        if _record_assignment_code(target, day) != code or day not in _record_day_list(target, "work_days"):
+            raise ValueError("El nuevo controlador ya no tiene ese código asignado en el día seleccionado.")
+
+        if source_credential in target_after:
+            raise ValueError("No se pueden encadenar transferencias del mismo controlador en una operación.")
+        if target_credential in source_after:
+            raise ValueError("No se pueden encadenar transferencias del mismo controlador en una operación.")
+
+        source_before.setdefault(source_credential, _copy_assignment_record(source))
+        target_before.setdefault(
+            target_credential,
+            _copy_assignment_record(previous_by_credential[target_credential])
+            if target_credential in previous_by_credential else None,
+        )
+        target_after[target_credential] = target
+        source_record = source_after.get(source_credential)
+        if source_record is None:
+            source_record = copy(submitted_by_credential.get(source_credential, source))
+            source_after[source_credential] = source_record
+
+        work_days = _record_day_list(source_record, "work_days")
+        rest_days = _record_day_list(source_record, "rest_days")
+        assignments = dict(_record_json_field(source_record, "daily_assignments", dict, {}))
+        details = dict(_record_json_field(source_record, "daily_details", dict, {}))
+        day_key = str(day)
+        work_days.discard(day)
+        rest_days.add(day)
+        assignments.pop(day_key, None)
+        details.pop(day_key, None)
+        source_record.update({
+            "work_days": sorted(work_days),
+            "rest_days": sorted(rest_days),
+            "daily_assignments": assignments,
+            "daily_details": details,
+        })
+        if source_credential in submitted_by_credential:
+            submitted_by_credential[source_credential].update(source_record)
+
+        events.append({
+            "code": code,
+            "day": day,
+            "source_credential": source_credential,
+            "target_credential": target_credential,
+            "source": source_before[source_credential],
+            "target": target,
+        })
+
+    target_credentials = set(target_after)
+    if target_credentials.intersection(source_after):
+        raise ValueError("No se puede transferir un código entre registros relacionados en la misma operación.")
+
+    source_updates = [
+        record
+        for credential, record in source_after.items()
+        if credential not in submitted_by_credential
+    ]
+    return source_updates, {
+        "events": events,
+        "source_before": source_before,
+        "source_after": source_after,
+        "target_before": target_before,
+        "target_after": target_after,
+    }
+
+
+def _record_assignment_transfer_history(
+    account: dict,
+    module_number: int,
+    month: int,
+    year: int,
+    transfer_plan: dict,
+) -> None:
+    def describe_transfer(item: dict) -> str:
+        source = item["source"]
+        target = item["target"]
+        return (
+            f"Código {item['code']} del día {item['day']}: "
+            f"{source.get('name') or item['source_credential']} "
+            f"({item['source_credential']}) a "
+            f"{target.get('name') or item['target_credential']} "
+            f"({item['target_credential']})"
+        )
+
+    source_descriptions = [
+        describe_transfer(item)
+        for item in transfer_plan["events"]
+    ]
+    record_history(
+        account,
+        f"Reasignó {len(source_descriptions)} código(s) del rol {month:02d}/{year} (de Asignación de Roles)",
+        module_number,
+        "edicion",
+        "; ".join(source_descriptions),
+        "asignaciones",
+        before={
+            "Asignaciones": [
+                assignment_history_snapshot(record)
+                for record in transfer_plan["source_before"].values()
+            ]
+        },
+        after={
+            "Asignaciones": [
+                assignment_history_snapshot(record)
+                for record in transfer_plan["source_after"].values()
+            ]
+        },
+    )
+
+    targets_by_action = {"edicion": [], "registro": []}
+    for credential, record in transfer_plan["target_after"].items():
+        action = "edicion" if transfer_plan["target_before"].get(credential) else "registro"
+        targets_by_action[action].append((credential, record))
+    for action, targets in targets_by_action.items():
+        if not targets:
+            continue
+        target_credentials = {credential for credential, _record in targets}
+        target_descriptions = [
+            describe_transfer(item)
+            for item in transfer_plan["events"]
+            if item["target_credential"] in target_credentials
+        ]
+        before_records = [
+            transfer_plan["target_before"][credential]
+            for credential, _record in targets
+            if transfer_plan["target_before"].get(credential) is not None
+        ]
+        after_records = [record for _credential, record in targets]
+        verb = "Actualizó" if action == "edicion" else "Registró"
+        target_count_label = "controlador" if len(targets) == 1 else "controladores"
+        record_history(
+            account,
+            f"{verb} la asignación del código para {len(targets)} {target_count_label} "
+            f"en el rol {month:02d}/{year} "
+            "(de Asignación de Roles)",
+            module_number,
+            action,
+            "; ".join(target_descriptions),
+            "asignaciones",
+            before={
+                "Asignaciones": [
+                    assignment_history_snapshot(record)
+                    for record in before_records
+                ]
+            } if before_records else None,
+            after={
+                "Asignaciones": [
+                    assignment_history_snapshot(record)
+                    for record in after_records
+                ]
+            },
+        )
+
+
 @app.post("/api/records/save-all")
 def save_all_records():
     account = session.get("account")
@@ -2448,10 +4715,26 @@ def save_all_records():
     records = payload.get("records") or []
     if not isinstance(records, list):
         return jsonify(error="Los registros enviados no son válidos."), 400
+    transfer_plan = None
     try:
         previous_records = records_for(month, year, module_number)
+        _, transfer_plan = _prepare_assignment_transfers(
+            payload.get("transfers"),
+            previous_records,
+            records,
+            monthrange(year, month)[1],
+        )
         initialize_schema()
-        saved_count = save_month_records(records, module_number, month, year)
+        if transfer_plan:
+            saved_count = save_month_records(
+                records,
+                module_number,
+                month,
+                year,
+                expected_transfers=transfer_plan["events"],
+            )
+        else:
+            saved_count = save_month_records(records, module_number, month, year)
         previous_by_credential = {item.get("credential"): item for item in previous_records}
         changes = []
         for item in records:
@@ -2472,9 +4755,32 @@ def save_all_records():
             module_number,
             history_action,
             " | ".join(changes) if changes else "Sin registros con cambios de códigos",
+            "asignaciones",
+            before={
+                "Asignaciones": [
+                    assignment_history_snapshot(item)
+                    for item in previous_records
+                ]
+            } if history_action in {"edicion", "eliminacion"} else None,
+            after={
+                "Asignaciones": [
+                    assignment_history_snapshot(item)
+                    for item in records
+                ]
+            } if history_action in {"edicion", "registro"} else None,
         )
+        if transfer_plan:
+            _record_assignment_transfer_history(
+                account,
+                module_number,
+                month,
+                year,
+                transfer_plan,
+            )
         return jsonify(ok=True, saved_count=saved_count)
     except Exception as error:
+        if transfer_plan and isinstance(error, ValueError):
+            return jsonify(error=str(error)), 409
         return jsonify(error=f"No se pudieron guardar los registros: {error}"), 400
 
 
@@ -2511,6 +4817,17 @@ def _create_record():
     all_days = set(range(1, last_day + 1))
     if any(day not in all_days for day in (*work_days, *rest_days, *vacation_days)):
         return jsonify(error="Hay días que no pertenecen al mes seleccionado."), 400
+    raw_edited_days = payload.get("edited_days")
+    edited_days = None
+    if raw_edited_days is not None:
+        if not isinstance(raw_edited_days, list):
+            return jsonify(error="La lista de días editados no es válida."), 400
+        try:
+            edited_days = sorted({int(day) for day in raw_edited_days})
+        except (TypeError, ValueError):
+            return jsonify(error="La lista de días editados no es válida."), 400
+        if any(day not in all_days for day in edited_days):
+            return jsonify(error="Hay días editados que no pertenecen al mes seleccionado."), 400
     raw_details = payload.get("daily_details") or {}
     if not isinstance(raw_details, dict):
         raw_details = {}
@@ -2596,16 +4913,76 @@ def _create_record():
         ),
         None,
     )
+    previous_records = records_for(month, year, module_number)
     previous_record = next(
-        (item for item in records_for(month, year, module_number) if item.get("credential") == record["credential"]),
+        (
+            dict(item)
+            for item in previous_records
+            if item.get("credential") == record["credential"]
+        ),
         None,
     )
     try:
+        transfer_source_records, transfer_plan = _prepare_assignment_transfers(
+            payload.get("transfers"),
+            previous_records,
+            [record],
+            last_day,
+            record["credential"],
+        )
+    except (TypeError, ValueError) as error:
+        return jsonify(error=str(error)), 409
+    saved_records = []
+    database_ready = False
+    try:
         initialize_schema()
-        saved = upsert_record(record)
+        database_ready = True
+        if transfer_source_records:
+            saved_records = upsert_records_atomically(
+                [*transfer_source_records, record],
+                expected_transfers=transfer_plan["events"],
+            )
+            saved = saved_records[-1]
+        else:
+            saved = upsert_record(record)
         saved_to_database = True
-    except Exception:
+    except Exception as error:
+        if transfer_source_records and database_ready:
+            if isinstance(error, ValueError):
+                return jsonify(error=str(error)), 409
+            app.logger.exception(
+                "No se pudo guardar la transferencia del código al registro %s",
+                record["credential"],
+            )
+            return jsonify(
+                error="No se pudo completar la transferencia; no se modificaron las asignaciones."
+            ), 500
         saved_to_database = False
+        for source_record in transfer_source_records:
+            existing_source = next(
+                (
+                    item for item in memory_records
+                    if item["credential"] == source_record["credential"]
+                    and item["month"] == month
+                    and item["year"] == year
+                    and item.get("module_number") == module_number
+                ),
+                None,
+            )
+            if existing_source is None:
+                app.logger.exception(
+                    "No se encontró el titular actual %s en el almacenamiento disponible",
+                    source_record["credential"],
+                )
+                return jsonify(
+                    error="No se pudo completar la transferencia; vuelve a cargar el rol mensual."
+                ), 503
+            existing_source.update({
+                "work_days": list(source_record["work_days"]),
+                "rest_days": list(source_record["rest_days"]),
+                "daily_assignments": dict(source_record["daily_assignments"]),
+                "daily_details": dict(source_record["daily_details"]),
+            })
         if existing_record:
             existing_record.update({
                 "name": record["name"],
@@ -2695,14 +5072,32 @@ def _create_record():
                 error="El registro se guardó, pero no se pudieron actualizar las tablas analíticas."
             ), 500
     saved["updated_existing"] = previous_record is not None
-    history_action = "edicion" if saved["updated_existing"] else "registro"
-    record_history(
-        account,
-        f"{'Editó' if saved['updated_existing'] else 'Registró'} a {record['credential']} ({month:02d}/{year}) (de Asignación de Roles)",
-        module_number,
-        history_action,
-        format_code_changes(previous_record, saved),
-    )
+    if transfer_plan:
+        for source_record in transfer_source_records:
+            transfer_plan["source_after"][source_record["credential"]] = source_record
+        transfer_plan["target_after"][record["credential"]] = saved
+        _record_assignment_transfer_history(
+            account,
+            module_number,
+            month,
+            year,
+            transfer_plan,
+        )
+    else:
+        history_action = "edicion" if saved["updated_existing"] else "registro"
+        record_history(
+            account,
+            f"{'Editó' if saved['updated_existing'] else 'Registró'} a {record['credential']} ({month:02d}/{year}) (de Asignación de Roles)",
+            module_number,
+            history_action,
+            format_code_changes(previous_record, saved),
+            "asignaciones",
+            before=assignment_history_snapshot(previous_record) if saved["updated_existing"] else None,
+            after=assignment_history_snapshot(
+                saved,
+                edited_days=edited_days if saved["updated_existing"] else None,
+            ),
+        )
     return jsonify(saved), 201
 
 
@@ -2779,6 +5174,8 @@ def delete_record_by_credential():
             module_number,
             "eliminacion",
             format_code_changes(previous_record, None),
+            "asignaciones",
+            before=assignment_history_snapshot(previous_record),
         )
     return jsonify({"deleted": deleted, "credential": credential, "month": month, "year": year})
 
@@ -2801,7 +5198,14 @@ def export_excel():
         routes = []
     output = build_turnos_excel(records, month, year, routes)
     filename = f"turnos_{month}_{year}.xlsx"
-    record_history(account, f"Descargó Excel del rol {month:02d}/{year}", module_number, "descarga")
+    record_history(
+        account,
+        f"Descargó Excel del rol {month:02d}/{year}",
+        module_number,
+        "descarga",
+        None,
+        "asignaciones",
+    )
     return send_file(output, download_name=filename, as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 

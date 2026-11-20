@@ -149,7 +149,7 @@
                     </thead>
                     <tbody>
                       {% for controller in group.controllers %}
-                        <tr class="admin-controller-item" data-admin-filter-row data-admin-save-row="{{ controller.credencial }}" data-controller-id="{{ controller.id }}" data-controller-name="{{ controller.nombre }}" data-controller-monthly-days="{{ controller.monthly_assigned_days }}" data-controller-monthly-assignment="{{ 'Asignado' if controller.monthly_assigned_days > 0 else 'No asignado' }}" data-controller-month-name="{{ current_month_name }}" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}" data-controller-gender="{{ controller.sexo }}">
+                        <tr class="admin-controller-item" data-admin-filter-row data-admin-save-row="{{ controller.credencial }}" data-admin-status-row-key="controller-{{ controller.id }}-module-{{ group.module_number }}" data-admin-status-module="{{ group.module_number }}" data-controller-id="{{ controller.id }}" data-controller-name="{{ controller.nombre }}" data-controller-monthly-days="{{ controller.monthly_assigned_days }}" data-controller-monthly-assignment="{{ 'Asignado' if controller.monthly_assigned_days > 0 else 'No asignado' }}" data-controller-month-name="{{ current_month_name }}" data-controller-status="{{ 'Activo' if controller.active else 'Inactivo' }}" data-controller-gender="{{ controller.sexo }}">
                           {% if not is_read_only_account %}
                           <td class="admin-route-select-column">
                             <label class="admin-route-select-control" title="Seleccionar controlador para eliminar">
@@ -178,6 +178,7 @@
                                 <form
                                     method="post"
                                     action="{{ url_for('admin_toggle_controller_status', controller_id=controller.id) }}"
+                                    data-admin-status-form
                                 >
 
                                     <input
@@ -195,7 +196,7 @@
                                         <input
                                             type="checkbox"
                                             {% if controller.active %}checked{% endif %}
-                                            onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();"
+                                            onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();"
                                         >
 
                                         <span class="route-status-badge">
@@ -280,7 +281,7 @@
             </div>
 
             <div class="admin-form-shell">
-              <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="credencial" data-admin-save-scope-field="mod1" data-admin-save-selector=".admin-controller-item[data-admin-save-row]" data-admin-save-label="{{ 'Actualizando controlador...' if editing_controller else 'Guardando controlador...' }}">
+              <form method="post" action="{{ url_for('admin_create_controller') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-edit-guard="{{ 'true' if editing_controller else 'false' }}" data-admin-save-field="credencial" data-admin-save-scope-field="mod1" data-admin-save-selector=".admin-controller-item[data-admin-save-row]" data-admin-save-label="{{ 'Actualizando controlador...' if editing_controller else 'Guardando controlador...' }}">
                 {% if editing_controller %}
                   <input type="hidden" name="controller_id" value="{{ editing_controller.id }}">
                 {% endif %}
@@ -340,7 +341,7 @@
 
                 <div class="admin-form-actions">
                   <button class="admin-secondary-button" type="button" data-controller-modal-close>Cancelar</button>
-                  <button class="admin-primary-button" type="submit" data-controller-submit-label>
+                  <button class="admin-primary-button" type="submit" data-controller-submit-label data-admin-edit-save {% if editing_controller %}hidden{% endif %}>
                     {{ 'Actualizar controlador' if editing_controller else 'Guardar registro' }}
                   </button>
                   
@@ -738,7 +739,7 @@
   <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
-  {% include 'admin/_notification_toast.html' %}
+  {% include 'admin/_action_notification.html' %}
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

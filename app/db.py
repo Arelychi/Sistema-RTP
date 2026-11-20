@@ -199,15 +199,17 @@ def _initialize_schema() -> None:
             cursor.execute(
                 "ALTER TABLE catalogos.modulos ADD CONSTRAINT modulos_id_check CHECK (id BETWEEN 1 AND 20)"
             )
-            for module_number in range(1, FIXED_MODULE_COUNT + 1):
-                cursor.execute(
-                    """
-                    INSERT INTO catalogos.modulos (id, nombre)
-                    VALUES (%s, %s)
-                    ON CONFLICT (id) DO NOTHING
-                    """,
-                    (module_number, f"Módulo {module_number}"),
-                )
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM catalogos.modulos)")
+            if not cursor.fetchone()[0]:
+                for module_number in range(1, FIXED_MODULE_COUNT + 1):
+                    cursor.execute(
+                        """
+                        INSERT INTO catalogos.modulos (id, nombre)
+                        VALUES (%s, %s)
+                        ON CONFLICT (id) DO NOTHING
+                        """,
+                        (module_number, f"Módulo {module_number}"),
+                    )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS seguridad.usuarios (
@@ -261,9 +263,13 @@ def _initialize_schema() -> None:
                     id BIGSERIAL PRIMARY KEY,
                     usuario VARCHAR(80) NOT NULL,
                     modulo SMALLINT,
+                    modulos SMALLINT[] NOT NULL DEFAULT ARRAY[]::SMALLINT[],
                     modificacion VARCHAR(240) NOT NULL,
-                    descripcion VARCHAR(500) NOT NULL DEFAULT '',
+                    descripcion TEXT NOT NULL DEFAULT '',
                     accion VARCHAR(30) NOT NULL DEFAULT 'registro',
+                    seccion VARCHAR(20) NOT NULL DEFAULT 'general',
+                    datos_anteriores JSONB,
+                    datos_nuevos JSONB,
                     fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
@@ -275,6 +281,42 @@ def _initialize_schema() -> None:
                 "UPDATE seguridad.historial_rol_mensual SET descripcion = modificacion WHERE descripcion IS NULL OR descripcion = ''"
             )
             cursor.execute(
+                "ALTER TABLE seguridad.historial_rol_mensual ADD COLUMN IF NOT EXISTS seccion VARCHAR(20) NOT NULL DEFAULT 'general'"
+            )
+            cursor.execute(
+                "ALTER TABLE seguridad.historial_rol_mensual ADD COLUMN IF NOT EXISTS modulos SMALLINT[] NOT NULL DEFAULT ARRAY[]::SMALLINT[]"
+            )
+            cursor.execute(
+                "ALTER TABLE seguridad.historial_rol_mensual ALTER COLUMN descripcion TYPE TEXT"
+            )
+            cursor.execute(
+                "ALTER TABLE seguridad.historial_rol_mensual ADD COLUMN IF NOT EXISTS datos_anteriores JSONB"
+            )
+            cursor.execute(
+                "ALTER TABLE seguridad.historial_rol_mensual ADD COLUMN IF NOT EXISTS datos_nuevos JSONB"
+            )
+            cursor.execute(
+                """
+                UPDATE seguridad.historial_rol_mensual
+                SET modulos = ARRAY[modulo]::SMALLINT[]
+                WHERE modulo IS NOT NULL AND cardinality(modulos) = 0
+                """
+            )
+            cursor.execute(
+                """
+                UPDATE seguridad.historial_rol_mensual
+                SET seccion = 'asignaciones'
+                WHERE seccion = 'general'
+                  AND (
+                    modificacion ILIKE '%de Asignación de Roles%'
+                    OR modificacion ILIKE 'Descargó Excel del rol%'
+                  )
+                """
+            )
+            cursor.execute(
+                "UPDATE seguridad.historial_rol_mensual SET accion = 'edicion' WHERE accion = 'activacion'"
+            )
+            cursor.execute(
                 "ALTER TABLE seguridad.historial_rol_mensual ALTER COLUMN descripcion SET DEFAULT ''"
             )
             cursor.execute(
@@ -284,6 +326,12 @@ def _initialize_schema() -> None:
                 """
                 CREATE INDEX IF NOT EXISTS historial_rol_mensual_fecha_idx
                 ON seguridad.historial_rol_mensual (fecha_hora DESC)
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS historial_rol_mensual_seccion_fecha_idx
+                ON seguridad.historial_rol_mensual (seccion, fecha_hora DESC, id DESC)
                 """
             )
             cursor.execute(
@@ -513,19 +561,21 @@ def _initialize_schema() -> None:
                         "UPDATE catalogos.modulo_ruta SET nomenclatura = %s WHERE id = %s",
                         (route_nomenclature(index), association_id),
                     )
-            default_users = [
-                (f"user{number}", f"user{number}", number, False)
-                for number in range(1, 8)
-            ] + [("administrador", "administrador", None, True)]
-            for username, password, module_number, is_admin in default_users:
-                cursor.execute(
-                    """
-                    INSERT INTO seguridad.usuarios (username, password_hash, module_number, is_admin, tipo_usuario)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (username) DO NOTHING
-                    """,
-                    (username, generate_password_hash(password), module_number, is_admin, "admin" if is_admin else "usuario"),
-                )
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM seguridad.usuarios)")
+            if not cursor.fetchone()[0]:
+                default_users = [
+                    (f"user{number}", f"user{number}", number, False)
+                    for number in range(1, 8)
+                ] + [("administrador", "administrador", None, True)]
+                for username, password, module_number, is_admin in default_users:
+                    cursor.execute(
+                        """
+                        INSERT INTO seguridad.usuarios (username, password_hash, module_number, is_admin, tipo_usuario)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (username) DO NOTHING
+                        """,
+                        (username, generate_password_hash(password), module_number, is_admin, "admin" if is_admin else "usuario"),
+                    )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS schedule_records (
@@ -824,39 +874,144 @@ def complete_password_reset(token_hash: str, user_id: int, password_hash: str) -
     return True
 
 
-def create_history_entry(
+def _insert_history_entry(
+    cursor,
     username: str,
-    module_number: int | None,
+    module_number: int | list[int] | None,
     description: str,
     action: str = "registro",
     detail: str | None = None,
+    section: str = "general",
+    before: dict | None = None,
+    after: dict | None = None,
+) -> None:
+    module_numbers = (
+        list(dict.fromkeys(module_number))
+        if isinstance(module_number, list)
+        else [module_number] if module_number is not None
+        else []
+    )
+    if any(not isinstance(module, int) for module in module_numbers):
+        raise ValueError("Módulo de historial no válido")
+    stored_module = module_numbers[0] if len(module_numbers) == 1 else None
+    cursor.execute(
+        """
+        INSERT INTO seguridad.historial_rol_mensual
+            (usuario, modulo, modulos, modificacion, descripcion, accion, seccion, datos_anteriores, datos_nuevos)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
+        """,
+        (
+            username,
+            stored_module,
+            module_numbers,
+            description[:240],
+            detail or description,
+            action[:30],
+            section[:20],
+            json.dumps(before, ensure_ascii=False, default=str) if before is not None else None,
+            json.dumps(after, ensure_ascii=False, default=str) if after is not None else None,
+        ),
+    )
+
+
+def create_history_entry(
+    username: str,
+    module_number: int | list[int] | None,
+    description: str,
+    action: str = "registro",
+    detail: str | None = None,
+    section: str = "general",
+    before: dict | None = None,
+    after: dict | None = None,
 ) -> None:
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO seguridad.historial_rol_mensual (usuario, modulo, modificacion, descripcion, accion)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (username, module_number, description[:240], (detail or description)[:500], action[:30]),
+            _insert_history_entry(
+                cursor,
+                username,
+                module_number,
+                description,
+                action,
+                detail,
+                section,
+                before,
+                after,
             )
         connection.commit()
 
 
-def fetch_history_entries(limit: int = 500) -> list[dict]:
+def fetch_history_entries(limit: int = 500, section: str | None = None) -> list[dict]:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            if section is None:
+                cursor.execute(
+                    """
+                    SELECT usuario, modulo, modulos, modificacion, descripcion, accion, seccion,
+                           datos_anteriores, datos_nuevos, fecha_hora
+                    FROM seguridad.historial_rol_mensual
+                    ORDER BY fecha_hora DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+            elif section in {"general", "asignaciones"}:
+                cursor.execute(
+                    """
+                    SELECT usuario, modulo, modulos, modificacion, descripcion, accion, seccion,
+                           datos_anteriores, datos_nuevos, fecha_hora
+                    FROM seguridad.historial_rol_mensual
+                    WHERE seccion = %s
+                    ORDER BY fecha_hora DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (section, limit),
+                )
+            else:
+                raise ValueError("Sección de historial no válida")
+            columns = tuple(column.name for column in cursor.description)
+            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def clear_history_for_module(module_number: int) -> int:
+    if isinstance(module_number, bool) or not isinstance(module_number, int):
+        raise ValueError("Módulo de historial no válido")
+    if module_number not in range(1, MAX_MODULES + 1):
+        raise ValueError("Módulo de historial no válido")
+
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT usuario, modulo, modificacion, descripcion, accion, fecha_hora
-                FROM seguridad.historial_rol_mensual
-                ORDER BY fecha_hora DESC, id DESC
-                LIMIT %s
+                DELETE FROM seguridad.historial_rol_mensual
+                WHERE (
+                    %s::SMALLINT = ANY(modulos)
+                    AND cardinality(array_remove(modulos, %s::SMALLINT)) = 0
+                )
+                OR (
+                    cardinality(modulos) = 0
+                    AND modulo = %s::SMALLINT
+                )
                 """,
-                (limit,),
+                (module_number, module_number, module_number),
             )
-            columns = tuple(column.name for column in cursor.description)
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            deleted_count = cursor.rowcount
+            cursor.execute(
+                """
+                UPDATE seguridad.historial_rol_mensual
+                SET modulos = array_remove(modulos, %s::SMALLINT),
+                    modulo = CASE
+                        WHEN cardinality(array_remove(modulos, %s::SMALLINT)) = 1
+                            THEN (array_remove(modulos, %s::SMALLINT))[1]
+                        ELSE NULL
+                    END
+                WHERE %s::SMALLINT = ANY(modulos)
+                  AND cardinality(array_remove(modulos, %s::SMALLINT)) > 0
+                """,
+                (module_number, module_number, module_number, module_number, module_number),
+            )
+            updated_count = cursor.rowcount
+        connection.commit()
+    return deleted_count + updated_count
 
 
 def fetch_controllers(module_number: int | None = None, active_only: bool = False) -> list[dict]:
@@ -949,9 +1104,69 @@ def update_controller(controller_id: int, payload: dict) -> dict | None:
     return dict(zip(columns, row))
 
 
-def save_month_records(records: list[dict], module_number: int, month: int, year: int) -> int:
+def _validate_record_transfers(
+    cursor,
+    transfers: list[dict] | None,
+    module_number: int,
+    month: int,
+    year: int,
+) -> None:
+    for transfer in transfers or []:
+        day = int(transfer["day"])
+        credential = str(transfer["source_credential"]).strip()
+        expected_code = str(transfer["code"]).strip().upper()
+        cursor.execute(
+            """
+            SELECT work_days, rest_days, daily_assignments, daily_details
+            FROM schedule_records
+            WHERE credential = %s AND module_number = %s AND month = %s AND year = %s
+            FOR UPDATE
+            """,
+            (credential, module_number, month, year),
+        )
+        current = cursor.fetchone()
+        if current is None:
+            raise ValueError("La asignación cambió; vuelve a cargar el rol mensual.")
+        expected = transfer.get("source")
+        if not isinstance(expected, dict):
+            raise ValueError("Falta el estado anterior del titular para validar la transferencia.")
+        current_work_days = set(_decode_record_json(current[0], []))
+        current_rest_days = set(_decode_record_json(current[1], []))
+        current_assignments = _decode_record_json(current[2], {})
+        current_details = _decode_record_json(current[3], {})
+        if (
+            current_work_days != set(_decode_record_json(expected.get("work_days"), []))
+            or current_rest_days != set(_decode_record_json(expected.get("rest_days"), []))
+            or current_assignments != _decode_record_json(expected.get("daily_assignments"), {})
+            or current_details != _decode_record_json(expected.get("daily_details"), {})
+        ):
+            raise ValueError("La asignación cambió mientras se preparaba la transferencia; vuelve a cargar el rol mensual.")
+        detail = current_details.get(str(day))
+        current_code = str(
+            (detail.get("code") if isinstance(detail, dict) else None)
+            or current_assignments.get(str(day))
+            or ""
+        ).strip().upper()
+        if current_code != expected_code:
+            raise ValueError("El código ya no pertenece al titular actual; vuelve a cargar el rol mensual.")
+
+
+def save_month_records(
+    records: list[dict],
+    module_number: int,
+    month: int,
+    year: int,
+    expected_transfers: list[dict] | None = None,
+) -> int:
     with get_connection() as connection:
         with connection.cursor() as cursor:
+            _validate_record_transfers(
+                cursor,
+                expected_transfers,
+                module_number,
+                month,
+                year,
+            )
             cursor.execute(
                 "DELETE FROM schedule_records WHERE module_number = %s AND month = %s AND year = %s",
                 (module_number, month, year),
@@ -1363,7 +1578,7 @@ def delete_controllers_from_module(controller_ids: list[int], module_number: int
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, nombre, credencial, sexo, mod1
+                SELECT id, nombre, credencial, sexo, mod1, active
                 FROM catalogos.controladores
                 WHERE id = ANY(%s) AND mod1 = %s
                 ORDER BY id
@@ -1394,6 +1609,7 @@ def delete_controllers_from_module(controller_ids: list[int], module_number: int
             "credencial": row[2],
             "sexo": row[3],
             "mod1": row[4],
+            "active": row[5],
         }
         for row in rows
     ]
@@ -1441,7 +1657,7 @@ def create_module(nombre: str, direccion: str, latitud: str, longitud: str) -> d
                 WHERE id BETWEEN %s AND %s
                 ORDER BY id
                 """,
-                (FIXED_MODULE_COUNT + 1, MAX_MODULES),
+                (1, MAX_MODULES),
             )
             existing_modules = {
                 row[0]: {"nombre": row[1], "direccion": row[2]}
@@ -1450,10 +1666,12 @@ def create_module(nombre: str, direccion: str, latitud: str, longitud: str) -> d
             next_id = next(
                 (
                     module_id
-                    for module_id in range(FIXED_MODULE_COUNT + 1, MAX_MODULES + 1)
+                    for module_id in range(1, MAX_MODULES + 1)
                     if module_id not in existing_modules
                     or (
-                        existing_modules[module_id]["nombre"] == f"Módulo {module_id}"
+                        module_id > FIXED_MODULE_COUNT
+                        and existing_modules[module_id]["nombre"]
+                        == f"Módulo {module_id}"
                         and existing_modules[module_id]["direccion"] is None
                     )
                 ),
@@ -1500,24 +1718,312 @@ def update_module(module_id: int, nombre: str, direccion: str, latitud: str, lon
     return dict(zip(("id", "nombre", "direccion", "latitud", "longitud"), row))
 
 
-def delete_module(module_id: int) -> str:
+def manage_module_data(module_id: int, action: str, actor_username: str) -> dict:
+    if action not in {"clear", "delete"}:
+        raise ValueError("Acción de módulo no válida.")
+
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT EXISTS (SELECT 1 FROM seguridad.usuarios WHERE module_number = %s)
-                    OR EXISTS (SELECT 1 FROM catalogos.controladores WHERE mod1 = %s)
-                    OR EXISTS (SELECT 1 FROM catalogos.rutas WHERE mod1 = %s)
-                    OR EXISTS (SELECT 1 FROM catalogos.modulo_ruta WHERE modulo_id = %s)
+                SELECT id, nombre, direccion, latitud, longitud
+                FROM catalogos.modulos
+                ORDER BY id
+                FOR UPDATE
                 """,
-                (module_id, module_id, module_id, module_id),
             )
-            if cursor.fetchone()[0]:
-                return "in_use"
-            cursor.execute("DELETE FROM catalogos.modulos WHERE id = %s", (module_id,))
-            deleted = cursor.rowcount > 0
+            module_rows = cursor.fetchall()
+            module = next((row for row in module_rows if row[0] == module_id), None)
+            if module is None:
+                return {"status": "missing"}
+
+            remaining_module_ids = [row[0] for row in module_rows if row[0] != module_id]
+            if action == "delete" and not remaining_module_ids:
+                return {"status": "last_module"}
+
+            cursor.execute(
+                """
+                SELECT r.id, r.ruta, r.origen, r.destino, r.servicio, r.mod1,
+                       mr.modulo_id
+                FROM catalogos.modulo_ruta AS mr
+                JOIN catalogos.rutas AS r ON r.id = mr.ruta_id
+                WHERE mr.modulo_id = %s AND r.mod1 <> %s
+                ORDER BY r.id
+                FOR UPDATE OF mr, r
+                """,
+                (module_id, module_id),
+            )
+            routes_to_unlink = cursor.fetchall()
+
+            cursor.execute(
+                """
+                SELECT id, ruta, origen, destino, servicio, estado, nomenclatura
+                FROM catalogos.rutas
+                WHERE mod1 = %s
+                ORDER BY id
+                FOR UPDATE
+                """,
+                (module_id,),
+            )
+            owned_routes = cursor.fetchall()
+            deleted_routes = []
+            reassigned_routes = []
+            for route in owned_routes:
+                route_id = route[0]
+                cursor.execute(
+                    """
+                    SELECT modulo_id, estado, nomenclatura
+                    FROM catalogos.modulo_ruta
+                    WHERE ruta_id = %s AND modulo_id <> %s
+                    ORDER BY modulo_id
+                    FOR UPDATE
+                    """,
+                    (route_id, module_id),
+                )
+                route_shares = cursor.fetchall()
+                if route_shares:
+                    new_owner_id, new_status, _ = route_shares[0]
+                    new_nomenclature = next_route_nomenclature(
+                        connection, new_owner_id, route_id=route_id
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE catalogos.rutas
+                        SET mod1 = %s, estado = %s, nomenclatura = %s
+                        WHERE id = %s
+                        """,
+                        (new_owner_id, new_status, new_nomenclature, route_id),
+                    )
+                    cursor.execute(
+                        "DELETE FROM catalogos.modulo_ruta WHERE ruta_id = %s AND modulo_id = %s",
+                        (route_id, new_owner_id),
+                    )
+                    reassigned_routes.append({
+                        "Ruta": route[1],
+                        "Módulo nuevo": new_owner_id,
+                    })
+                else:
+                    cursor.execute(
+                        "DELETE FROM catalogos.rutas WHERE id = %s AND mod1 = %s",
+                        (route_id, module_id),
+                    )
+                    deleted_routes.append({
+                        "Ruta": route[1],
+                        "Origen": route[2],
+                        "Destino": route[3],
+                        "Servicio": route[4],
+                    })
+
+            cursor.execute(
+                """
+                SELECT t.id, t.numero, t.hora_inicio, t.hora_fin, t.alcance, tm.activo
+                FROM catalogos.turnos AS t
+                JOIN catalogos.turno_modulo AS tm ON tm.turno_id = t.id
+                WHERE tm.modulo_id = %s
+                ORDER BY t.id
+                FOR UPDATE OF t, tm
+                """,
+                (module_id,),
+            )
+            module_turnos = cursor.fetchall()
+            cursor.execute(
+                "DELETE FROM catalogos.turno_modulo WHERE modulo_id = %s RETURNING turno_id",
+                (module_id,),
+            )
+            cursor.fetchall()
+
+            global_turnos_restored = []
+            if action == "clear":
+                global_turnos_restored = [
+                    {
+                        "Turno": row[1],
+                        "Inicio": row[2],
+                        "Fin": row[3],
+                        "Estado anterior": row[5],
+                    }
+                    for row in module_turnos
+                    if row[4] == "general"
+                ]
+                cursor.execute(
+                    """
+                    INSERT INTO catalogos.turno_modulo (turno_id, modulo_id, activo)
+                    SELECT id, %s, TRUE
+                    FROM catalogos.turnos
+                    WHERE alcance = 'general'
+                    ON CONFLICT (turno_id, modulo_id)
+                    DO UPDATE SET activo = TRUE
+                    """,
+                    (module_id,),
+                )
+
+            specific_turn_ids = [
+                row[0] for row in module_turnos if row[4] == "especifico"
+            ]
+            specific_turnos_unlinked = [
+                {"Turno": row[1], "Inicio": row[2], "Fin": row[3]}
+                for row in module_turnos
+                if row[4] == "especifico"
+            ]
+            deleted_turnos = []
+            if specific_turn_ids:
+                cursor.execute(
+                    """
+                    DELETE FROM catalogos.turnos AS t
+                    WHERE t.id = ANY(%s)
+                      AND t.alcance = 'especifico'
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM catalogos.turno_modulo AS tm
+                          WHERE tm.turno_id = t.id
+                      )
+                    RETURNING t.numero, t.hora_inicio, t.hora_fin
+                    """,
+                    (specific_turn_ids,),
+                )
+                deleted_turnos = [
+                    {"Turno": row[0], "Inicio": row[1], "Fin": row[2]}
+                    for row in cursor.fetchall()
+                ]
+
+            cursor.execute(
+                """
+                DELETE FROM seguridad.usuarios
+                WHERE module_number = %s
+                RETURNING username, tipo_usuario
+                """,
+                (module_id,),
+            )
+            deleted_users = [
+                {"Usuario": row[0], "Tipo": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                DELETE FROM catalogos.controladores
+                WHERE mod1 = %s
+                RETURNING nombre, credencial
+                """,
+                (module_id,),
+            )
+            deleted_controllers = [
+                {"Nombre": row[0], "Credencial": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                """
+                DELETE FROM schedule_records
+                WHERE module_number = %s
+                RETURNING name, credential, month, year
+                """,
+                (module_id,),
+            )
+            schedule_rows = cursor.fetchall()
+            assignment_periods = {}
+            for _, _, month, year in schedule_rows:
+                period = f"{year}-{month:02d}"
+                assignment_periods[period] = assignment_periods.get(period, 0) + 1
+
+            cursor.execute(
+                "DELETE FROM catalogos.rol_mensual_periodos WHERE modulo_id = %s RETURNING mes, anio, activo",
+                (module_id,),
+            )
+            deleted_role_periods = [
+                {"Mes": row[0], "Año": row[1], "Estado": row[2]}
+                for row in cursor.fetchall()
+            ]
+
+            cursor.execute(
+                "DELETE FROM catalogos.modulo_ruta WHERE modulo_id = %s RETURNING ruta_id",
+                (module_id,),
+            )
+            cursor.fetchall()
+
+            analysis_tables = {
+                "Días de controlador": "analisis.trabajador_dia",
+                "Días de ruta": "analisis.ruta_dia",
+                "Resumen mensual de controladores": "analisis.analisis_trabajadores",
+                "Resumen mensual de rutas": "analisis.analisis_rutas",
+            }
+            deleted_analysis = {}
+            for label, table in analysis_tables.items():
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE module_number = %s",
+                    (module_id,),
+                )
+                deleted_analysis[label] = cursor.rowcount
+
+            cursor.execute("SELECT to_regclass('programacion.registros_legacy_conflicts')")
+            if cursor.fetchone()[0] is not None:
+                cursor.execute(
+                    "DELETE FROM programacion.registros_legacy_conflicts WHERE module_number = %s",
+                    (module_id,),
+                )
+                deleted_legacy_conflicts = cursor.rowcount
+            else:
+                deleted_legacy_conflicts = 0
+
+            if action == "delete":
+                cursor.execute(
+                    "DELETE FROM catalogos.modulos WHERE id = %s",
+                    (module_id,),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("No se pudo eliminar el módulo seleccionado.")
+
+            history_fields = {
+                "Nombre del módulo": module[1],
+                "Dirección": module[2],
+                "Latitud": module[3],
+                "Longitud": module[4],
+                "Cuentas eliminadas": deleted_users,
+                "Controladores eliminados": deleted_controllers,
+                "Rutas eliminadas": deleted_routes,
+                "Rutas reasignadas a otros módulos": reassigned_routes,
+                "Rutas compartidas desvinculadas": [
+                    {
+                        "Ruta": row[1],
+                        "Origen": row[2],
+                        "Destino": row[3],
+                        "Módulo de origen": row[5],
+                    }
+                    for row in routes_to_unlink
+                ],
+                "Asignaciones mensuales eliminadas por período": assignment_periods,
+                "Períodos del rol mensual eliminados": deleted_role_periods,
+                "Turnos específicos desvinculados": specific_turnos_unlinked,
+                "Turnos específicos eliminados del catálogo": deleted_turnos,
+                "Turnos globales reactivados": global_turnos_restored,
+                "Registros analíticos eliminados": deleted_analysis,
+                "Registros históricos de migración eliminados": deleted_legacy_conflicts,
+            }
+            history_snapshot = {
+                "_field_order": list(history_fields),
+                **history_fields,
+            }
+            description = (
+                f"Eliminó módulo {module[1]} (de Módulos)"
+                if action == "delete"
+                else f"Vació información del módulo {module[1]} (de Módulos)"
+            )
+            history_modules = (
+                remaining_module_ids if action == "delete" else [module_id]
+            )
+            _insert_history_entry(
+                cursor,
+                actor_username,
+                history_modules,
+                description,
+                "eliminacion",
+                f"Información eliminada de {module[1]}",
+                before=history_snapshot,
+            )
         connection.commit()
-    return "deleted" if deleted else "missing"
+    return {
+        "status": "deleted" if action == "delete" else "cleared",
+        "module": {"id": module_id, "nombre": module[1]},
+    }
 
 
 def fetch_admin_users() -> list[dict]:
@@ -1603,14 +2109,19 @@ def update_user_status(user_id: int, active: bool) -> dict | None:
         with connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE seguridad.usuarios SET active = %s WHERE id = %s "
-                "RETURNING id, username, active",
+                "RETURNING id, username, active, module_number",
                 (active, user_id),
             )
             row = cursor.fetchone()
             if row is None:
                 return None
         connection.commit()
-    return {"id": row[0], "username": row[1], "active": row[2]}
+    return {
+        "id": row[0],
+        "username": row[1],
+        "active": row[2],
+        "module_number": row[3],
+    }
 
 
 def delete_user(user_id: int) -> bool:
@@ -1634,7 +2145,7 @@ def delete_users_by_ids(user_ids: list[int]) -> list[dict]:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, username, module_number, tipo_usuario
+                SELECT id, username, correo, telefono, module_number, tipo_usuario, active
                 FROM seguridad.usuarios
                 WHERE id = ANY(%s)
                 ORDER BY id
@@ -1662,8 +2173,11 @@ def delete_users_by_ids(user_ids: list[int]) -> list[dict]:
         {
             "id": row[0],
             "username": row[1],
-            "module_number": row[2],
-            "tipo_usuario": row[3],
+            "correo": row[2],
+            "telefono": row[3],
+            "module_number": row[4],
+            "tipo_usuario": row[5],
+            "active": row[6],
         }
         for row in rows
     ]
@@ -2282,10 +2796,13 @@ def delete_routes_from_module(route_ids: list[int], module_number: int) -> dict[
 def update_route_status(route_id: int, estado: str) -> dict | None:
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute("UPDATE catalogos.rutas SET estado = %s WHERE id = %s RETURNING id, estado", (estado, route_id))
+            cursor.execute(
+                "UPDATE catalogos.rutas SET estado = %s WHERE id = %s RETURNING id, estado, mod1",
+                (estado, route_id),
+            )
             row = cursor.fetchone()
         connection.commit()
-    return dict(zip(("id", "estado"), row)) if row else None
+    return dict(zip(("id", "estado", "mod1"), row)) if row else None
 
 
 def fetch_external_routes(module_number: int, query: str = "", origin_module: int | None = None) -> list[dict]:
@@ -2745,107 +3262,154 @@ def fetch_records(month: int, year: int, module_number: int) -> list[dict]:
             return rows
 
 
-def upsert_record(record: dict) -> dict:
+def _decode_record_json(value, fallback):
+    if value is None or value == "":
+        return fallback
+    return json.loads(value) if isinstance(value, str) else value
+
+
+def _upsert_record_with_cursor(cursor, record: dict) -> dict:
     record = {
         **record,
         "name": normalize_display_text(record.get("name")),
         "route": normalize_display_text(record.get("route")),
     }
+    cursor.execute(
+        """
+        SELECT id, work_days, rest_days, daily_assignments, daily_details
+        FROM schedule_records
+        WHERE credential = %(credential)s
+                            AND month = %(month)s AND year = %(year)s
+                            AND module_number = %(module_number)s
+        FOR UPDATE
+        """,
+        record,
+    )
+    existing = cursor.fetchone()
+    new_work_days = set(_decode_record_json(record.get("work_days"), []))
+    new_rest_days = set(_decode_record_json(record.get("rest_days"), []))
+    incoming_assignments = _decode_record_json(record.get("daily_assignments"), {})
+    incoming_details = _decode_record_json(record.get("daily_details"), {})
+    deleted_days = {int(day) for day in record.get("deleted_days", [])}
+    normalized_assignments = {
+        str(day): str(value).strip().upper()
+        for day, value in incoming_assignments.items()
+        if int(day) not in deleted_days
+    }
+    for day in deleted_days:
+        normalized_assignments.pop(str(day), None)
+    for day in sorted(day for day in new_work_days if day not in deleted_days):
+        normalized_assignments.setdefault(str(day), f"{record['nomenclature']}{record['shift']}")
+    for day in sorted({int(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}):
+        normalized_assignments[str(day)] = "V"
+    vacation_mask = {str(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}
+    work_days = sorted(day for day in new_work_days if day not in deleted_days and str(day) not in vacation_mask)
+    rest_days = sorted(day for day in new_rest_days if day not in deleted_days and str(day) not in vacation_mask)
+    normalized_details = {
+        str(day): {
+            **value,
+            "route": normalize_display_text(value.get("route")),
+        }
+        if isinstance(value, dict) else value
+        for day, value in incoming_details.items()
+        if int(day) not in deleted_days
+    }
+
+    if existing:
+        cursor.execute(
+            """
+            UPDATE schedule_records
+            SET name = %(name)s, shift = %(shift)s, route = %(route)s,
+                nomenclature = %(nomenclature)s, work_days = %(work_days)s::jsonb,
+                rest_days = %(rest_days)s::jsonb,
+                    daily_assignments = %(daily_assignments)s::jsonb,
+                    daily_details = %(daily_details)s::jsonb
+            WHERE id = %(id)s
+            RETURNING id, name, credential, shift, route, nomenclature,
+                      month, year, work_days, rest_days, daily_assignments,
+                      daily_details, module_number
+            """,
+            {
+                **record,
+                "id": existing[0],
+                "work_days": json.dumps(work_days),
+                "rest_days": json.dumps(rest_days),
+                "daily_assignments": json.dumps(normalized_assignments),
+                "daily_details": json.dumps(normalized_details),
+            },
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO schedule_records
+                (name, credential, shift, route, nomenclature, month, year,
+                 work_days, rest_days, daily_assignments, daily_details, module_number)
+            VALUES (%(name)s, %(credential)s, %(shift)s, %(route)s,
+                %(nomenclature)s, %(month)s, %(year)s, %(work_days)s::jsonb,
+                    %(rest_days)s::jsonb, %(daily_assignments)s::jsonb,
+                    %(daily_details)s::jsonb,
+                    %(module_number)s)
+            RETURNING id, name, credential, shift, route, nomenclature,
+                      month, year, work_days, rest_days, daily_assignments,
+                      daily_details,
+                      module_number
+            """,
+            {
+                **record,
+                "work_days": json.dumps(work_days),
+                "rest_days": json.dumps(rest_days),
+                "daily_assignments": json.dumps(normalized_assignments),
+                "daily_details": json.dumps(normalized_details),
+            },
+        )
+    columns = [column.name for column in cursor.description]
+    saved = dict(zip(columns, cursor.fetchone()))
+    saved["work_days"] = saved.get("work_days") or []
+    saved["rest_days"] = saved.get("rest_days") or []
+    saved["daily_assignments"] = saved.get("daily_assignments") or {}
+    saved["daily_details"] = saved.get("daily_details") or {}
+    return saved
+
+
+def upsert_record(record: dict) -> dict:
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id, work_days, rest_days, daily_assignments, daily_details
-                FROM schedule_records
-                WHERE credential = %(credential)s
-                                    AND month = %(month)s AND year = %(year)s
-                                    AND module_number = %(module_number)s
-                FOR UPDATE
-                """,
-                record,
-            )
-            existing = cursor.fetchone()
-            new_work_days = set(json.loads(record["work_days"]))
-            new_rest_days = set(json.loads(record["rest_days"]))
-            incoming_assignments = json.loads(record.get("daily_assignments") or "{}") if record.get("daily_assignments") else {}
-            incoming_details = json.loads(record.get("daily_details") or "{}") if record.get("daily_details") else {}
-            deleted_days = {int(day) for day in record.get("deleted_days", [])}
-            normalized_assignments = {
-                str(day): str(value).strip().upper()
-                for day, value in incoming_assignments.items()
-                if int(day) not in deleted_days
-            }
-            for day in deleted_days:
-                normalized_assignments.pop(str(day), None)
-            for day in sorted(day for day in new_work_days if day not in deleted_days):
-                normalized_assignments.setdefault(str(day), f"{record['nomenclature']}{record['shift']}")
-            for day in sorted({int(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}):
-                normalized_assignments[str(day)] = "V"
-            vacation_mask = {str(day) for day, value in normalized_assignments.items() if str(value).upper() == "V"}
-            work_days = sorted(day for day in new_work_days if day not in deleted_days and str(day) not in vacation_mask)
-            rest_days = sorted(day for day in new_rest_days if day not in deleted_days and str(day) not in vacation_mask)
-            normalized_details = {
-                str(day): {
-                    **value,
-                    "route": normalize_display_text(value.get("route")),
-                }
-                if isinstance(value, dict) else value
-                for day, value in incoming_details.items()
-                if int(day) not in deleted_days
-            }
-
-            if existing:
-                cursor.execute(
-                    """
-                    UPDATE schedule_records
-                    SET name = %(name)s, shift = %(shift)s, route = %(route)s,
-                        nomenclature = %(nomenclature)s, work_days = %(work_days)s::jsonb,
-                        rest_days = %(rest_days)s::jsonb,
-                            daily_assignments = %(daily_assignments)s::jsonb,
-                            daily_details = %(daily_details)s::jsonb
-                    WHERE id = %(id)s
-                    RETURNING id, name, credential, shift, route, nomenclature,
-                              month, year, work_days, rest_days, daily_assignments,
-                              module_number
-                    """,
-                    {
-                        **record,
-                        "id": existing[0],
-                        "work_days": json.dumps(work_days),
-                        "rest_days": json.dumps(rest_days),
-                        "daily_assignments": json.dumps(normalized_assignments),
-                        "daily_details": json.dumps(normalized_details),
-                    },
-                )
-            else:
-                cursor.execute(
-                    """
-                    INSERT INTO schedule_records
-                        (name, credential, shift, route, nomenclature, month, year,
-                         work_days, rest_days, daily_assignments, daily_details, module_number)
-                    VALUES (%(name)s, %(credential)s, %(shift)s, %(route)s,
-                        %(nomenclature)s, %(month)s, %(year)s, %(work_days)s::jsonb,
-                            %(rest_days)s::jsonb, %(daily_assignments)s::jsonb,
-                            %(daily_details)s::jsonb,
-                            %(module_number)s)
-                    RETURNING id, name, credential, shift, route, nomenclature,
-                              month, year, work_days, rest_days, daily_assignments,
-                              daily_details,
-                              module_number
-                    """,
-                    {
-                        **record,
-                        "work_days": json.dumps(work_days),
-                        "rest_days": json.dumps(rest_days),
-                        "daily_assignments": json.dumps(normalized_assignments),
-                        "daily_details": json.dumps(normalized_details),
-                    },
-                )
-            columns = [column.name for column in cursor.description]
-            saved = dict(zip(columns, cursor.fetchone()))
-            saved["work_days"] = saved.get("work_days") or []
-            saved["rest_days"] = saved.get("rest_days") or []
-            saved["daily_assignments"] = saved.get("daily_assignments") or {}
-            saved["daily_details"] = saved.get("daily_details") or {}
+            saved = _upsert_record_with_cursor(cursor, record)
         connection.commit()
     return saved
+
+
+def upsert_records_atomically(
+    records: list[dict],
+    expected_transfers: list[dict] | None = None,
+) -> list[dict]:
+    if not records:
+        raise ValueError("Se requiere al menos un registro para guardar.")
+    scopes = {
+        (record.get("module_number"), record.get("month"), record.get("year"))
+        for record in records
+    }
+    if len(scopes) != 1:
+        raise ValueError("Los registros deben pertenecer al mismo módulo y periodo.")
+    keys = [
+        (record.get("credential"), record.get("module_number"), record.get("month"), record.get("year"))
+        for record in records
+    ]
+    if len(keys) != len(set(keys)):
+        raise ValueError("No se pueden guardar credenciales duplicadas en una misma operación.")
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            _validate_record_transfers(
+                cursor,
+                expected_transfers,
+                records[0]["module_number"],
+                records[0]["month"],
+                records[0]["year"],
+            )
+            saved_records = [
+                _upsert_record_with_cursor(cursor, record)
+                for record in records
+            ]
+        connection.commit()
+    return saved_records

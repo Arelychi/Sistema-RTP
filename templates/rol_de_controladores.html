@@ -34,14 +34,82 @@
   <div id="schedule-feedback" class="schedule-feedback" role="status" aria-live="polite"></div>
   <div id="code-conflict-dialog" class="code-conflict-dialog" hidden>
     <div class="code-conflict-backdrop" data-conflict-cancel></div>
-    <section class="code-conflict-modal" role="alertdialog" aria-modal="true" aria-labelledby="code-conflict-title" aria-describedby="code-conflict-message">
-      <p class="code-conflict-eyebrow">Asignación repetida</p>
-      <h2 id="code-conflict-title">Código ya utilizado</h2>
-      <p id="code-conflict-message">Estas ingresando un controlador al mismo turno y ruta.</p>
-      <div class="code-conflict-actions">
-        <button class="secondary-button-cancel" type="button" data-conflict-cancel>Cancelar</button>
-        <button class="primary-button-accept" type="button" data-conflict-accept>Aceptar</button>
+    <section class="code-conflict-modal" role="alertdialog" aria-modal="true" aria-labelledby="code-conflict-title" aria-describedby="code-conflict-message code-conflict-details code-conflict-options code-conflict-impact">
+      <div class="code-conflict-content">
+        <header class="code-conflict-header">
+          <h2 id="code-conflict-title">Asignación repetida en el Rol Mensual</h2>
+          <p id="code-conflict-message">Dos controladores coinciden con el mismo código operativo en la jornada seleccionada.</p>
+        </header>
+
+      <div id="code-conflict-details" class="code-conflict-details">
+        <article id="code-conflict-existing" class="code-conflict-detail is-existing">
+          <div class="code-conflict-detail-heading">
+            <span>Titular actual</span>
+            <span class="code-conflict-status is-occupied">Ocupado</span>
+          </div>
+          <div class="code-conflict-person">
+            <span class="code-conflict-avatar is-existing" data-conflict-existing-initials aria-hidden="true">—</span>
+            <span class="code-conflict-person-copy">
+              <strong data-conflict-existing-controller>—</strong>
+              <small data-conflict-existing-credential></small>
+            </span>
+          </div>
+        </article>
+        <div class="code-conflict-code-day" aria-label="Código y día repetidos">
+          <strong data-conflict-code>—</strong>
+          <span>Día <span data-conflict-day>—</span></span>
+        </div>
+        <article class="code-conflict-detail is-incoming">
+          <div class="code-conflict-detail-heading">
+            <span>Controlador entrante</span>
+            <span class="code-conflict-status is-new">Nuevo</span>
+          </div>
+          <div class="code-conflict-person">
+            <span class="code-conflict-avatar is-incoming" data-conflict-incoming-initials aria-hidden="true">—</span>
+            <span class="code-conflict-person-copy">
+              <strong data-conflict-controller>—</strong>
+              <small data-conflict-credential></small>
+            </span>
+          </div>
+        </article>
       </div>
+
+      <fieldset id="code-conflict-options" class="code-conflict-options">
+        <legend class="code-conflict-sr-only">¿Cómo deseas resolver el código?</legend>
+        <label class="code-conflict-option is-duplicate">
+          <input type="radio" name="code-conflict-resolution" value="duplicate">
+          <span class="code-conflict-option-copy">
+            <strong>Mantener código duplicado</strong>
+            <small data-conflict-duplicate-description>Ambos conservarán el código y aparecerá una marca de advertencia.</small>
+          </span>
+          <span class="code-conflict-option-badge is-duplicate">Duplicado</span>
+        </label>
+        <label class="code-conflict-option is-transfer">
+          <input type="radio" name="code-conflict-resolution" value="transfer" checked>
+          <span class="code-conflict-option-copy">
+            <strong>Reasignar titularidad</strong>
+            <small data-conflict-transfer-description>El nuevo titular asumirá el código y el titular actual pasará a descanso (D).</small>
+          </span>
+          <span class="code-conflict-option-badge is-transfer">Transferir</span>
+        </label>
+      </fieldset>
+
+        <div class="code-conflict-impact" role="note">
+          <span class="code-conflict-impact-icon" aria-hidden="true">i</span>
+          <p id="code-conflict-impact"><strong>Impacto en el rol:</strong> <span data-conflict-impact-text>El cambio afectará la asignación del código en este día.</span></p>
+        </div>
+      </div>
+
+      <footer class="code-conflict-actions">
+        <button class="secondary-button-cancel" type="button" data-conflict-cancel>Cancelar</button>
+        <button class="primary-button-accept" type="button" data-conflict-accept>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"></path>
+            <path d="M19 14v6m3-3h-6"></path>
+          </svg>
+          <span>Aplicar decisión</span>
+        </button>
+      </footer>
     </section>
   </div>
   <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-busy="false">

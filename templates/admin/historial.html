@@ -7,7 +7,7 @@
   <title>Historial | Administrador</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='admin/dashboard.css') }}">
 </head>
-<body class="admin-page-body">
+<body class="admin-page-body admin-history-page">
   <main class="admin-dashboard-layout">
     <aside class="admin-sidebar">
       <div class="admin-sidebar-brand">
@@ -27,88 +27,837 @@
     <div class="admin-workspace">
       {% include 'admin/_module_tabs.html' %}
       <section class="admin-main-content">
-      <header class="admin-header">
-        <div>
-          <p class="eyebrow">Sistema</p>
-          <h1>Historial</h1>
-          <p class="subtitle">Registro de modificaciones y operaciones del sistema</p>
-        </div>
-        <div class="admin-connection"><span class="admin-connection-dot"></span>Conectado</div>
-      </header>
-
-      <section class="admin-panel-card history-panel">
+      <section class="admin-panel-card history-panel admin-history-panel">
         <div class="admin-card-heading">
-          <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Historial de Rol Mensual</h2></div>
-          <span class="history-count">{{ entries|length }} registros</span>
+          <div class="admin-card-title"><span class="admin-step-number">01</span><h2>Actividad del sistema</h2></div>
+          <div class="admin-history-heading-actions">
+            <span class="history-count" data-history-total-count>{{ general_entries|length + assignment_entries|length }} registros</span>
+            {% if account.is_admin %}
+              <form
+                method="post"
+                action="{{ url_for('admin_clear_history') }}"
+                data-delete-confirm-form
+                data-delete-kind="historial del módulo"
+                data-delete-name="historial del módulo seleccionado"
+                data-delete-message="Se vaciarán los movimientos de este módulo. Los movimientos compartidos se conservarán en los demás módulos. Esta acción no se puede deshacer."
+                data-delete-confirm-title="¿Vaciar historial del módulo?"
+                data-delete-confirm-label="Vaciar historial"
+                data-delete-loading-label="Vaciando historial..."
+                data-history-clear-form
+              >
+                <input type="hidden" name="module_number" value="">
+                <button class="admin-delete-button admin-history-clear-button" type="submit" data-history-clear-submit disabled>Vaciar historial</button>
+              </form>
+            {% endif %}
+          </div>
         </div>
-        <div class="history-legend" aria-label="Tipos de operación">
-          <span class="history-legend-item is-record">Registro</span>
-          <span class="history-legend-item is-delete">Eliminación</span>
-          <span class="history-legend-item is-edit">Edición</span>
-          <span class="history-legend-item is-activation">Activación</span>
-          <span class="history-legend-item is-download">Descarga</span>
-          <span class="history-legend-item is-password">Cambio contraseña</span>
-          <span class="history-legend-item is-inicio_sesion">Inicio de sesión</span>
-          <span class="history-legend-item is-cierre_sesion">Cierre de sesión</span>
+        {% if history_error %}
+          <p class="history-load-error" role="alert">{{ history_error }}</p>
+        {% endif %}
+        <div class="admin-local-tabs route-page-tabs admin-history-tabs" role="tablist" aria-label="Secciones del historial">
+          <button id="history-tab-general" class="admin-registry-tab active" type="button" role="tab" aria-selected="true" aria-controls="history-panel-general" data-history-tab="general">
+            <span>General</span><span class="admin-history-tab-count" data-history-count="general">{{ general_entries|length }}</span>
+          </button>
+          <button id="history-tab-assignments" class="admin-registry-tab" type="button" role="tab" aria-selected="false" aria-controls="history-panel-assignments" tabindex="-1" data-history-tab="asignaciones">
+            <span>Asignaciones</span><span class="admin-history-tab-count" data-history-count="asignaciones">{{ assignment_entries|length }}</span>
+          </button>
         </div>
-        <div class="history-table-wrap">
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Usuario</th>
-                <th>Módulo</th>
-                <th>Acción</th>
-                <th>Modificaciones</th>
-                <th>Descripción</th>
-                <th>Fecha</th>
-                <th>Hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for entry in entries %}
-                <tr class="history-row is-{{ entry.accion }}">
-                  <td>{{ entry.usuario }}</td>
-                  <td>{{ entry.modulo if entry.modulo else '-' }}</td>
-                  <td class="history-action is-{{ entry.accion }}">
-                    {% if entry.accion == 'edicion' %}
-                      Editado
-                    {% elif entry.accion == 'eliminacion' %}
-                      Eliminado
-                    {% elif entry.accion == 'registro' %}
-                      Registrado
-                    {% elif entry.accion == 'activacion' %}
-                      Activación
-                    {% elif entry.accion == 'descarga' %}
-                      Descarga
-                    {% elif entry.accion == 'contrasena' %}
-                      Cambio de contraseña
-                    {% elif entry.accion == 'inicio_sesion' %}
-                      Inicio de sesión
-                    {% elif entry.accion == 'cierre_sesion' %}
-                      Cierre de sesión
-                    {% else %}
-                      {{ entry.accion }}
-                    {% endif %}
-                  </td>
-                  <td>{{ entry.modificacion }}</td>
-                  <td>{{ entry.descripcion }}</td>
-                  <td>{{ entry.fecha_hora.strftime('%d/%m/%Y') }}</td>
-                  <td>{{ entry.fecha_hora.strftime('%H:%M:%S') }}</td>
-                </tr>
-              {% else %}
+        <div class="admin-controller-toolbar admin-history-toolbar" data-history-toolbar role="search">
+          <label class="controller-filter admin-controller-search">
+            <span class="controller-filter-label">Buscar</span>
+            <span class="controller-filter-field">
+              <input type="search" data-history-search aria-label="Buscar por fecha, hora o usuario" placeholder="Fecha, hora o usuario" autocomplete="off">
+              <button class="controller-filter-clear" data-history-search-clear type="button" aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>&times;</button>
+            </span>
+          </label>
+          <div class="admin-route-filter">
+            <button class="admin-route-filter-button" type="button" aria-expanded="false" aria-controls="history-filters" data-history-filter-toggle>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6.2 7.1v5.1l-3.6 1.8v-6.9L4 5Z"></path></svg>
+              <span>Filtros</span>
+              <span class="admin-route-filter-count" data-history-filter-count hidden>0</span>
+            </button>
+            <div class="admin-route-filter-panel admin-history-filter-panel" id="history-filters" data-history-filter-panel hidden>
+              <div class="admin-route-filter-heading">
+                <strong>Filtros</strong>
+                <button type="button" data-history-filter-clear>Limpiar</button>
+              </div>
+              <details class="admin-route-filter-category" data-history-category-filter-group open>
+                <summary>Categorías</summary>
+                <div class="admin-route-filter-options">
+                  <label><input type="checkbox" data-history-category-filter value="controladores"><span>Controladores</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="rutas"><span>Rutas</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="tipos"><span>Tipos</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="servicios"><span>Servicios</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="usuarios"><span>Usuarios</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="turnos"><span>Turnos</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="modulos"><span>Módulos</span></label>
+                  <label><input type="checkbox" data-history-category-filter value="estados_especiales"><span>Estados especiales</span></label>
+                </div>
+              </details>
+              <details class="admin-route-filter-category" data-history-action-filter-group open>
+                <summary data-history-action-filter-heading>Acciones</summary>
+                <div class="admin-route-filter-options">
+                  <label><input type="checkbox" data-history-action-filter value="registro"><span>Registro</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="edicion"><span>Edito</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="eliminacion"><span>Elimino</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="agrego"><span>Agrego</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="descarto"><span>Descarto</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="vinculacion"><span>Vinculo</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="desvinculacion"><span>Desvinculo</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="descarga"><span>Descarga</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="contrasena"><span>Cambio de contraseña</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="inicio_sesion"><span>Inicio de sesión</span></label>
+                  <label><input type="checkbox" data-history-action-filter value="cierre_sesion"><span>Cierre de sesión</span></label>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        {% set history_weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+        {% set history_months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
+        {% macro history_action_label(action) %}
+          {% if action in ('edicion', 'activacion') %}Edito
+          {% elif action == 'eliminacion' %}Elimino
+          {% elif action == 'agrego' %}Agrego
+          {% elif action == 'descarto' %}Descarto
+          {% elif action == 'registro' %}Registro
+          {% elif action == 'vinculacion' %}Vinculo
+          {% elif action == 'desvinculacion' %}Desvinculo
+          {% elif action == 'descarga' %}Descarga
+          {% elif action == 'contrasena' %}Cambio de contraseña
+          {% elif action == 'inicio_sesion' %}Inicio de sesión
+          {% elif action == 'cierre_sesion' %}Cierre de sesión
+          {% else %}{{ action }}{% endif %}
+        {% endmacro %}
+        {% macro history_module_badges(module_numbers) -%}
+        {% for module_number in module_numbers -%}
+        <span class="admin-history-module-color-badge" data-history-module-number="{{ module_number }}">M{{ module_number }}</span>
+        {%- else -%}
+        <span class="admin-history-module-empty">—</span>
+        {%- endfor -%}
+        {%- endmacro %}
+        {% macro history_table(entries, empty_message, section) %}
+          <div class="admin-route-table-wrap">
+            <table class="admin-route-table admin-history-table" data-history-table data-history-section="{{ section }}">
+              <thead>
                 <tr>
-                  <td class="history-empty" colspan="7">Todavía no hay operaciones registradas.</td>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Acción</th>
+                <th>Movimiento</th>
+                <th>Módulo</th>
+                <th>Detalle</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {% for entry in entries %}
+                {% set row_modules = entry.modulos or ([entry.modulo] if entry.modulo is not none else []) %}
+                {% set history_action = 'edicion' if entry.accion == 'activacion' else entry.accion %}
+                <tr class="history-row is-{{ entry.accion }}" data-history-module-row data-module-numbers="{{ row_modules|join(',') }}" data-history-category="{{ entry.history_category }}" data-history-action="{{ history_action }}">
+                  <td class="admin-history-date">
+                    <span>{{ history_weekdays[entry.fecha_hora.weekday()] }}, {{ entry.fecha_hora.day }} {{ history_months[entry.fecha_hora.month - 1] }} {{ entry.fecha_hora.year }}</span>
+                    <time datetime="{{ entry.fecha_hora.isoformat() }}">{{ entry.fecha_hora.strftime('%H:%M:%S') }}</time>
+                  </td>
+                  <td>
+                    {{ entry.usuario }}
+                  </td>
+                  <td>
+                    <span class="history-action is-{{ 'edicion' if entry.accion == 'activacion' else entry.accion }}">
+                      {{ history_action_label(entry.accion) }}
+                    </span>
+                  </td>
+                  <td class="admin-history-movement">{{ entry.movimiento_visible }}</td>
+                  <td>
+                    <div class="admin-history-modules">
+                      {% if row_modules %}
+                        {% for module_id in row_modules %}
+                          <span class="admin-history-module-badge">{{ module_names.get(module_id|string, 'Módulo ' ~ module_id) }}</span>
+                        {% endfor %}
+                      {% else %}
+                        <span class="admin-history-module-empty">—</span>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td class="admin-history-detail-cell">
+                    <button
+                      class="admin-history-detail-button"
+                      type="button"
+                      data-history-open-detail="{{ section }}-{{ loop.index }}"
+                      aria-label="Ver detalles: {{ entry.movimiento_visible }}"
+                    >Ver detalles <span aria-hidden="true">›</span></button>
+                    <template data-history-detail-template="{{ section }}-{{ loop.index }}">
+                      <div class="admin-history-detail-content">
+                        <div class="admin-history-drawer-summary">
+                          <div>
+                            <span class="history-action is-{{ 'edicion' if entry.accion == 'activacion' else entry.accion }}">
+                              {{ history_action_label(entry.accion) }}
+                            </span>
+                            <p>{{ entry.movimiento_visible }}</p>
+                          </div>
+                        </div>
+                        {% if section == 'asignaciones' and entry.accion == 'edicion' and entry.assignment_comparisons %}
+                          <section class="admin-history-assignment-comparisons" aria-label="Comparación del rol mensual">
+                            {% for comparison in entry.assignment_comparisons %}
+                              <article class="admin-history-role-comparison is-change-highlighted" data-assignment-role-comparison data-assignment-month="{{ comparison.month }}">
+                                <div class="admin-history-role-heading">
+                                  <div>
+                                    <h3>Comparativa del rol mensual</h3>
+                                    <span class="admin-history-role-period">{{ comparison.period_label }}</span>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-controller">
+                                  <span class="admin-history-role-avatar" aria-hidden="true">{% if comparison.controller %}{{ comparison.controller[:2]|upper }}{% else %}CO{% endif %}</span>
+                                  <div class="admin-history-role-identity">
+                                    <strong>{{ comparison.controller or 'Controlador sin nombre' }}</strong>
+                                    <span>Credencial {{ comparison.credential }}</span>
+                                  </div>
+                                  <div class="admin-history-role-fields">
+                                    <section class="admin-history-role-table-card" aria-label="Comparación de turnos">
+                                      <h4>Turnos</h4>
+                                      <div class="admin-history-role-table-wrap">
+                                        <table class="admin-history-role-table">
+                                          <thead>
+                                            <tr><th scope="colgroup">ANTERIOR</th><th scope="colgroup">NUEVO</th></tr>
+                                            <tr><th scope="col">TURNO</th><th scope="col">TURNO</th></tr>
+                                          </thead>
+                                          <tbody>
+                                            {% for row in comparison.shift_rows %}
+                                            <tr>
+                                              <td>{{ row.before if row.before is not none else '' }}</td>
+                                              <td class="{% if row.after_changed %}is-role-value-changed{% endif %}">{{ row.after if row.after is not none else '' }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </section>
+                                    <section class="admin-history-role-table-card" aria-label="Comparación de rutas">
+                                      <h4>Rutas</h4>
+                                      <div class="admin-history-role-table-wrap">
+                                        <table class="admin-history-role-table is-route-comparison">
+                                          <colgroup><col><col><col><col></colgroup>
+                                          <thead>
+                                            <tr><th scope="colgroup" colspan="2">ANTERIOR</th><th scope="colgroup" colspan="2">NUEVO</th></tr>
+                                            <tr><th scope="col">RUTA</th><th scope="col">NOM</th><th scope="col">RUTA</th><th scope="col">NOM</th></tr>
+                                          </thead>
+                                          <tbody>
+                                            {% for row in comparison.route_rows %}
+                                            <tr>
+                                              <td>{{ row.before.route if row.before else '' }}</td>
+                                              <td>{% if row.before and row.before.nomenclature %}({{ row.before.nomenclature }}){% elif row.before %}—{% endif %}</td>
+                                              <td class="{% if row.after_changed %}is-role-value-changed{% endif %}">{{ row.after.route if row.after else '' }}</td>
+                                              <td class="{% if row.after_changed %}is-role-value-changed{% endif %}">{% if row.after and row.after.nomenclature %}({{ row.after.nomenclature }}){% elif row.after %}—{% endif %}</td>
+                                            </tr>
+                                            {% endfor %}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </section>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-inspector" role="status" aria-live="polite">
+                                  <div class="admin-history-role-inspector-day">
+                                    <span>Día seleccionado</span>
+                                    <strong data-assignment-inspector-day>Día 1</strong>
+                                  </div>
+                                  <div>
+                                    <span>Anterior</span>
+                                    <strong data-assignment-inspector-before>—</strong>
+                                    <small data-assignment-inspector-before-detail></small>
+                                  </div>
+                                  <div>
+                                    <span>Actual</span>
+                                    <strong data-assignment-inspector-after>—</strong>
+                                    <small data-assignment-inspector-after-detail></small>
+                                  </div>
+                                </div>
+                                <button class="admin-history-role-highlight" type="button" data-assignment-highlight-toggle aria-pressed="true">
+                                  <span class="admin-history-role-highlight-indicator" aria-hidden="true"></span>
+                                  <span>Resaltar solo cambios</span>
+                                </button>
+                                <div class="admin-history-role-calendars">
+                                  {% for side_label, side, cells in [('Anterior', 'before', comparison.before_cells), ('Actual', 'after', comparison.after_cells)] %}
+                                    <section class="admin-history-role-calendar is-{{ side }}" aria-label="Calendario {{ side_label|lower }}: {{ comparison.period_label }}">
+                                      <h4>{{ side_label }}</h4>
+                                      <div class="admin-history-role-weekdays" aria-hidden="true">
+                                        {% for weekday in comparison.weekdays %}<span>{{ weekday }}</span>{% endfor %}
+                                      </div>
+                                      <div class="admin-history-role-days">
+                                        {% for cell in cells %}
+                                          {% if cell.blank %}
+                                            <span class="admin-history-role-day-blank" aria-hidden="true"></span>
+                                          {% else %}
+                                            <button
+                                              class="admin-history-role-day is-{{ cell.status }}{% if cell.changed %} is-changed{% endif %}"
+                                              type="button"
+                                              data-assignment-calendar-day
+                                              data-assignment-side="{{ side }}"
+                                              data-assignment-day="{{ cell.day }}"
+                                              data-assignment-label="{{ cell.label }}"
+                                              data-assignment-detail="{{ cell.detail }}"
+                                              aria-label="Día {{ cell.day }}: {{ cell.label }}. {{ cell.detail }}"
+                                            ><span>{{ cell.day }}</span><small>{{ cell.label }}</small></button>
+                                          {% endif %}
+                                        {% endfor %}
+                                      </div>
+                                    </section>
+                                  {% endfor %}
+                                </div>
+                                <div class="admin-history-role-legend" aria-label="Leyenda del calendario">
+                                  <span><i class="is-work"></i>Trabajo</span>
+                                  <span><i class="is-rest"></i>Descanso</span>
+                                  <span><i class="is-vacation"></i>Vacaciones</span>
+                                  <span><i class="is-changed"></i>Día modificado</span>
+                                </div>
+                              </article>
+                            {% endfor %}
+                          </section>
+                        {% elif section == 'asignaciones' and entry.accion == 'registro' and entry.assignment_calendars %}
+                          <section class="admin-history-assignment-comparisons" aria-label="Calendario del registro">
+                            {% for calendar in entry.assignment_calendars %}
+                              <article class="admin-history-role-comparison is-registration-calendar" data-assignment-role-registration data-assignment-month="{{ calendar.month }}">
+                                <div class="admin-history-role-heading">
+                                  <div>
+                                    <h3>Registro de asignación</h3>
+                                    <span class="admin-history-role-period">{{ calendar.period_label }}</span>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-controller">
+                                  <span class="admin-history-role-avatar" aria-hidden="true">{% if calendar.controller %}{{ calendar.controller[:2]|upper }}{% else %}CO{% endif %}</span>
+                                  <div class="admin-history-role-identity">
+                                    <strong>{{ calendar.controller or 'Controlador sin nombre' }}</strong>
+                                    <span>Credencial {{ calendar.credential }}</span>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-calendars is-single">
+                                  <section class="admin-history-role-calendar is-after is-static" aria-label="Calendario registrado: {{ calendar.period_label }}">
+                                    <h4>Calendario registrado</h4>
+                                    <div class="admin-history-role-weekdays" aria-hidden="true">
+                                      {% for weekday in calendar.weekdays %}<span>{{ weekday }}</span>{% endfor %}
+                                    </div>
+                                    <div class="admin-history-role-days">
+                                      {% for cell in calendar.cells %}
+                                        {% if cell.blank %}
+                                          <span class="admin-history-role-day-blank" aria-hidden="true"></span>
+                                        {% else %}
+                                          <span
+                                            class="admin-history-role-day is-{{ cell.status }}"
+                                            data-assignment-registration-day="{{ cell.day }}"
+                                            aria-label="Día {{ cell.day }}: {{ cell.label }}. {{ cell.detail }}"
+                                            title="Día {{ cell.day }}: {{ cell.label }}. {{ cell.detail }}"
+                                          ><span>{{ cell.day }}</span><small>{{ cell.label }}</small></span>
+                                        {% endif %}
+                                      {% endfor %}
+                                    </div>
+                                  </section>
+                                </div>
+                                <div class="admin-history-role-legend" aria-label="Leyenda del calendario">
+                                  <span><i class="is-work"></i>Trabajo</span>
+                                  <span><i class="is-rest"></i>Descanso</span>
+                                  <span><i class="is-vacation"></i>Vacaciones</span>
+                                </div>
+                              </article>
+                            {% endfor %}
+                          </section>
+                        {% elif section == 'asignaciones' and entry.accion == 'eliminacion' and entry.assignment_deletions %}
+                          <section class="admin-history-assignment-comparisons" aria-label="Calendario de asignaciones eliminadas">
+                            {% for calendar in entry.assignment_deletions %}
+                              <article class="admin-history-role-comparison is-deletion-calendar" data-assignment-role-deletion data-assignment-month="{{ calendar.month }}">
+                                <div class="admin-history-role-heading">
+                                  <div>
+                                    <h3>Asignación eliminada</h3>
+                                    <span class="admin-history-role-period">{{ calendar.period_label }}</span>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-controller">
+                                  <span class="admin-history-role-avatar" aria-hidden="true">{% if calendar.controller %}{{ calendar.controller[:2]|upper }}{% else %}CO{% endif %}</span>
+                                  <div class="admin-history-role-identity">
+                                    <strong>{{ calendar.controller or 'Controlador sin nombre' }}</strong>
+                                    <span>Credencial {{ calendar.credential }}</span>
+                                  </div>
+                                </div>
+                                <div class="admin-history-role-calendars is-single">
+                                  <section class="admin-history-role-calendar is-deletion is-static" aria-label="Asignaciones eliminadas: {{ calendar.period_label }}">
+                                    <h4>Días eliminados</h4>
+                                    <div class="admin-history-role-weekdays" aria-hidden="true">
+                                      {% for weekday in calendar.weekdays %}<span>{{ weekday }}</span>{% endfor %}
+                                    </div>
+                                    <div class="admin-history-role-days">
+                                      {% for cell in calendar.cells %}
+                                        {% if cell.blank %}
+                                          <span class="admin-history-role-day-blank" aria-hidden="true"></span>
+                                        {% else %}
+                                          <span
+                                            class="admin-history-role-day is-{{ cell.status }}{% if cell.deleted %} is-deleted{% endif %}"
+                                            data-assignment-deleted-day="{{ cell.day }}"
+                                            aria-label="Día {{ cell.day }}: {{ cell.label }}. {{ cell.detail }}{% if cell.deleted %}. Asignación eliminada{% endif %}"
+                                            title="Día {{ cell.day }}: {{ cell.label }}. {{ cell.detail }}{% if cell.deleted %}. Asignación eliminada{% endif %}"
+                                          ><span>{{ cell.day }}</span><small>{{ cell.label }}</small></span>
+                                        {% endif %}
+                                      {% endfor %}
+                                    </div>
+                                  </section>
+                                </div>
+                                <div class="admin-history-role-legend" aria-label="Leyenda del calendario">
+                                  <span><i class="is-deleted"></i>Asignación eliminada</span>
+                                </div>
+                              </article>
+                            {% endfor %}
+                          </section>
+                        {% else %}
+                        {% if entry.detail_rows %}
+                          <section class="admin-history-drawer-section">
+                            <h3>
+                              {% if entry.detail_rows|length == 1 and entry.detail_rows[0].field == 'Detalle' %}
+                                Detalles del movimiento
+                              {% else %}
+                                Ficha del registro
+                              {% endif %}
+                            </h3>
+                            <div class="admin-history-drawer-table-wrap">
+                              <table class="admin-history-drawer-table">
+                                <colgroup>
+                                  <col class="admin-history-drawer-field-column">
+                                  <col class="admin-history-drawer-status-column">
+                                  <col class="admin-history-drawer-value-column">
+                                </colgroup>
+                                <tbody>
+                                  {% for row in entry.detail_rows %}
+                                    {% if row.module_groups %}
+                                      {% for group in row.module_groups %}
+                                        <tr>
+                                          {% if loop.first %}
+                                            <th class="admin-history-module-group-field" scope="rowgroup" rowspan="{{ row.module_groups|length }}">{{ row.field }}</th>
+                                          {% endif %}
+                                          <td class="admin-history-module-group-state-cell">
+                                            <span class="admin-history-module-group-state {{ group.status_class }}">{{ group.status }}</span>
+                                          </td>
+                                          <td class="admin-history-module-group-modules">{{ history_module_badges(group.modules) }}</td>
+                                        </tr>
+                                      {% endfor %}
+                                    {% else %}
+                                      <tr>
+                                        <th scope="row">{{ row.field }}</th>
+                                        <td colspan="2">
+                                          {% if row.value_lines %}
+                                            {% for line in row.value_lines %}
+                                              <div class="admin-history-drawer-value-line">{{ line }}</div>
+                                            {% endfor %}
+                                          {% else %}
+                                            {{ row.value }}
+                                          {% endif %}
+                                        </td>
+                                      </tr>
+                                    {% endif %}
+                                  {% endfor %}
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
+                        {% endif %}
+                        {% if entry.accion == 'edicion' and entry.comparison_rows %}
+                          <section class="admin-history-drawer-section">
+                            <h3>Cambios registrados</h3>
+                            <div class="admin-history-drawer-table-wrap">
+                              <table class="admin-history-comparison">
+                                <thead>
+                                  <tr><th>Campo</th><th>Anterior</th><th>Nuevo</th></tr>
+                                </thead>
+                                <tbody>
+                                  {% for row in entry.comparison_rows %}
+                                    <tr>
+                                      <th scope="row">{{ row.field }}</th>
+                                      <td class="{% if row.changed %}is-history-changed{% endif %}">
+                                        {% if row.before_module_groups %}
+                                          <div class="admin-history-comparison-module-groups">
+                                            {% for group in row.before_module_groups %}
+                                              <div class="admin-history-comparison-module-group">
+                                                <span class="admin-history-module-group-state {{ group.status_class }}">{{ group.status }}</span>
+                                                <div class="admin-history-comparison-module-list">{{ history_module_badges(group.modules) }}</div>
+                                              </div>
+                                            {% endfor %}
+                                          </div>
+                                        {% else %}
+                                          {{ row.before }}
+                                        {% endif %}
+                                      </td>
+                                      <td class="{% if row.changed %}is-history-changed{% endif %}">
+                                        {% if row.after_module_groups %}
+                                          <div class="admin-history-comparison-module-groups">
+                                            {% for group in row.after_module_groups %}
+                                              <div class="admin-history-comparison-module-group">
+                                                <span class="admin-history-module-group-state {{ group.status_class }}">{{ group.status }}</span>
+                                                <div class="admin-history-comparison-module-list">{{ history_module_badges(group.modules) }}</div>
+                                              </div>
+                                            {% endfor %}
+                                          </div>
+                                        {% else %}
+                                          {{ row.after }}
+                                        {% endif %}
+                                      </td>
+                                    </tr>
+                                  {% endfor %}
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
+                        {% elif entry.accion == 'edicion' and not entry.comparison_rows %}
+                          <p class="admin-history-drawer-note">No hay una comparación anterior disponible para este movimiento.</p>
+                        {% endif %}
+                        {% endif %}
+                        <div class="admin-history-drawer-meta">
+                          <span>Usuario responsable</span><strong>{{ entry.usuario }}</strong>
+                          <span>Fecha y hora</span><strong>{{ history_weekdays[entry.fecha_hora.weekday()] }}, {{ entry.fecha_hora.day }} {{ history_months[entry.fecha_hora.month - 1] }} {{ entry.fecha_hora.year }} · {{ entry.fecha_hora.strftime('%H:%M:%S') }}</strong>
+                          {% if row_modules %}
+                            <span>Módulos</span><strong>{% for module_id in row_modules %}{{ ', ' if not loop.first else '' }}{{ module_names.get(module_id|string, 'Módulo ' ~ module_id) }}{% endfor %}</strong>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </template>
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td class="history-empty" colspan="6">{{ empty_message }}</td>
+                </tr>
+                {% endfor %}
+                {% if entries %}
+                <tr data-history-filter-empty hidden>
+                  <td class="history-empty" colspan="6">No hay movimientos que coincidan con la búsqueda, los filtros y el módulo seleccionado.</td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        {% endmacro %}
+        <section id="history-panel-general" class="admin-history-tab-panel" role="tabpanel" aria-labelledby="history-tab-general" data-history-panel="general">
+          {{ history_table(general_entries, 'No hay movimientos generales registrados.', 'general') }}
+        </section>
+        <section id="history-panel-assignments" class="admin-history-tab-panel" role="tabpanel" aria-labelledby="history-tab-assignments" data-history-panel="asignaciones" hidden>
+          {{ history_table(assignment_entries, 'No hay movimientos de asignaciones registrados.', 'asignaciones') }}
+        </section>
       </section>
       </section>
     </div>
   </main>
+  <div class="admin-history-drawer" data-history-drawer hidden>
+    <button class="admin-history-drawer-backdrop" type="button" data-history-drawer-close aria-label="Cerrar detalles"></button>
+    <aside class="admin-history-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title">
+      <header class="admin-history-drawer-heading">
+        <div>
+          <span>Detalle de Auditoría</span>
+          <h2 id="history-drawer-title">Información del Movimiento</h2>
+        </div>
+        <button class="admin-history-drawer-close" type="button" data-history-drawer-close aria-label="Cerrar detalles">&times;</button>
+      </header>
+      <div class="admin-history-drawer-body" data-history-drawer-body></div>
+      <footer class="admin-history-drawer-footer">
+        <button class="admin-secondary-button" type="button" data-history-drawer-close>Cerrar ventana</button>
+      </footer>
+    </aside>
+  </div>
+  {% if account.is_admin %}
+    {% include 'admin/_delete_confirmation_modal.html' %}
+    <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
+  {% endif %}
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
-  {% include 'admin/_notification_toast.html' %}
+  {% include 'admin/_action_notification.html' %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const tabs = Array.from(document.querySelectorAll('[data-history-tab]'));
+      const panels = document.querySelectorAll('[data-history-panel]');
+      const historyTables = document.querySelectorAll('[data-history-table]');
+      const historyDrawer = document.querySelector('[data-history-drawer]');
+      const historyDrawerPanel = historyDrawer?.querySelector('.admin-history-drawer-panel');
+      const historyDrawerBody = document.querySelector('[data-history-drawer-body]');
+      const historyClearForm = document.querySelector('[data-history-clear-form]');
+      const historyClearModule = historyClearForm?.querySelector('[name="module_number"]');
+      const historyClearSubmit = historyClearForm?.querySelector('[data-history-clear-submit]');
+      const historyToolbar = document.querySelector('[data-history-toolbar]');
+      const historySearch = historyToolbar?.querySelector('[data-history-search]');
+      const historySearchClear = historyToolbar?.querySelector('[data-history-search-clear]');
+      const historyFilterToggle = historyToolbar?.querySelector('[data-history-filter-toggle]');
+      const historyFilterPanel = historyToolbar?.querySelector('[data-history-filter-panel]');
+      const historyFilterClear = historyToolbar?.querySelector('[data-history-filter-clear]');
+      const historyFilterCount = historyToolbar?.querySelector('[data-history-filter-count]');
+      const historyCategoryFilterGroup = historyToolbar?.querySelector('[data-history-category-filter-group]');
+      const historyActionFilterHeading = historyToolbar?.querySelector('[data-history-action-filter-heading]');
+      const historyCategoryFilters = Array.from(historyToolbar?.querySelectorAll('[data-history-category-filter]') || []);
+      const historyActionFilters = Array.from(historyToolbar?.querySelectorAll('[data-history-action-filter]') || []);
+      let activeDetailButton = null;
+      let drawerCloseTimer = null;
+      let activeHistoryModule = '';
+
+      function syncHistoryClearModule(moduleId) {
+        if (!historyClearModule) return;
+        const selectedModule = String(moduleId || '');
+        historyClearModule.value = selectedModule;
+        if (historyClearSubmit) historyClearSubmit.disabled = !/^\d+$/.test(selectedModule);
+      }
+
+      document.addEventListener('admin-module-changed', function (event) {
+        syncHistoryClearModule(event.detail?.moduleId);
+      });
+      syncHistoryClearModule(
+        document.querySelector('.admin-module-tabs [data-admin-module].active')?.dataset.adminModule
+        || document.querySelector('.admin-module-tabs [data-admin-module]')?.dataset.adminModule
+      );
+
+      function normalizeSearchText(value) {
+        return String(value || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLocaleLowerCase('es');
+      }
+
+      function filterHistory(moduleId = activeHistoryModule) {
+        activeHistoryModule = String(moduleId || '');
+        const query = normalizeSearchText(historySearch?.value.trim());
+        const selectedCategories = new Set(
+          historyCategoryFilters.filter((filter) => filter.checked).map((filter) => filter.value)
+        );
+        const selectedActions = new Set(
+          historyActionFilters.filter((filter) => filter.checked).map((filter) => filter.value)
+        );
+        const sectionCounts = new Map();
+        let totalCount = 0;
+
+        historyTables.forEach((table) => {
+          let visibleCount = 0;
+          table.querySelectorAll('[data-history-module-row]').forEach((row) => {
+            const rowModules = row.dataset.moduleNumbers.split(',').filter(Boolean);
+            const dateCell = row.querySelector('.admin-history-date');
+            const searchableText = normalizeSearchText([
+              dateCell?.textContent,
+              dateCell?.querySelector('time')?.getAttribute('datetime'),
+              row.querySelector('.admin-history-user')?.textContent,
+            ].join(' '));
+            const matchesModule = !activeHistoryModule || rowModules.includes(activeHistoryModule);
+            const matchesSearch = !query || searchableText.includes(query);
+            const matchesCategory = !selectedCategories.size || selectedCategories.has(row.dataset.historyCategory);
+            const matchesAction = !selectedActions.size || selectedActions.has(row.dataset.historyAction);
+            const visible = matchesModule && matchesSearch && matchesCategory && matchesAction;
+            row.hidden = !visible;
+            if (visible) visibleCount += 1;
+          });
+          const emptyRow = table.querySelector('[data-history-filter-empty]');
+          if (emptyRow) emptyRow.hidden = visibleCount > 0;
+          sectionCounts.set(table.dataset.historySection, visibleCount);
+          totalCount += visibleCount;
+        });
+
+        document.querySelectorAll('[data-history-count]').forEach((count) => {
+          count.textContent = String(sectionCounts.get(count.dataset.historyCount) || 0);
+        });
+        const totalCountElement = document.querySelector('[data-history-total-count]');
+        if (totalCountElement) totalCountElement.textContent = `${totalCount} registros`;
+        if (historySearchClear) historySearchClear.hidden = !historySearch?.value;
+        const selectedFilterCount = selectedCategories.size + selectedActions.size;
+        if (historyFilterCount) {
+          historyFilterCount.textContent = String(selectedFilterCount);
+          historyFilterCount.hidden = selectedFilterCount === 0;
+        }
+        historyFilterToggle?.classList.toggle('is-active', selectedFilterCount > 0);
+      }
+
+      function updateHistoryFilterMode(section) {
+        const isAssignments = section === 'asignaciones';
+        if (historyCategoryFilterGroup) historyCategoryFilterGroup.hidden = isAssignments;
+        if (historyActionFilterHeading) {
+          historyActionFilterHeading.textContent = isAssignments ? 'Acción' : 'Categoría Acciones';
+        }
+        if (isAssignments) {
+          historyCategoryFilters.forEach((filter) => {
+            filter.checked = false;
+          });
+        }
+        filterHistory();
+      }
+
+      document.addEventListener('admin-module-changed', function (event) {
+        filterHistory(event.detail?.moduleId);
+      });
+      filterHistory(document.querySelector('[data-admin-module].active')?.dataset.adminModule);
+
+      historySearch?.addEventListener('input', () => filterHistory());
+      historySearchClear?.addEventListener('click', function () {
+        if (historySearch) historySearch.value = '';
+        filterHistory();
+        historySearch?.focus();
+      });
+      historyCategoryFilters.concat(historyActionFilters).forEach((filter) => {
+        filter.addEventListener('change', () => filterHistory());
+      });
+      historyFilterClear?.addEventListener('click', function () {
+        historyCategoryFilters.concat(historyActionFilters).forEach((filter) => {
+          filter.checked = false;
+        });
+        filterHistory();
+      });
+      historyFilterToggle?.addEventListener('click', function () {
+        const isExpanded = historyFilterToggle.getAttribute('aria-expanded') === 'true';
+        historyFilterToggle.setAttribute('aria-expanded', String(!isExpanded));
+        if (historyFilterPanel) historyFilterPanel.hidden = isExpanded;
+      });
+      if (historyToolbar && historyFilterToggle && historyFilterPanel) {
+        document.addEventListener('click', function (event) {
+          if (!historyToolbar.contains(event.target)) {
+            historyFilterPanel.hidden = true;
+            historyFilterToggle.setAttribute('aria-expanded', 'false');
+          }
+        });
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && !historyFilterPanel.hidden) {
+            historyFilterPanel.hidden = true;
+            historyFilterToggle.setAttribute('aria-expanded', 'false');
+            historyFilterToggle.focus();
+          }
+        });
+      }
+
+      function initializeAssignmentComparisons(container) {
+        container.querySelectorAll('[data-assignment-role-comparison]').forEach((comparison) => {
+          const inspectDay = (day) => {
+            const cells = Array.from(comparison.querySelectorAll('[data-assignment-calendar-day]'))
+              .filter((cell) => cell.dataset.assignmentDay === day);
+            const before = cells.find((cell) => cell.dataset.assignmentSide === 'before');
+            const after = cells.find((cell) => cell.dataset.assignmentSide === 'after');
+            const inspectorDay = comparison.querySelector('[data-assignment-inspector-day]');
+            const beforeLabel = comparison.querySelector('[data-assignment-inspector-before]');
+            const afterLabel = comparison.querySelector('[data-assignment-inspector-after]');
+            const beforeDetail = comparison.querySelector('[data-assignment-inspector-before-detail]');
+            const afterDetail = comparison.querySelector('[data-assignment-inspector-after-detail]');
+            if (inspectorDay) inspectorDay.textContent = `Día ${day}`;
+            if (beforeLabel) beforeLabel.textContent = before?.dataset.assignmentLabel || '—';
+            if (afterLabel) afterLabel.textContent = after?.dataset.assignmentLabel || '—';
+            if (beforeDetail) beforeDetail.textContent = before?.dataset.assignmentDetail || '';
+            if (afterDetail) afterDetail.textContent = after?.dataset.assignmentDetail || '';
+            comparison.querySelectorAll('[data-assignment-calendar-day]').forEach((cell) => {
+              cell.classList.toggle('is-inspected', cell.dataset.assignmentDay === day);
+            });
+          };
+          const updateFromEvent = (event) => {
+            const dayButton = event.target instanceof Element
+              ? event.target.closest('[data-assignment-calendar-day]')
+              : null;
+            if (dayButton && comparison.contains(dayButton)) {
+              inspectDay(dayButton.dataset.assignmentDay);
+            }
+          };
+          comparison.addEventListener('pointerover', updateFromEvent);
+          comparison.addEventListener('focusin', updateFromEvent);
+          comparison.addEventListener('click', function (event) {
+            const highlightButton = event.target instanceof Element
+              ? event.target.closest('[data-assignment-highlight-toggle]')
+              : null;
+            if (highlightButton) {
+              const isEnabled = highlightButton.getAttribute('aria-pressed') !== 'true';
+              highlightButton.setAttribute('aria-pressed', String(isEnabled));
+              comparison.classList.toggle('is-change-highlighted', isEnabled);
+              return;
+            }
+            updateFromEvent(event);
+          });
+          const firstChangedDay = comparison.querySelector('[data-assignment-calendar-day].is-changed');
+          const firstDay = firstChangedDay || comparison.querySelector('[data-assignment-calendar-day]');
+          if (firstDay) inspectDay(firstDay.dataset.assignmentDay);
+        });
+      }
+
+      document.querySelectorAll('[data-history-open-detail]').forEach((button) => {
+        button.addEventListener('click', function () {
+          const template = document.querySelector(
+            `[data-history-detail-template="${CSS.escape(button.dataset.historyOpenDetail)}"]`
+          );
+          if (!template || !historyDrawer || !historyDrawerBody) return;
+          window.clearTimeout(drawerCloseTimer);
+          activeDetailButton = button;
+          historyDrawerBody.replaceChildren(template.content.cloneNode(true));
+          const hasAssignmentComparison = Boolean(
+            historyDrawerBody.querySelector(
+              '[data-assignment-role-comparison], [data-assignment-role-registration], [data-assignment-role-deletion]'
+            )
+          );
+          historyDrawerPanel?.classList.toggle('is-assignment-comparison', hasAssignmentComparison);
+          initializeAssignmentComparisons(historyDrawerBody);
+          historyDrawer.hidden = false;
+          document.body.classList.add('history-drawer-open');
+          window.requestAnimationFrame(() => historyDrawer.classList.add('is-open'));
+          historyDrawer.querySelector('.admin-history-drawer-close')?.focus();
+        });
+      });
+
+      function closeHistoryDrawer() {
+        if (!historyDrawer || historyDrawer.hidden) return;
+        historyDrawer.classList.remove('is-open');
+        document.body.classList.remove('history-drawer-open');
+        drawerCloseTimer = window.setTimeout(() => {
+          historyDrawer.hidden = true;
+          historyDrawerPanel?.classList.remove('is-assignment-comparison');
+          activeDetailButton?.focus();
+          activeDetailButton = null;
+        }, 320);
+      }
+
+      historyDrawer?.querySelectorAll('[data-history-drawer-close]').forEach((button) => {
+        button.addEventListener('click', closeHistoryDrawer);
+      });
+      historyDrawerPanel?.addEventListener('keydown', function (event) {
+        if (event.key !== 'Tab') return;
+        const focusableElements = Array.from(historyDrawerPanel.querySelectorAll(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ));
+        if (!focusableElements.length) return;
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && historyDrawer && !historyDrawer.hidden) {
+          closeHistoryDrawer();
+        }
+      });
+      historyDrawerPanel?.addEventListener('transitionend', function (event) {
+        if (event.target === historyDrawerPanel && !historyDrawer?.classList.contains('is-open')) {
+          window.clearTimeout(drawerCloseTimer);
+          historyDrawer.hidden = true;
+          historyDrawerPanel.classList.remove('is-assignment-comparison');
+          activeDetailButton?.focus();
+          activeDetailButton = null;
+        }
+      });
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', function () {
+          tabs.forEach((item) => {
+            const active = item === tab;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-selected', String(active));
+            item.tabIndex = active ? 0 : -1;
+          });
+          panels.forEach((panel) => {
+            panel.hidden = panel.dataset.historyPanel !== tab.dataset.historyTab;
+          });
+          updateHistoryFilterMode(tab.dataset.historyTab);
+        });
+        tab.addEventListener('keydown', function (event) {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const nextIndex = event.key === 'Home' ? 0
+            : event.key === 'End' ? tabs.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+          tabs[nextIndex].focus();
+          tabs[nextIndex].click();
+        });
+      });
+    });
+  </script>
 </body>
 </html>

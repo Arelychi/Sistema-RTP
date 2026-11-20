@@ -65,19 +65,43 @@ def test_module_controller_creation_surfaces_database_failure(monkeypatch, caplo
 def test_controller_update_and_delete_endpoints(monkeypatch):
     app = web.app
 
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, query, params):
+            assert params == (7,)
+
+        def fetchone(self):
+            return ("Ana anterior", "7788", "Femenino", 2, True)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
     def fake_initialize_schema():
         return None
 
     def fake_update_controller(controller_id, payload):
         assert controller_id == 7
         assert payload == {"nombre": "Ana", "credencial": "7788", "sexo": "Femenino", "mod1": 2}
-        return {"id": 7, "nombre": "Ana", "credencial": "7788", "sexo": "Femenino", "mod1": 2}
+        return {"id": 7, "nombre": "Ana", "credencial": "7788", "sexo": "Femenino", "mod1": 2, "active": True}
 
     def fake_delete_controller(controller_id):
         assert controller_id == 7
         return True
 
     monkeypatch.setattr(web, "initialize_schema", fake_initialize_schema)
+    monkeypatch.setattr(web, "get_connection", lambda: FakeConnection())
     monkeypatch.setattr(web, "update_controller", fake_update_controller)
     monkeypatch.setattr(web, "delete_controller", fake_delete_controller)
 

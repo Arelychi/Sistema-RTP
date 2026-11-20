@@ -77,16 +77,16 @@
                   <button class="admin-modal-close" type="button" data-catalog-modal-close aria-label="Cerrar formulario">&times;</button>
                 </div>
                 <div class="admin-form-shell">
-                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="descripcion" data-admin-save-selector="#tipos-rutas-form-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando tipo de ruta...' if editing_tipo_ruta else 'Guardando tipo de ruta...' }}">
+                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-edit-guard="{{ 'true' if editing_tipo_ruta else 'false' }}" data-admin-save-field="descripcion" data-admin-save-selector="#tipos-rutas-form-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando tipo de ruta...' if editing_tipo_ruta else 'Guardando tipo de ruta...' }}">
                     <input type="hidden" name="catalog_tab" value="tipos">
                     {% if editing_tipo_ruta %}<input type="hidden" name="tipo_id" value="{{ editing_tipo_ruta.id }}">{% endif %}
                     <label>Tipo <span class="required-label-note">* Campo Obligatorio</span>
-                      <input name="descripcion" value="{{ editing_tipo_ruta.descripcion if editing_tipo_ruta else '' }}" required required placeholder="Nombre del tipo de ruta">
+                      <input name="descripcion" value="{{ editing_tipo_ruta.descripcion if editing_tipo_ruta else '' }}" pattern="[\p{L}]+(?:\s+[\p{L}]+)*" title="Escribe solo letras y espacios" data-admin-letters-only required required placeholder="Nombre del tipo de ruta">
                     </label>
                     
                     <div class="admin-form-actions">
                       <button class="admin-secondary-button" type="button" data-catalog-modal-close>Cancelar</button>
-                      <button class="admin-primary-button" type="submit">{{ 'Actualizar tipo' if editing_tipo_ruta else 'Guardar tipo' }}</button>
+                      <button class="admin-primary-button" type="submit" data-admin-edit-save {% if editing_tipo_ruta %}hidden{% endif %}>{{ 'Actualizar tipo' if editing_tipo_ruta else 'Guardar tipo' }}</button>
                     </div>
                   </form>
                 </div>
@@ -114,17 +114,17 @@
                   <thead><tr><th>Descripción</th><th>Estatus</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for tipo_ruta in tipos_rutas %}
-                      <tr data-admin-filter-row data-admin-save-row="{{ tipo_ruta.descripcion }}" data-filter-status="{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}">
+                      <tr data-admin-filter-row data-admin-save-row="{{ tipo_ruta.descripcion }}" data-admin-status-row-key="route-type-{{ tipo_ruta.id }}" data-filter-status="{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}">
                         <td>{{ tipo_ruta.descripcion }}</td>
                         <td class="admin-controller-status">
                           {% if is_read_only_account %}
                             <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}</span>
                           {% else %}
-                            <form method="post" action="{{ request.script_root }}/administrador/tipos-rutas/{{ tipo_ruta.id }}/estado">
+                            <form method="post" action="{{ request.script_root }}/administrador/tipos-rutas/{{ tipo_ruta.id }}/estado" data-admin-status-form>
                             <input type="hidden" name="catalog_tab" value="tipos">
                               <input type="hidden" name="estado" value="{{ 'Activo' if tipo_ruta.activo else 'Inactivo' }}">
                               <label class="route-switch" title="Cambiar estado del tipo de ruta">
-                                <input type="checkbox" {% if tipo_ruta.activo %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                <input type="checkbox" {% if tipo_ruta.activo %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                 <span class="route-status-badge">
                                   <span class="route-status-dot"></span>
                                   <span class="route-status-label route-status-active">Activo</span>
@@ -168,17 +168,17 @@
                   <button class="admin-modal-close" type="button" data-catalog-modal-close aria-label="Cerrar formulario">&times;</button>
                 </div>
                 <div class="admin-form-shell">
-                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="nombre" data-admin-save-selector="#servicio-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando servicio...' if editing_servicio else 'Guardando servicio...' }}">
+                  <form method="post" action="{{ url_for('admin_create_tipo_ruta') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-edit-guard="{{ 'true' if editing_servicio else 'false' }}" data-admin-save-field="nombre" data-admin-save-selector="#servicio-panel [data-admin-save-row]" data-admin-save-label="{{ 'Actualizando servicio...' if editing_servicio else 'Guardando servicio...' }}">
                     <input type="hidden" name="catalog" value="servicio">
                     <input type="hidden" name="catalog_tab" value="servicios">
                     {% if editing_servicio %}<input type="hidden" name="servicio_id" value="{{ editing_servicio.id }}">{% endif %}
                     <label>Servicio <span class="required-label-note">* Campo Obligatorio</span>
-                      <input name="nombre" value="{{ editing_servicio.nombre if editing_servicio else '' }}" maxlength="160" required placeholder="Nombre del servicio">
+                      <input name="nombre" value="{{ editing_servicio.nombre if editing_servicio else '' }}" maxlength="160" pattern="[\p{L}]+(?:\s+[\p{L}]+)*" title="Escribe solo letras y espacios" data-admin-letters-only required placeholder="Nombre del servicio">
                     </label>
                     
                     <div class="admin-form-actions">
                       <button class="admin-secondary-button" type="button" data-catalog-modal-close>Cancelar</button>
-                      <button class="admin-primary-button" type="submit">{{ 'Actualizar servicio' if editing_servicio else 'Guardar servicio' }}</button>
+                      <button class="admin-primary-button" type="submit" data-admin-edit-save {% if editing_servicio %}hidden{% endif %}>{{ 'Actualizar servicio' if editing_servicio else 'Guardar servicio' }}</button>
                     </div>
                   </form>
                 </div>
@@ -206,17 +206,17 @@
                   <thead><tr><th>Nombre</th><th>Estatus</th><th>Acciones</th></tr></thead>
                   <tbody>
                     {% for servicio in servicios %}
-                      <tr data-admin-filter-row data-admin-save-row="{{ servicio.nombre }}" data-filter-status="{{ 'Activo' if servicio.activo else 'Inactivo' }}">
+                      <tr data-admin-filter-row data-admin-save-row="{{ servicio.nombre }}" data-admin-status-row-key="service-{{ servicio.id }}" data-filter-status="{{ 'Activo' if servicio.activo else 'Inactivo' }}">
                         <td>{{ servicio.nombre }}</td>
                         <td class="admin-controller-status">
                           {% if is_read_only_account %}
                             <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if servicio.activo else 'Inactivo' }}</span>
                           {% else %}
-                            <form method="post" action="{{ request.script_root }}/administrador/servicios/{{ servicio.id }}/estado">
+                            <form method="post" action="{{ request.script_root }}/administrador/servicios/{{ servicio.id }}/estado" data-admin-status-form>
                             <input type="hidden" name="catalog_tab" value="servicios">
                               <input type="hidden" name="estado" value="{{ 'Activo' if servicio.activo else 'Inactivo' }}">
                               <label class="route-switch" title="Cambiar estado del servicio">
-                                <input type="checkbox" {% if servicio.activo %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                <input type="checkbox" {% if servicio.activo %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                 <span class="route-status-badge">
                                   <span class="route-status-dot"></span>
                                   <span class="route-status-label route-status-active">Activo</span>
@@ -278,7 +278,7 @@
           </div>
 
           <div class="admin-form-shell">
-            <form id="admin-route-form" method="post" action="{{ url_for('admin_create_route') }}" class="admin-route-form" data-admin-save-form data-admin-save-fields="ruta,origen,destino" data-admin-save-scope-field="mod1" data-admin-save-selector="#routes-section [data-admin-save-ruta]">
+            <form id="admin-route-form" method="post" action="{{ url_for('admin_create_route') }}" class="admin-route-form" data-admin-save-form data-admin-edit-guard="{{ 'true' if editing_route else 'false' }}" data-admin-save-fields="ruta,origen,destino" data-admin-save-scope-field="mod1" data-admin-save-selector="#routes-section [data-admin-save-ruta]">
               {% if editing_route %}
                 <input type="hidden" name="route_id" value="{{ editing_route.id }}">
               {% endif %}
@@ -332,24 +332,52 @@
                   
                   <label for="route-module-menu">Módulos <span class="required-label-note">* Campo Obligatorio</span>                  
                   </label>
-                  <div class="admin-route-module-picker admin-route-turno-like-picker" data-route-module-picker>
+                  <div class="admin-route-module-picker admin-route-turno-like-picker admin-route-module-table-picker" data-route-module-picker>
                     <input id="route-primary-module" type="hidden" name="mod1" value="{{ editing_route.mod1 if editing_route else (modules[0].id if modules else '') }}" required>
-                    <div id="route-module-menu" class="admin-route-module-menu" role="listbox">
-                      {% for module in modules %}
-                        <button type="button" class="admin-route-module-option" data-module-id="{{ module.id }}" data-module-name="{{ module.nombre }}" role="option">{{ module.nombre }}</button>
-                      {% endfor %}
+                    <div class="admin-route-module-tables">
+                      <section class="admin-route-module-table-panel" aria-labelledby="route-available-modules-title">
+                        <div class="admin-route-module-table-heading">
+                          <h3 id="route-available-modules-title">Módulos disponibles</h3>
+                          <span class="admin-route-module-count" data-route-available-count>{{ modules|length }}</span>
+                        </div>
+                        <div class="admin-route-module-table-scroll">
+                          <table class="admin-route-module-table">
+                            <thead><tr><th>Módulo</th><th>Acción</th></tr></thead>
+                            <tbody id="route-module-menu">
+                              {% for module in modules %}
+                                <tr>
+                                  <td><div class="admin-route-module-identity"><span class="admin-route-module-name">{{ module.nombre }}</span></div></td>
+                                  <td><button type="button" class="admin-route-module-option" data-module-id="{{ module.id }}" data-module-name="{{ module.nombre }}">Agregar <span aria-hidden="true">→</span></button></td>
+                                </tr>
+                              {% endfor %}
+                              <tr data-route-available-empty {% if modules %}hidden{% endif %}><td class="admin-route-module-empty" colspan="2">No hay módulos disponibles.</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                      <section class="admin-route-module-table-panel" aria-labelledby="route-selected-modules-title">
+                        <div class="admin-route-module-table-heading">
+                          <h3 id="route-selected-modules-title">Módulos seleccionados</h3>
+                          <span class="admin-route-module-count is-selected" data-route-selected-count>{{ 1 + (shared_modules|length if editing_route else 0) }}</span>
+                        </div>
+                        <div class="admin-route-module-table-scroll">
+                          <table class="admin-route-module-table">
+                            <thead><tr><th>Módulo</th><th>Estado</th><th>Acción</th></tr></thead>
+                            <tbody id="route-selected-modules" aria-live="polite">
+                              {% if editing_route %}
+                                <tr data-module-id="{{ editing_route.mod1 }}"><td><div class="admin-route-module-identity"><span class="admin-route-module-name">{{ modules|selectattr('id', 'equalto', editing_route.mod1)|map(attribute='nombre')|first|default('Módulo ' ~ editing_route.mod1) }}</span></div></td><td><span class="admin-route-module-role is-primary">Principal</span></td><td><span class="admin-route-module-fixed">Fijo</span></td></tr>
+                                {% for module in modules if module.id in shared_modules %}
+                                  <tr data-module-id="{{ module.id }}"><td><div class="admin-route-module-identity"><span class="admin-route-module-name">{{ module.nombre }}</span></div></td><td><span class="admin-route-module-role is-shared">Compartido</span></td><td><button type="button" data-remove-module aria-label="Quitar {{ module.nombre }}">Quitar</button></td></tr>
+                                {% endfor %}
+                              {% elif modules %}
+                                <tr data-module-id="{{ modules[0].id }}"><td><div class="admin-route-module-identity"><span class="admin-route-module-name">{{ modules[0].nombre }}</span></div></td><td><span class="admin-route-module-role is-primary">Principal</span></td><td><span class="admin-route-module-fixed">Fijo</span></td></tr>
+                              {% endif %}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
                     </div>
-                    <small id="shared-modules-help" class="admin-field-help">Nota: El primer módulo es principal; los siguientes son compartidos.</small>
-                    <div id="route-selected-modules" class="admin-route-selected-modules" aria-live="polite">
-                      {% if editing_route %}
-                        <span class="admin-route-module-chip is-primary" data-module-id="{{ editing_route.mod1 }}"><span>M{{ editing_route.mod1 }}</span></span>
-                        {% for module in modules if module.id in shared_modules %}
-                          <span class="admin-route-module-chip is-shared" data-module-id="{{ module.id }}"><span>M{{ module.id }}</span><button type="button" data-remove-module aria-label="Quitar módulo compartido">×</button></span>
-                        {% endfor %}
-                      {% elif modules %}
-                        <span class="admin-route-module-chip is-primary" data-module-id="{{ modules[0].id }}"><span>M{{ modules[0].id }}</span></span>
-                      {% endif %}
-                    </div>
+                    
                     <div id="route-shared-module-inputs">
                       {% if editing_route %}
                         {% for module in modules if module.id in shared_modules %}
@@ -358,13 +386,14 @@
                       {% endif %}
                     </div>
                   </div>
+                  <small id="shared-modules-help" class="admin-field-help">Nota: El primer módulo es principal; los siguientes son compartidos.</small>
                 </div>
               </div>
 
               <div class="admin-form-actions admin-route-form-actions">
                 <button class="admin-secondary-button" type="button" data-route-modal-close>Cancelar</button>
                 <button class="admin-secondary-button" type="button" data-route-previous>Regresar</button>
-                <button class="admin-primary-button" type="submit">
+                <button class="admin-primary-button" type="submit" data-admin-edit-save {% if editing_route %}hidden{% endif %}>
                   {{ 'Actualizar ruta' if editing_route else 'Guardar ruta' }}
                 </button>
               </div>
@@ -534,7 +563,7 @@
                         </thead>
                         <tbody>
                           {% for route in group.routes %}
-                            <tr data-admin-filter-row data-admin-save-ruta="{{ route.ruta }}" data-admin-save-origen="{{ route.origen }}" data-admin-save-destino="{{ route.destino }}" data-admin-save-row="{{ route.ruta }}" data-route-id="{{ route.id }}" data-route-module="{{ route.mod1 }}" data-route-name="{{ route.ruta }}" data-route-shared-modules='{{ route.shared_modules|default([], true)|tojson }}' data-route-original="{{ 'false' if route.is_external else 'true' }}" data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Originales' }}" data-filter-service="{{ route.servicio }}" data-filter-route-type="{{ route.tipos_descripcion or 'Sin tipo' }}">
+                            <tr data-admin-filter-row data-admin-save-ruta="{{ route.ruta }}" data-admin-save-origen="{{ route.origen }}" data-admin-save-destino="{{ route.destino }}" data-admin-save-row="{{ route.ruta }}" data-admin-status-row-key="route-{{ route.id }}-module-{{ group.module_number }}" data-admin-status-module="{{ group.module_number }}" data-route-id="{{ route.id }}" data-route-module="{{ route.mod1 }}" data-route-name="{{ route.ruta }}" data-route-shared-modules='{{ route.shared_modules|default([], true)|tojson }}' data-route-original="{{ 'false' if route.is_external else 'true' }}" data-filter-status="{{ route.estado }}" data-filter-shared="{{ 'Compartidas' if route.is_external else 'Originales' }}" data-filter-service="{{ route.servicio }}" data-filter-route-type="{{ route.tipos_descripcion or 'Sin tipo' }}">
                               {% if not is_read_only_account %}
                               <td class="admin-route-select-column">
                                 <label class="admin-route-select-control" title="Seleccionar ruta para eliminar">
@@ -545,7 +574,7 @@
                               <td>
                                 {{ route.nomenclatura }}
                                 {% if route.is_external %}
-                                  <span class="admin-route-shared-module-badge" data-route-source-module="{{ route.mod1 }}" aria-label="Ruta compartida desde el módulo {{ route.mod1 }}">M{{ route.mod1 }}</span>
+                                  <span class="admin-route-shared-module-badge" data-route-source-module="{{ route.mod1_badge_number }}" aria-label="Ruta compartida desde el módulo {{ route.mod1_badge_number }}">M{{ route.mod1_badge_number }}</span>
                                 {% endif %}
                               </td>
                               <td>{{ route.ruta }}</td>
@@ -560,10 +589,10 @@
                                     {{ route.estado }}
                                   </span>
                                 {% elif not route.is_external %}
-                                  <form method="post" action="{{ url_for('admin_toggle_route_status', route_id=route.id) }}" data-route-status-action>
+                                  <form method="post" action="{{ url_for('admin_toggle_route_status', route_id=route.id) }}" data-route-status-action data-admin-status-form>
                                     <input type="hidden" name="estado" value="{{ route.estado }}">
                                     <label class="route-switch" title="Cambiar estado de la ruta">
-                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                       <span class="route-status-badge">
                                         <span class="route-status-dot"></span>
                                         <span class="route-status-label route-status-active">Activo</span>
@@ -572,10 +601,10 @@
                                     </label>
                                   </form>
                                 {% else %}
-                                  <form method="post" action="{{ url_for('admin_toggle_shared_route_status', route_id=route.id, module_number=group.module_number) }}" data-route-status-action>
+                                  <form method="post" action="{{ url_for('admin_toggle_shared_route_status', route_id=route.id, module_number=group.module_number) }}" data-route-status-action data-admin-status-form>
                                     <input type="hidden" name="estado" value="{{ route.estado }}">
                                     <label class="route-switch" title="Cambiar estado de la ruta compartida">
-                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                      <input type="checkbox" {% if route.estado == 'Activo' %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                       <span class="route-status-badge">
                                         <span class="route-status-dot"></span>
                                         <span class="route-status-label route-status-active">Activo</span>
@@ -650,6 +679,13 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-admin-letters-only]').forEach(function (input) {
+        input.addEventListener('input', function () {
+          const lettersOnly = this.value.replace(/[^\p{L}\s]/gu, '');
+          if (this.value !== lettersOnly) this.value = lettersOnly;
+        });
+      });
+
       const pageTabs = document.querySelectorAll('[data-admin-page-tab]');
       const routeModuleCount = document.querySelector('[data-route-module-count]');
       const catalogSections = document.querySelector('#catalog-sections');
@@ -883,6 +919,9 @@
       const selectedModules = document.querySelector('#route-selected-modules');
       const primaryModuleInput = document.querySelector('#route-primary-module');
       const sharedModuleInputs = document.querySelector('#route-shared-module-inputs');
+      const availableModuleCount = document.querySelector('[data-route-available-count]');
+      const selectedModuleCount = document.querySelector('[data-route-selected-count]');
+      const availableModulesEmpty = moduleMenu?.querySelector('[data-route-available-empty]');
       const selectedModuleIds = Array.from(selectedModules?.querySelectorAll('[data-module-id]') || []).map((chip) => chip.dataset.moduleId);
       const moduleStatusById = {{ shared_module_statuses|default({})|tojson }};
       const isEditingRoute = {{ 'true' if editing_route else 'false' }};
@@ -1135,27 +1174,29 @@
         }
       });
 
-      function setModuleMenuOpen(open) {
-        if (!moduleMenu) return;
-        moduleMenu.hidden = !open;
-      }
-
       function getModuleName(moduleId) {
         return moduleMenu?.querySelector(`[data-module-id="${moduleId}"]`)?.dataset.moduleName || `Módulo ${moduleId}`;
       }
 
       function renderSelectedModules() {
         if (!selectedModules || !primaryModuleInput || !sharedModuleInputs) return;
-        selectedModules.innerHTML = '';
-        sharedModuleInputs.innerHTML = '';
+        selectedModules.replaceChildren();
+        sharedModuleInputs.replaceChildren();
         primaryModuleInput.value = selectedModuleIds[0] || '';
         selectedModuleIds.forEach(function (moduleId, index) {
-          const chip = document.createElement('span');
-          chip.className = `admin-route-module-chip ${index === 0 ? 'is-primary' : 'is-shared'}`;
-          chip.dataset.moduleId = moduleId;
+          const row = document.createElement('tr');
+          row.dataset.moduleId = moduleId;
+          const moduleCell = document.createElement('td');
+          const identity = document.createElement('div');
+          identity.className = 'admin-route-module-identity';
           const name = document.createElement('span');
+          name.className = 'admin-route-module-name';
           name.textContent = getModuleName(moduleId);
-          chip.append(name);
+          identity.appendChild(name);
+          moduleCell.appendChild(identity);
+
+          const statusCell = document.createElement('td');
+          const actionCell = document.createElement('td');
           if (index > 0) {
             const statusSwitch = document.createElement('label');
             statusSwitch.className = 'route-switch admin-route-module-status';
@@ -1175,46 +1216,70 @@
             inactiveLabel.textContent = 'Inactivo';
             statusBadge.append(statusDot, activeLabel, inactiveLabel);
             statusSwitch.append(statusToggle, statusBadge);
+            statusCell.appendChild(statusSwitch);
             statusToggle.addEventListener('change', function () {
               moduleStatusById[moduleId] = statusToggle.checked ? 'Activo' : 'Inactivo';
               renderSelectedModules();
               filterModuleOptions();
             });
-            chip.append(statusSwitch);
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.dataset.removeModule = '';
             remove.setAttribute('aria-label', `Quitar ${getModuleName(moduleId)}`);
-            remove.textContent = '×';
+            remove.className = 'admin-route-module-remove';
+            remove.textContent = 'Quitar';
             remove.addEventListener('click', function () {
               selectedModuleIds.splice(index, 1);
               renderSelectedModules();
               filterModuleOptions();
             });
-            chip.append(remove);
+            actionCell.appendChild(remove);
             const input = document.createElement('input');
             input.type = 'hidden';
             input.name = 'module_statuses';
             input.value = `${moduleId}:${moduleStatusById[moduleId] || 'Activo'}`;
             sharedModuleInputs.appendChild(input);
-          }
-          selectedModules.appendChild(chip);
-          if (index > 0) {
             const sharedInput = document.createElement('input');
             sharedInput.type = 'hidden';
             sharedInput.name = 'shared_modules';
             sharedInput.value = moduleId;
             sharedModuleInputs.appendChild(sharedInput);
+          } else {
+            const primary = document.createElement('span');
+            primary.className = 'admin-route-module-role is-primary';
+            primary.textContent = 'Principal';
+            statusCell.appendChild(primary);
+            const fixed = document.createElement('span');
+            fixed.className = 'admin-route-module-fixed';
+            fixed.textContent = 'Fijo';
+            actionCell.appendChild(fixed);
           }
+          row.append(moduleCell, statusCell, actionCell);
+          selectedModules.appendChild(row);
         });
+        if (!selectedModuleIds.length) {
+          const emptyRow = document.createElement('tr');
+          emptyRow.innerHTML = '<td class="admin-route-module-empty" colspan="3">Selecciona al menos un módulo.</td>';
+          selectedModules.appendChild(emptyRow);
+        }
+        if (selectedModuleCount) selectedModuleCount.textContent = String(selectedModuleIds.length);
       }
 
       function filterModuleOptions() {
         if (!moduleMenu) return;
+        let visibleCount = 0;
         moduleMenu.querySelectorAll('.admin-route-module-option').forEach(function (option) {
-          option.hidden = selectedModuleIds.includes(option.dataset.moduleId);
+          const available = !selectedModuleIds.includes(option.dataset.moduleId);
+          option.closest('tr').hidden = !available;
+          if (available) visibleCount += 1;
         });
-        setModuleMenuOpen(true);
+        if (availableModuleCount) availableModuleCount.textContent = String(visibleCount);
+        if (availableModulesEmpty) {
+          availableModulesEmpty.hidden = visibleCount > 0;
+          availableModulesEmpty.querySelector('td').textContent = moduleMenu.querySelector('.admin-route-module-option')
+            ? 'Todos los módulos ya están seleccionados.'
+            : 'No hay módulos disponibles.';
+        }
       }
 
       routeStatusToggle?.addEventListener('change', function () {
@@ -1324,7 +1389,7 @@
   <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
-  {% include 'admin/_notification_toast.html' %}
+  {% include 'admin/_action_notification.html' %}
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

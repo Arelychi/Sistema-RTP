@@ -2,8 +2,72 @@ document.addEventListener('DOMContentLoaded', function () {
   const loader = document.querySelector('[data-admin-save-loader]');
   const loaderLabel = loader?.querySelector('[data-admin-save-loader-label]');
   const storageKey = 'adminPendingSaveFeedback';
+  const statusStorageKey = 'adminPendingStatusFeedback';
   const routeLinkStorageKey = 'adminPendingRouteLinkFeedback';
   const forms = document.querySelectorAll('[data-admin-save-form]');
+  const statusForms = document.querySelectorAll('[data-admin-status-form]');
+  const editGuardForms = document.querySelectorAll('[data-admin-edit-guard]');
+  const editSnapshots = new WeakMap();
+
+  function formSnapshot(form) {
+    return JSON.stringify(Array.from(new FormData(form).entries()).map(function ([name, value]) {
+      if (typeof File !== 'undefined' && value instanceof File) {
+        return [name, `${value.name}:${value.size}:${value.type}:${value.lastModified}`];
+      }
+      return [name, String(value)];
+    }));
+  }
+
+  function setEditSaveButtonsVisible(form, visible) {
+    document.querySelectorAll('[data-admin-edit-save]').forEach(function (button) {
+      if (button.form === form) button.hidden = !visible;
+    });
+  }
+
+  function activateEditGuard(form) {
+    editSnapshots.set(form, formSnapshot(form));
+    form.dataset.adminEditGuardActive = 'true';
+    setEditSaveButtonsVisible(form, false);
+  }
+
+  function deactivateEditGuard(form) {
+    editSnapshots.delete(form);
+    form.dataset.adminEditGuardActive = 'false';
+    setEditSaveButtonsVisible(form, true);
+  }
+
+  function updateEditSaveButton(form) {
+    if (form.dataset.adminEditGuardActive !== 'true') return;
+    const baseline = editSnapshots.get(form);
+    setEditSaveButtonsVisible(form, baseline !== formSnapshot(form));
+  }
+
+  editGuardForms.forEach(function (form) {
+    form.addEventListener('input', () => updateEditSaveButton(form));
+    form.addEventListener('change', () => updateEditSaveButton(form));
+    form.addEventListener('click', () => updateEditSaveButton(form));
+    form.addEventListener('submit', function (event) {
+      if (form.dataset.adminEditGuardActive === 'true' && editSnapshots.get(form) === formSnapshot(form)) {
+        event.preventDefault();
+        updateEditSaveButton(form);
+      }
+    });
+    if (form.dataset.adminEditGuard === 'true') activateEditGuard(form);
+  });
+
+  document.addEventListener('admin-edit-form-ready', function (event) {
+    const form = event.detail?.form;
+    if (form instanceof HTMLFormElement && form.hasAttribute('data-admin-edit-guard')) {
+      activateEditGuard(form);
+    }
+  });
+
+  document.addEventListener('admin-edit-form-reset', function (event) {
+    const form = event.detail?.form;
+    if (form instanceof HTMLFormElement && form.hasAttribute('data-admin-edit-guard')) {
+      deactivateEditGuard(form);
+    }
+  });
 
   function showLoader(label) {
     if (!loader) return;
@@ -16,7 +80,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   forms.forEach(function (form) {
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (event) {
+      if (event.defaultPrevented) return;
       const fields = (form.dataset.adminSaveFields || form.dataset.adminSaveField || '')
         .split(',')
         .map((field) => field.trim())
@@ -44,11 +109,37 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  statusForms.forEach(function (form) {
+    form.addEventListener('submit', function () {
+      const row = form.closest('tr[data-admin-status-row-key]');
+      if (!row) {
+        console.error('No se pudo identificar la fila del estatus que se va a cambiar.');
+      } else {
+        try {
+          sessionStorage.setItem(statusStorageKey, JSON.stringify({
+            rowKey: row.dataset.adminStatusRowKey,
+            moduleId: row.dataset.adminStatusModule
+              || row.closest('[data-admin-module-panel]')?.dataset.adminModulePanel
+              || '',
+            path: window.location.pathname,
+            createdAt: Date.now()
+          }));
+        } catch (error) {
+          console.error('No se pudo guardar el contexto del estatus que se va a cambiar.', error);
+        }
+      }
+      showLoader('Cambiando estatus');
+    });
+  });
+
   let pendingSave;
+  let pendingStatus;
   let pendingRouteLink;
   try {
     pendingSave = sessionStorage.getItem(storageKey);
     if (pendingSave) sessionStorage.removeItem(storageKey);
+    pendingStatus = sessionStorage.getItem(statusStorageKey);
+    if (pendingStatus) sessionStorage.removeItem(statusStorageKey);
     pendingRouteLink = sessionStorage.getItem(routeLinkStorageKey);
     if (pendingRouteLink) sessionStorage.removeItem(routeLinkStorageKey);
   } catch (error) {
@@ -110,6 +201,30 @@ document.addEventListener('DOMContentLoaded', function () {
           .filter((row) => linkedIdSet.has(row.dataset.routeId));
         linkedRows.forEach(highlightRow);
         if (linkedRows.length) scrollRowIntoView(linkedRows[0], linkedRoutes.moduleId);
+      }
+    }
+
+    if (pendingStatus) {
+      let changedStatus;
+      try {
+        changedStatus = JSON.parse(pendingStatus);
+      } catch (error) {
+        console.error('No se pudo leer el estatus pendiente de resaltar.', error);
+      }
+      if (
+        changedStatus
+        && typeof changedStatus.rowKey === 'string'
+        && changedStatus.path === window.location.pathname
+        && Date.now() - changedStatus.createdAt <= 60000
+      ) {
+        const statusRow = Array.from(document.querySelectorAll('[data-admin-status-row-key]'))
+          .find((row) => row.dataset.adminStatusRowKey === changedStatus.rowKey);
+        if (statusRow) {
+          highlightRow(statusRow);
+          scrollRowIntoView(statusRow, changedStatus.moduleId);
+        } else {
+          console.error('No se encontró la fila cuyo estatus fue actualizado.');
+        }
       }
     }
 

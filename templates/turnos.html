@@ -31,6 +31,7 @@
         <section class="card catalog-card">
           <div class="card-heading"><div><span class="step-number">01</span><h2>Turnos disponibles</h2></div><span id="turnos-count" class="record-count">0 turnos</span></div>
           <div id="turnos-options" class="shift-options" aria-live="polite"></div>
+          <p id="turnos-feedback" class="shift-history-feedback" role="status" aria-live="polite" hidden></p>
         </section>
 
         <section class="card catalog-card">
@@ -44,13 +45,29 @@
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
 let availableShifts = [];
 const storageKey = `selected-shifts-${document.body.dataset.module}`;
+const availableShiftsStorageKey = `available-shifts-${document.body.dataset.module}`;
+const storedAvailableShiftIds = localStorage.getItem(availableShiftsStorageKey);
 let selectedShiftIds = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]').map(String));
+let knownAvailableShiftIds = new Set(JSON.parse(storedAvailableShiftIds || '[]').map(String));
+let hasAvailabilityState = storedAvailableShiftIds !== null;
 async function loadShifts() {
   const response = await fetch('/api/catalogos/turnos');
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los turnos.');
   availableShifts = data.filter((shift) => shift.activo);
-  selectedShiftIds = new Set([...selectedShiftIds].filter((id) => availableShifts.some((shift) => String(shift.id) === id)));
+  const availableShiftIds = new Set(availableShifts.map((shift) => String(shift.id)));
+  if (!hasAvailabilityState) {
+    selectedShiftIds = new Set(availableShiftIds);
+  } else {
+    availableShiftIds.forEach((id) => {
+      if (!knownAvailableShiftIds.has(id)) selectedShiftIds.add(id);
+    });
+  }
+  selectedShiftIds = new Set([...selectedShiftIds].filter((id) => availableShiftIds.has(id)));
+  knownAvailableShiftIds = availableShiftIds;
+  localStorage.setItem(storageKey, JSON.stringify([...selectedShiftIds]));
+  localStorage.setItem(availableShiftsStorageKey, JSON.stringify([...knownAvailableShiftIds]));
+  hasAvailabilityState = true;
   renderShifts();
 }
 function renderShifts() {
@@ -63,13 +80,63 @@ function renderShifts() {
   document.getElementById('selected-count').textContent = `${selected.length} ${selected.length === 1 ? 'turno' : 'turnos'}`;
   document.getElementById('selected-turnos-body').innerHTML = selected.length ? selected.map((shift) => `<tr><td>Turno ${escapeHtml(shift.numero)}</td><td>${escapeHtml(shift.hora_inicio)}</td><td>${escapeHtml(shift.hora_fin)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty-table">Selecciona uno o más turnos.</td></tr>';
 }
-document.getElementById('turnos-options').addEventListener('change', (event) => {
+function setShiftFeedback(message, isError = false) {
+  const feedback = document.getElementById('turnos-feedback');
+  feedback.textContent = message;
+  feedback.hidden = !message;
+  feedback.classList.toggle('is-error', isError);
+}
+async function recordDiscardedShift(shiftId) {
+  const response = await fetch(`/api/turnos/${encodeURIComponent(shiftId)}/descartar`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json' }
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'No se pudo registrar el turno descartado.');
+}
+async function recordAddedShift(shiftId) {
+  const response = await fetch(`/api/turnos/${encodeURIComponent(shiftId)}/agregar`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json' }
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'No se pudo registrar el turno agregado.');
+}
+document.getElementById('turnos-options').addEventListener('change', async (event) => {
   const checkbox = event.target.closest('input[data-shift-id]');
   if (!checkbox) return;
-  if (checkbox.checked) selectedShiftIds.add(checkbox.dataset.shiftId);
-  else selectedShiftIds.delete(checkbox.dataset.shiftId);
-  localStorage.setItem(storageKey, JSON.stringify([...selectedShiftIds]));
-  renderShifts();
+  const shiftId = checkbox.dataset.shiftId;
+  if (checkbox.checked) {
+    const shift = availableShifts.find((item) => String(item.id) === shiftId);
+    checkbox.disabled = true;
+    setShiftFeedback('Registrando turno agregado...');
+    try {
+      await recordAddedShift(shiftId);
+      selectedShiftIds.add(shiftId);
+      localStorage.setItem(storageKey, JSON.stringify([...selectedShiftIds]));
+      renderShifts();
+      setShiftFeedback(`Agregaste el turno ${shift?.numero || ''}.`);
+    } catch (error) {
+      checkbox.checked = false;
+      checkbox.disabled = false;
+      setShiftFeedback(error.message, true);
+    }
+    return;
+  }
+  const shift = availableShifts.find((item) => String(item.id) === shiftId);
+  checkbox.disabled = true;
+  setShiftFeedback('Registrando turno descartado...');
+  try {
+    await recordDiscardedShift(shiftId);
+    selectedShiftIds.delete(shiftId);
+    localStorage.setItem(storageKey, JSON.stringify([...selectedShiftIds]));
+    renderShifts();
+    setShiftFeedback(`Descartaste el turno ${shift?.numero || ''}.`);
+  } catch (error) {
+    checkbox.checked = true;
+    checkbox.disabled = false;
+    setShiftFeedback(error.message, true);
+  }
 });
 loadShifts().catch((error) => { document.getElementById('turnos-options').innerHTML = `<p class="empty-table">${escapeHtml(error.message)}</p>`; });
 </script>

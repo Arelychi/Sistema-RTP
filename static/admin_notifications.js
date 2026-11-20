@@ -1,29 +1,31 @@
 document.addEventListener('DOMContentLoaded', function () {
-  const toast = document.querySelector('[data-admin-toast]');
-  if (!toast) return;
+  const notification = document.querySelector('[data-admin-action-notification]');
+  if (!notification) return;
 
-  const title = toast.querySelector('[data-admin-toast-title]');
-  const message = toast.querySelector('[data-admin-toast-message]');
-  const icon = toast.querySelector('[data-admin-toast-icon]');
+  const message = notification.querySelector('[data-admin-action-notification-message]');
+  const icon = notification.querySelector('[data-admin-action-notification-icon]');
   let hideTimer = 0;
+  let removeTimer = 0;
 
-  function showNotification(notificationTitle, notificationMessage, type) {
-    if (!notificationTitle || !notificationMessage) return;
+  function showNotification(notificationMessage, type) {
+    const text = String(notificationMessage || '').trim();
+    if (!text) return;
+
     window.clearTimeout(hideTimer);
-    title.textContent = notificationTitle;
-    message.textContent = notificationMessage;
-    toast.dataset.type = type || 'info';
-    icon.textContent = type === 'success' ? '✓' : type === 'error' ? '!' : 'i';
-    toast.hidden = false;
+    window.clearTimeout(removeTimer);
+    message.textContent = text;
+    notification.dataset.type = type || 'success';
+    icon.textContent = type === 'error' ? '!' : type === 'delete' ? '🞪' : type === 'edit' ? '🖍' : type === 'module' ? '↔' : '✓';
+    notification.hidden = false;
     requestAnimationFrame(function () {
-      toast.classList.add('is-visible');
+      notification.classList.add('is-visible');
     });
     hideTimer = window.setTimeout(function () {
-      toast.classList.remove('is-visible');
-      window.setTimeout(function () {
-        if (!toast.classList.contains('is-visible')) toast.hidden = true;
-      }, 100);
-    }, 1500);
+      notification.classList.remove('is-visible');
+      removeTimer = window.setTimeout(function () {
+        if (!notification.classList.contains('is-visible')) notification.hidden = true;
+      }, 250);
+    }, 2800);
   }
 
   function activeSectionName() {
@@ -34,75 +36,45 @@ document.addEventListener('DOMContentLoaded', function () {
     return pageHeading?.textContent.trim().replace(/\s+/g, ' ') || 'Administración';
   }
 
+  function notificationType(messageText, category) {
+    if (category === 'error') return 'error';
+    const normalized = messageText.toLocaleLowerCase('es');
+    if (/elimin|borr|desvincul|vaciad|quitad/.test(normalized)) return 'delete';
+    if (/actualiz|editad/.test(normalized)) return 'edit';
+    return 'success';
+  }
+
   document.addEventListener('admin-module-changed', function (event) {
     if (!event.detail?.changed) return;
     const moduleId = String(event.detail?.moduleId || '');
     const moduleTab = Array.from(document.querySelectorAll('[data-admin-module]'))
       .find((tab) => tab.dataset.adminModule === moduleId);
     const moduleName = moduleTab?.textContent.trim() || `Módulo ${moduleId}`;
-    showNotification('NAVEGACIÓN', `${activeSectionName()}: ${moduleName}`, 'info');
+    showNotification(`${activeSectionName()}: ${moduleName}`, 'module');
   });
 
-  document.addEventListener('click', function (event) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (!target) return;
-
-    const moduleEditButton = target.closest('.module-edit-button');
-    if (moduleEditButton) {
-      showNotification('EDICIÓN', `Editando módulo: ${moduleEditButton.dataset.moduleName || ''}`, 'info');
-    }
-
-    const editLink = target.closest('a[data-admin-edit-trigger], a.admin-edit-button[href]');
-    if (editLink && editLink.href) {
-      try {
-        sessionStorage.setItem('adminPendingNotification', JSON.stringify({
-          title: 'EDICIÓN',
-          message: `Abriendo edición: ${editLink.getAttribute('aria-label') || editLink.textContent.trim() || 'registro'}`,
-          type: 'info'
-        }));
-      } catch (error) {
-        console.warn('No se pudo guardar la notificación de edición.', error);
-      }
-    }
+  document.addEventListener('admin-action-notification', function (event) {
+    showNotification(event.detail?.message, event.detail?.type);
   });
 
-  document.querySelectorAll('.admin-alert').forEach(function (alert, index) {
-    const type = alert.classList.contains('admin-alert-error') ? 'error' : 'success';
+  const flashAlerts = Array.from(document.querySelectorAll('.admin-alert'));
+  flashAlerts.forEach(function (alert, index) {
+    const alertMessage = alert.textContent.trim();
+    const category = alert.classList.contains('admin-alert-error') ? 'error' : 'success';
     window.setTimeout(function () {
-      showNotification(type === 'error' ? 'ERROR' : 'ÉXITO', alert.textContent.trim(), type);
-    }, index * 4500);
+      showNotification(alertMessage, notificationType(alertMessage, category));
+    }, index * 3100);
   });
-  const flashAlerts = document.querySelectorAll('.admin-alert');
   document.querySelectorAll('.admin-alerts').forEach(function (alerts) {
     alerts.hidden = true;
   });
-
-  let hasPendingNotification = false;
-  try {
-    const pendingNotification = sessionStorage.getItem('adminPendingNotification');
-    if (pendingNotification) {
-      sessionStorage.removeItem('adminPendingNotification');
-      const notification = JSON.parse(pendingNotification);
-      showNotification(notification.title, notification.message, notification.type);
-      hasPendingNotification = true;
-    }
-  } catch (error) {
-    console.warn('No se pudo recuperar la notificación pendiente.', error);
-  }
-
-  const activeModule = document.querySelector('.admin-module-tab.active');
-  if (activeModule && !hasPendingNotification) {
-    window.setTimeout(function () {
-      showNotification('NAVEGACIÓN', `${activeSectionName()}: ${activeModule.textContent.trim()}`, 'info');
-    }, flashAlerts.length * 4500);
-  }
 
   const scheduleFeedback = document.querySelector('#schedule-feedback');
   if (scheduleFeedback) {
     const observer = new MutationObserver(function () {
       const feedbackMessage = scheduleFeedback.textContent.trim();
       if (feedbackMessage && scheduleFeedback.classList.contains('is-visible')) {
-        showNotification('ÉXITO', feedbackMessage, 'success');
+        showNotification(feedbackMessage, notificationType(feedbackMessage, 'success'));
       }
     });
     observer.observe(scheduleFeedback, { childList: true, characterData: true, subtree: true, attributes: true });
@@ -113,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const observer = new MutationObserver(function () {
       const errorMessage = scheduleFormMessage.textContent.trim();
       if (errorMessage && scheduleFormMessage.classList.contains('error')) {
-        showNotification('ERROR', errorMessage, 'error');
+        showNotification(errorMessage, 'error');
       }
     });
     observer.observe(scheduleFormMessage, { childList: true, characterData: true, subtree: true, attributes: true });
@@ -122,6 +94,6 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('admin-month-status-updated', function (event) {
     const active = Boolean(event.detail?.active);
     const status = active ? 'activado' : 'desactivado';
-    showNotification('ÉXITO', `Mes ${status} correctamente.`, 'success');
+    showNotification(`Mes ${status} correctamente.`, 'success');
   });
 });

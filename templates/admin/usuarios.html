@@ -70,7 +70,7 @@
           <div class="admin-registry-contents">
           <div class="admin-registry-content active" id="user-form" role="tabpanel">
           <div class="admin-form-shell">
-            <form method="post" action="{{ url_for('admin_create_user') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="username" data-admin-save-scope-field="module_number" data-admin-save-selector="[data-admin-save-username]" data-admin-save-label="{{ 'Actualizando usuario...' if editing_user else 'Guardando usuario...' }}">
+            <form method="post" action="{{ url_for('admin_create_user') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-edit-guard="{{ 'true' if editing_user else 'false' }}" data-admin-save-field="username" data-admin-save-scope-field="module_number" data-admin-save-selector="[data-admin-save-username]" data-admin-save-label="{{ 'Actualizando usuario...' if editing_user else 'Guardando usuario...' }}">
               {% if editing_user %}
                 <input type="hidden" name="user_id" value="{{ editing_user.id }}">
               {% endif %}
@@ -92,12 +92,12 @@
 
                 <label class="admin-user-field-email">
                   Correo electrónico <span class="required-label-note">* Campo Obligatorio</span>
-                  <input type="email" name="correo" value="{{ editing_user.correo if editing_user else '' }}" placeholder="correo@ejemplo.com">
+                  <input type="email" name="correo" value="{{ editing_user.correo if editing_user else '' }}" maxlength="254" pattern="[^@\s]+@[^@\s]+\.[^@\s]+" title="Ingresa un correo válido, por ejemplo correo@ejemplo.com" autocomplete="email" placeholder="correo@ejemplo.com">
                 </label>
 
                 <label class="admin-user-field-phone">
                   Teléfono <span class="required-label-note">* Campo Obligatorio</span>
-                  <input type="tel" name="telefono" value="{{ editing_user.telefono if editing_user else '' }}" placeholder="Número de teléfono">
+                  <input type="tel" name="telefono" value="{{ editing_user.telefono if editing_user else '' }}" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" title="Ingresa exactamente 10 dígitos, sin espacios ni otros caracteres" autocomplete="tel" placeholder="Número de teléfono">
                 </label>
 
                 <div class="admin-user-field-password">
@@ -168,7 +168,7 @@
                 {% else %}
                   <button class="admin-secondary-button" type="button" data-user-modal-close>Cancelar</button>
                 {% endif %}
-                <button class="admin-primary-button" type="submit">
+                <button class="admin-primary-button" type="submit" data-admin-edit-save {% if editing_user %}hidden{% endif %}>
                   {{ 'Actualizar usuario' if editing_user else 'Guardar usuario' }}
                 </button>
               </div>
@@ -250,14 +250,14 @@
                       <thead>
                         <tr>
                           {% if not is_read_only_account %}
-                          <th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"></th>
+                          <th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios que coinciden con los filtros"></th>
                           {% endif %}
                           <th>Usuarios</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estatus</th><th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
                       {% for user in group.users %}
-                        <tr data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Supervisor">
+                        <tr data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-admin-status-row-key="module-user-{{ group.module_number }}-{{ user.id }}" data-admin-status-module="{{ group.module_number }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Supervisor">
                           {% if not is_read_only_account %}
                           <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
@@ -271,10 +271,10 @@
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
-                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}">
+                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}" data-admin-status-form>
                                 <input type="hidden" name="estado" value="{{ 'Activo' if user.active else 'Inactivo' }}">
                                 <label class="route-switch" title="Cambiar estado del usuario">
-                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                   <span class="route-status-badge"><span class="route-status-dot"></span><span class="route-status-label route-status-active">Activo</span><span class="route-status-label route-status-inactive">Inactivo</span></span>
                                 </label>
                               </form>
@@ -301,7 +301,7 @@
                         </tr>
                       {% endfor %}
                       {% for user in admin_users + consultant_users %}
-                        <tr data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="{{ 'Administrador' if user.tipo_usuario == 'admin' else 'Consultor' }}">
+                        <tr data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-admin-status-row-key="module-account-{{ group.module_number }}-{{ user.id }}" data-admin-status-module="{{ group.module_number }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="{{ 'Administrador' if user.tipo_usuario == 'admin' else 'Consultor' }}">
                           {% if not is_read_only_account %}
                           <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
@@ -313,10 +313,10 @@
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
-                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}">
+                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}" data-admin-status-form>
                                 <input type="hidden" name="estado" value="{{ 'Activo' if user.active else 'Inactivo' }}">
                                 <label class="route-switch" title="Cambiar estado del usuario">
-                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                   <span class="route-status-badge"><span class="route-status-dot"></span><span class="route-status-label route-status-active">Activo</span><span class="route-status-label route-status-inactive">Inactivo</span></span>
                                 </label>
                               </form>
@@ -409,12 +409,12 @@
                     <div class="admin-route-table-wrap">
                     <table class="admin-route-table admin-user-table{% if not is_read_only_account %} admin-user-selectable{% endif %}">
                       <thead><tr>
-                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"></th>{% endif %}
+                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios que coinciden con los filtros"></th>{% endif %}
                         <th>Usuario</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estatus</th><th>Acciones</th>
                       </tr></thead>
                       <tbody>
                       {% for user in admin_users %}
-                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Administrador">
+                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-admin-status-row-key="administrator-{{ user.id }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Administrador">
                           {% if not is_read_only_account %}
                           <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
@@ -426,10 +426,10 @@
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
-                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}">
+                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}" data-admin-status-form>
                                 <input type="hidden" name="estado" value="{{ 'Activo' if user.active else 'Inactivo' }}">
                                 <label class="route-switch" title="Cambiar estado del usuario">
-                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                   <span class="route-status-badge"><span class="route-status-dot"></span><span class="route-status-label route-status-active">Activo</span><span class="route-status-label route-status-inactive">Inactivo</span></span>
                                 </label>
                               </form>
@@ -520,12 +520,12 @@
                     <div class="admin-route-table-wrap">
                     <table class="admin-route-table admin-user-table{% if not is_read_only_account %} admin-user-selectable{% endif %}">
                       <thead><tr>
-                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios visibles"></th>{% endif %}
+                        {% if not is_read_only_account %}<th class="admin-user-select-column"><input type="checkbox" data-users-select-all aria-label="Seleccionar todos los usuarios que coinciden con los filtros"></th>{% endif %}
                         <th>Usuario</th><th>Correo</th><th>Teléfono</th><th>Tipo</th><th>Estatus</th><th>Acciones</th>
                       </tr></thead>
                       <tbody>
                       {% for user in consultant_users %}
-                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Consultor">
+                        <tr class="admin-user-item" data-admin-filter-row data-admin-save-row="{{ user.username }}" data-admin-save-username="{{ user.username }}" data-admin-status-row-key="consultant-{{ user.id }}" data-user-id="{{ user.id }}" data-user-name="{{ user.username }}" data-filter-status="{{ 'Activo' if user.active else 'Inactivo' }}" data-filter-type="Consultor">
                           {% if not is_read_only_account %}
                           <td class="admin-user-select-column"><input type="checkbox" data-users-bulk-select value="{{ user.id }}" aria-label="Seleccionar usuario {{ user.username }}"></td>
                           {% endif %}
@@ -537,10 +537,10 @@
                             {% if is_read_only_account %}
                               <span class="route-status-readonly"><span class="route-status-dot"></span>{{ 'Activo' if user.active else 'Inactivo' }}</span>
                             {% else %}
-                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}">
+                              <form method="post" action="{{ url_for('admin_toggle_user_status', user_id=user.id) }}" data-admin-status-form>
                                 <input type="hidden" name="estado" value="{{ 'Activo' if user.active else 'Inactivo' }}">
                                 <label class="route-switch" title="Cambiar estado del usuario">
-                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.submit();">
+                                  <input type="checkbox" {% if user.active %}checked{% endif %} onchange="this.form.estado.value = this.checked ? 'Activo' : 'Inactivo'; this.form.requestSubmit();">
                                   <span class="route-status-badge"><span class="route-status-dot"></span><span class="route-status-label route-status-active">Activo</span><span class="route-status-label route-status-inactive">Inactivo</span></span>
                                 </label>
                               </form>
@@ -605,8 +605,14 @@
       const userPasswordStrengthBar = userForm?.querySelector('[data-user-password-strength-bar]');
       const userPasswordStrengthLabel = userForm?.querySelector('[data-user-password-strength-label]');
       const userModuleValue = userForm?.querySelector('#user-module-value');
+      const userPhoneInput = userForm?.querySelector('input[name="telefono"]');
       const usersPageCount = document.querySelector('[data-users-page-count]');
       const userModulePanels = document.querySelectorAll('[data-admin-module-panel][data-user-module-count]');
+
+      userPhoneInput?.addEventListener('input', function () {
+        const digits = this.value.replace(/[^0-9]/g, '').slice(0, 10);
+        if (this.value !== digits) this.value = digits;
+      });
 
       document.querySelectorAll('[data-users-selection-group]').forEach(function (group) {
         const toolbar = group.querySelector('.admin-users-toolbar');
@@ -637,11 +643,13 @@
             if (statusInput) statusInput.disabled = selectionMode;
           });
           if (selectAll) {
-            const visible = checkboxes.filter((checkbox) => !checkbox.closest('[data-admin-filter-row]')?.hidden);
-            const visibleSelected = visible.filter((checkbox) => checkbox.checked);
-            selectAll.checked = visible.length > 0 && visibleSelected.length === visible.length;
-            selectAll.indeterminate = visibleSelected.length > 0 && visibleSelected.length < visible.length;
-            selectAll.disabled = visible.length === 0;
+            const matching = checkboxes.filter(
+              (checkbox) => checkbox.closest('[data-admin-filter-row]')?.dataset.adminFilterMatch !== 'false'
+            );
+            const matchingSelected = matching.filter((checkbox) => checkbox.checked);
+            selectAll.checked = matching.length > 0 && matchingSelected.length === matching.length;
+            selectAll.indeterminate = matchingSelected.length > 0 && matchingSelected.length < matching.length;
+            selectAll.disabled = matching.length === 0;
           }
           setHidden(cancelButton, !selectionMode);
           if (deleteButton) {
@@ -674,7 +682,8 @@
         checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateBulkSelection));
         selectAll?.addEventListener('change', function () {
           checkboxes.forEach(function (checkbox) {
-            if (!checkbox.closest('[data-admin-filter-row]')?.hidden) checkbox.checked = selectAll.checked;
+            const row = checkbox.closest('[data-admin-filter-row]');
+            if (row?.dataset.adminFilterMatch !== 'false') checkbox.checked = selectAll.checked;
           });
           updateBulkSelection();
         });
@@ -688,11 +697,11 @@
           event.stopImmediatePropagation();
           submitBulkDelete();
         });
-        new MutationObserver(updateBulkSelection).observe(group, {
+        const selectionObserver = new MutationObserver(updateBulkSelection);
+        rows.forEach((row) => selectionObserver.observe(row, {
           attributes: true,
-          subtree: true,
-          attributeFilter: ['hidden'],
-        });
+          attributeFilter: ['hidden', 'data-admin-filter-match'],
+        }));
         updateBulkSelection();
       });
 
@@ -929,7 +938,7 @@
   <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
-  {% include 'admin/_notification_toast.html' %}
+  {% include 'admin/_action_notification.html' %}
 </body>
 <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
 </html>

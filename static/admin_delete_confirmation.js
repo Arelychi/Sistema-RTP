@@ -29,10 +29,13 @@ document.addEventListener('DOMContentLoaded', function () {
       const name = form.dataset.deleteName || '';
       pendingForm = form;
       trigger = event.submitter || form.querySelector('button[type="submit"]');
-      if (title) title.textContent = `¿Eliminar ${kind}?`;
+      if (title) title.textContent = form.dataset.deleteConfirmTitle || `¿Eliminar ${kind}?`;
       if (message) {
         message.textContent = form.dataset.deleteMessage
           || `Se eliminará ${name || kind}. Esta acción no se puede deshacer.`;
+      }
+      if (confirmButton) {
+        confirmButton.textContent = form.dataset.deleteConfirmLabel || 'Eliminar';
       }
       modal.hidden = false;
       confirmButton?.focus();

@@ -63,7 +63,7 @@
                   <button class="admin-modal-close" type="button" data-module-modal-close aria-label="Cerrar formulario">&times;</button>
                 </div>
                 <div class="admin-form-shell">
-                  <form id="module-form" method="post" action="{{ url_for('admin_create_module') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-save-field="nombre" data-admin-save-selector="[data-admin-save-nombre]" data-admin-save-label="{{ 'Actualizando módulo...' if editing_module else 'Guardando módulo...' }}">
+                  <form id="module-form" method="post" action="{{ url_for('admin_create_module') }}" class="controller-form admin-controller-form" data-admin-save-form data-admin-edit-guard="false" data-admin-save-field="nombre" data-admin-save-selector="[data-admin-save-nombre]" data-admin-save-label="{{ 'Actualizando módulo...' if editing_module else 'Guardando módulo...' }}">
                     <input type="hidden" name="module_id" id="module-id-input">
                     <div class="admin-form-grid">
                       <label>
@@ -85,10 +85,63 @@
                     </div>
                     <div class="admin-form-actions">
                       <button class="admin-secondary-button" type="button" data-module-modal-cancel>Cancelar</button>
-                      <button class="admin-primary-button" type="submit" data-module-save-button>Guardar módulo</button>
+                      <button class="admin-primary-button" type="submit" data-module-save-button data-admin-edit-save>Guardar módulo</button>
                     </div>
                   </form>
                 </div>
+              </section>
+            </div>
+          </div>
+          <div class="admin-controller-modal admin-module-modal admin-module-action-modal" id="module-action-modal" data-module-action-mode="clear" role="dialog" aria-modal="true" aria-labelledby="module-action-title" aria-describedby="module-action-clear-description" hidden>
+            <div class="admin-controller-modal-dialog admin-module-action-dialog">
+              <section class="admin-module-action-card">
+                <button class="admin-module-action-close" type="button" data-module-action-close aria-label="Cerrar confirmación">&times;</button>
+                <div class="admin-module-action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-module-action-icon="clear">
+                    <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path>
+                    <path d="M14 3v5h5M9 13h6M9 17h6"></path>
+                  </svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-module-action-icon="delete">
+                    <path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"></path>
+                  </svg>
+                </div>
+                <h2 id="module-action-title">Acciones del módulo</h2>
+                <span class="admin-module-action-badge">
+                  <span class="admin-module-action-badge-dot" aria-hidden="true"></span>
+                  <span data-module-action-name></span>
+                </span>
+                <div class="admin-module-action-tabs" role="group" aria-label="Acción para el módulo">
+                  <button class="is-active" type="button" data-module-action-select="clear" aria-pressed="true">Vaciar información</button>
+                  <button type="button" data-module-action-select="delete" aria-pressed="false">Eliminar módulo</button>
+                </div>
+                <p class="admin-module-action-description" id="module-action-clear-description" data-module-action-copy="clear">
+                  Se eliminarán todos los registros almacenados dentro de <strong data-module-action-name></strong>, manteniendo su estructura intacta. Esta acción no se puede deshacer.
+                </p>
+                <p class="admin-module-action-description" id="module-action-delete-description" data-module-action-copy="delete" hidden>
+                  Se suprimirá de forma permanente <strong data-module-action-name></strong> junto con toda su información y configuración. Esta acción no se puede deshacer.
+                </p>
+                <form id="module-action-form" method="post" action="#" class="admin-module-action-form">
+                  <label for="module-action-password">
+                    Contraseña del administrador <span aria-hidden="true">*</span>
+                  </label>
+                  <div class="admin-password-field admin-module-action-password-field" data-module-action-password-field>
+                    <input id="module-action-password" type="password" name="admin_password" autocomplete="current-password" placeholder="Contraseña de confirmación" aria-describedby="module-action-password-error" aria-invalid="false" required>
+                    <button class="admin-password-toggle" type="button" data-module-action-password-toggle aria-label="Mostrar contraseña" aria-pressed="false">
+                      <svg class="admin-eye-icon admin-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg class="admin-eye-icon admin-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a18.6 18.6 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  <p class="admin-module-action-password-error" id="module-action-password-error" role="alert" hidden>Ingresa la contraseña del administrador para ejecutar la acción.</p>
+                  <input type="hidden" name="action" value="clear" data-module-action-value>
+                  <button class="admin-module-action-submit" type="submit" data-module-action-submit>Vaciar información</button>
+                  <button class="admin-module-action-cancel" type="button" data-module-action-close>Cancelar</button>
+                </form>
               </section>
             </div>
           </div>
@@ -136,12 +189,10 @@
                           <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/lapiz.png') }}" alt="">
                           <span class="sr-only">Editar</span>
                         </button>
-                        <form method="post" action="{{ url_for('admin_delete_module', module_id=module.id) }}" data-delete-confirm-form data-delete-kind="módulo" data-delete-name="{{ module.nombre }}">
-                          <button class="admin-delete-button" type="submit" aria-label="Eliminar módulo {{ module.nombre }}" title="Eliminar módulo">
-                            <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
-                            <span class="sr-only">Eliminar</span>
-                          </button>
-                        </form>
+                        <button class="admin-delete-button module-action-open-button" type="button" data-module-action-open data-module-action-url="{{ url_for('admin_delete_module', module_id=module.id) }}" data-module-name="{{ module.nombre }}" aria-label="Acciones para el módulo {{ module.nombre }}" title="Vaciar o eliminar módulo">
+                          <img class="admin-controller-action-icon" src="{{ url_for('static', filename='imagenes/icons/eliminar.png') }}" alt="">
+                          <span class="sr-only">Acciones de módulo</span>
+                        </button>
                         {% endif %}
                       </td>
                     </tr>
@@ -159,7 +210,6 @@
       </section>
     </div>
   </main>
-  {% include 'admin/_delete_confirmation_modal.html' %}
   {% include 'admin/_save_feedback.html' %}
 
   <script>
@@ -173,6 +223,18 @@
       const moduleModal = document.getElementById('module-form-modal');
       const moduleFormTitle = document.getElementById('module-form-title');
       const moduleSaveButton = document.querySelector('[data-module-save-button]');
+      const moduleActionModal = document.getElementById('module-action-modal');
+      const moduleActionForm = document.getElementById('module-action-form');
+      const moduleActionPassword = document.getElementById('module-action-password');
+      const moduleActionPasswordField = moduleActionForm?.querySelector('[data-module-action-password-field]');
+      const moduleActionPasswordError = document.getElementById('module-action-password-error');
+      const moduleActionNames = document.querySelectorAll('[data-module-action-name]');
+      const moduleActionValue = moduleActionForm?.querySelector('[data-module-action-value]');
+      const moduleActionSubmit = moduleActionForm?.querySelector('[data-module-action-submit]');
+      const moduleActionPasswordToggle = moduleActionForm?.querySelector('[data-module-action-password-toggle]');
+      const moduleActionTabs = moduleActionModal?.querySelectorAll('[data-module-action-select]') || [];
+      const moduleActionCopies = moduleActionModal?.querySelectorAll('[data-module-action-copy]') || [];
+      let moduleActionTrigger = null;
 
       document.querySelectorAll('.module-edit-button').forEach(function (button) {
         button.addEventListener('click', function () {
@@ -185,6 +247,7 @@
           moduleFormTitle.textContent = 'Editar módulo';
           moduleSaveButton.textContent = 'Guardar cambios';
           moduleModal.hidden = false;
+          document.dispatchEvent(new CustomEvent('admin-edit-form-ready', { detail: { form: moduleForm } }));
           moduleNameInput.focus();
         });
       });
@@ -195,6 +258,7 @@
         moduleIdInput.value = '';
         moduleFormTitle.textContent = 'Crear módulo';
         moduleSaveButton.textContent = 'Guardar módulo';
+        document.dispatchEvent(new CustomEvent('admin-edit-form-reset', { detail: { form: moduleForm } }));
       }
 
       function closeModuleModal() {
@@ -208,23 +272,124 @@
         if (moduleModal) moduleModal.hidden = false;
         moduleNameInput?.focus();
       });
+
+      function closeModuleActionModal() {
+        if (!moduleActionModal) return;
+        moduleActionModal.hidden = true;
+        moduleActionForm?.reset();
+        setModuleActionMode('clear');
+        clearModuleActionPasswordError();
+        resetModuleActionPasswordVisibility();
+        moduleActionTrigger?.focus();
+      }
+
+      function setModuleActionMode(action) {
+        if (!moduleActionModal || !['clear', 'delete'].includes(action)) return;
+        moduleActionModal.dataset.moduleActionMode = action;
+        moduleActionModal.setAttribute('aria-describedby', `module-action-${action}-description`);
+        if (moduleActionValue) moduleActionValue.value = action;
+        if (moduleActionSubmit) {
+          moduleActionSubmit.textContent = action === 'clear' ? 'Vaciar información' : 'Eliminar módulo';
+        }
+        moduleActionTabs.forEach(function (button) {
+          const isSelected = button.dataset.moduleActionSelect === action;
+          button.classList.toggle('is-active', isSelected);
+          button.setAttribute('aria-pressed', String(isSelected));
+        });
+        moduleActionCopies.forEach(function (copy) {
+          copy.hidden = copy.dataset.moduleActionCopy !== action;
+        });
+      }
+
+      function resetModuleActionPasswordVisibility() {
+        if (!moduleActionPassword || !moduleActionPasswordToggle) return;
+        moduleActionPassword.type = 'password';
+        moduleActionPasswordToggle.classList.remove('is-visible');
+        moduleActionPasswordToggle.setAttribute('aria-pressed', 'false');
+        moduleActionPasswordToggle.setAttribute('aria-label', 'Mostrar contraseña');
+      }
+
+      function showModuleActionPasswordError() {
+        if (!moduleActionPassword || !moduleActionPasswordField || !moduleActionPasswordError) return;
+        moduleActionPasswordField.classList.add('is-invalid');
+        moduleActionPasswordField.classList.remove('is-shaking');
+        void moduleActionPasswordField.offsetWidth;
+        moduleActionPasswordField.classList.add('is-shaking');
+        moduleActionPassword.setAttribute('aria-invalid', 'true');
+        moduleActionPasswordError.hidden = false;
+        moduleActionPassword.focus();
+      }
+
+      function clearModuleActionPasswordError() {
+        moduleActionPasswordField?.classList.remove('is-invalid', 'is-shaking');
+        moduleActionPassword?.setAttribute('aria-invalid', 'false');
+        if (moduleActionPasswordError) moduleActionPasswordError.hidden = true;
+      }
+
+      moduleActionPassword?.addEventListener('invalid', function (event) {
+        event.preventDefault();
+        showModuleActionPasswordError();
+      });
+      moduleActionPassword?.addEventListener('input', clearModuleActionPasswordError);
+
+      document.querySelectorAll('[data-module-action-open]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          if (!moduleActionModal || !moduleActionForm || !moduleActionPassword) return;
+          moduleActionTrigger = this;
+          moduleActionForm.action = this.dataset.moduleActionUrl;
+          moduleActionNames.forEach(function (name) {
+            name.textContent = this.dataset.moduleName;
+          }, this);
+          moduleActionPassword.value = '';
+          clearModuleActionPasswordError();
+          setModuleActionMode('clear');
+          resetModuleActionPasswordVisibility();
+          moduleActionModal.hidden = false;
+          moduleActionPassword.focus();
+        });
+      });
+
+      moduleActionTabs.forEach(function (button) {
+        button.addEventListener('click', function () {
+          setModuleActionMode(this.dataset.moduleActionSelect);
+        });
+      });
+
+      moduleActionPasswordToggle?.addEventListener('click', function () {
+        const isVisible = moduleActionPassword.type === 'text';
+        moduleActionPassword.type = isVisible ? 'password' : 'text';
+        this.classList.toggle('is-visible', !isVisible);
+        this.setAttribute('aria-pressed', String(!isVisible));
+        this.setAttribute('aria-label', isVisible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+      });
+
       document.querySelectorAll('[data-module-modal-close], [data-module-modal-cancel]').forEach(function (button) {
         button.addEventListener('click', closeModuleModal);
+      });
+      document.querySelectorAll('[data-module-action-close]').forEach(function (button) {
+        button.addEventListener('click', closeModuleActionModal);
       });
       moduleModal?.addEventListener('click', function (event) {
         if (event.target === moduleModal) closeModuleModal();
       });
+      moduleActionModal?.addEventListener('click', function (event) {
+        if (event.target === moduleActionModal) closeModuleActionModal();
+      });
       document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && moduleModal && !moduleModal.hidden) closeModuleModal();
+        if (event.key !== 'Escape') return;
+        if (moduleActionModal && !moduleActionModal.hidden) {
+          closeModuleActionModal();
+        } else if (moduleModal && !moduleModal.hidden) {
+          closeModuleModal();
+        }
       });
     });
   </script>
   <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_form_toggle.js') }}"></script>
-  <script src="{{ url_for('static', filename='admin_delete_confirmation.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_save_feedback.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_tabs.js') }}"></script>
   <script src="{{ url_for('static', filename='admin_registry_toolbar.js') }}"></script>
-  {% include 'admin/_notification_toast.html' %}
+  {% include 'admin/_action_notification.html' %}
 </body>
 </html>
